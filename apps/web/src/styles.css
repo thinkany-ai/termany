@@ -2235,6 +2235,29 @@ html.tauri #root {
   border: none;
   background: white;
 }
+.csv-preview {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 16px;
+}
+.csv-preview table {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.csv-preview td,
+.csv-preview th {
+  border: 1px solid var(--border);
+  padding: 3px 8px;
+  white-space: pre;
+  text-align: left;
+}
+.csv-preview th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-3);
+  font-weight: 600;
+}
 .file-preview-dirty {
   display: inline-block;
   width: 6px;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CodeEditor } from "./CodeEditor";
 import { DocxPreview, PptxPreview, XlsxPreview } from "./OfficePreview";
 import { apiUrl } from "../api";
@@ -52,6 +52,98 @@ function isMarkdownPath(path: string): boolean {
 
 function isHtmlPath(path: string): boolean {
   return /\.(html|htm)$/i.test(path);
+}
+
+function isSvgPath(path: string): boolean {
+  return /\.svg$/i.test(path);
+}
+
+function isCsvPath(path: string): boolean {
+  return /\.(csv|tsv)$/i.test(path);
+}
+
+/** Text files that have a rendered view to toggle to, alongside their source. */
+function hasRenderedView(path: string): boolean {
+  return isMarkdownPath(path) || isHtmlPath(path) || isSvgPath(path) || isCsvPath(path);
+}
+
+/** Rows beyond this aren't rendered — a big CSV would otherwise stall the DOM. */
+const CSV_ROW_LIMIT = 2000;
+
+function parseDelimited(text: string, delimiter: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch !== '"') field += ch;
+      else if (text[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else quoted = false;
+      continue;
+    }
+    if (ch === '"') {
+      quoted = true;
+    } else if (ch === delimiter) {
+      row.push(field);
+      field = "";
+    } else if (ch === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+    } else if (ch !== "\r") {
+      field += ch;
+    }
+  }
+  if (field || row.length) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
+}
+
+function CsvPreview({ path, content }: { path: string; content: string }) {
+  const rows = useMemo(
+    () => parseDelimited(content, /\.tsv$/i.test(path) ? "\t" : ","),
+    [path, content],
+  );
+  if (!rows.length) return <div className="file-tree-message">Empty file.</div>;
+  const [head, ...body] = rows;
+  const shown = body.slice(0, CSV_ROW_LIMIT);
+  // Ragged files are common (trailing commas, extra fields); size the table to
+  // the widest row shown so no cell is silently dropped.
+  const cols = shown.reduce((n, r) => Math.max(n, r.length), head.length);
+  return (
+    <div className="csv-preview">
+      <table>
+        <thead>
+          <tr>
+            {Array.from({ length: cols }, (_, i) => (
+              <th key={i}>{head[i] ?? ""}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {shown.map((r, i) => (
+            <tr key={i}>
+              {Array.from({ length: cols }, (_, c) => (
+                <td key={c}>{r[c] ?? ""}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {body.length > shown.length && (
+        <div className="file-tree-message">
+          Showing the first {CSV_ROW_LIMIT} rows of {body.length}. Switch to the source view for the rest.
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** Directory part of a path — the base a markdown doc's relative links and
@@ -347,7 +439,7 @@ function FilePreview({
   const [dirty, setDirty] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
-  const [markdownSource, setMarkdownSource] = useState(false);
+  const [showSource, setShowSource] = useState(false);
 
   // Reveal (not open) — opening a file with the OS default app needs a Tauri
   // permission (opener:allow-open-path) this app doesn't grant, and revealing
@@ -382,13 +474,13 @@ function FilePreview({
         {dirty && <span className="file-preview-dirty" title="Unsaved changes" />}
         {basename(selected.path)}
       </span>
-      {selected.status === "text" && (isMarkdownPath(selected.path) || isHtmlPath(selected.path)) && (
+      {selected.status === "text" && !selected.truncated && hasRenderedView(selected.path) && (
         <button
           className="pane-btn"
-          title={markdownSource ? "Show rendered preview" : "Show source"}
-          onClick={() => setMarkdownSource((v) => !v)}
+          title={showSource ? "Show rendered preview" : "Show source"}
+          onClick={() => setShowSource((v) => !v)}
         >
-          {markdownSource ? <PreviewIcon /> : <SourceIcon />}
+          {showSource ? <PreviewIcon /> : <SourceIcon />}
         </button>
       )}
       <button className="pane-btn" title="Reveal in Finder" onClick={() => revealInFinder(selected.path)}>
@@ -448,6 +540,21 @@ function FilePreview({
     );
   }
 
+  // Which rendered (non-source) view this file gets, if any. A truncated
+  // preview is only a prefix of the file, so it always falls back to source.
+  const rendered =
+    showSource || selected.truncated
+      ? null
+      : isMarkdownPath(selected.path)
+        ? "markdown"
+        : isHtmlPath(selected.path)
+          ? "html"
+          : isSvgPath(selected.path)
+            ? "svg"
+            : isCsvPath(selected.path)
+              ? "csv"
+              : null;
+
   return (
     <div className="file-preview-panel">
       {header}
@@ -459,15 +566,21 @@ function FilePreview({
       )}
       {saveError && <div className="file-tree-message file-preview-error">Save failed: {saveError}</div>}
       {openError && <div className="file-tree-message file-preview-error">{openError}</div>}
-      {isMarkdownPath(selected.path) && !markdownSource && !selected.truncated ? (
+      {rendered === "markdown" ? (
         <MarkdownPreview content={selected.content ?? ""} baseDir={dirname(selected.path)} />
-      ) : isHtmlPath(selected.path) && !markdownSource && !selected.truncated ? (
+      ) : rendered === "html" ? (
         <iframe
           className="html-preview"
           title={basename(selected.path)}
           sandbox=""
           srcDoc={selected.content ?? ""}
         />
+      ) : rendered === "svg" ? (
+        <div className="file-media-preview image">
+          <img src={`data:image/svg+xml;utf8,${encodeURIComponent(selected.content ?? "")}`} alt={basename(selected.path)} />
+        </div>
+      ) : rendered === "csv" ? (
+        <CsvPreview path={selected.path} content={selected.content ?? ""} />
       ) : (
         <CodeEditor
           path={selected.path}
