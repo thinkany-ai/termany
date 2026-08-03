@@ -1,0 +1,50 @@
+import type { Theme } from "./types";
+
+// Original Termany theme. Aurora colors, flat surfaces: near-black navy
+// panes floating as cards over a violet-tinged chrome, electric teal accent,
+// neon ANSI. All solid color — the boldness is in the blocking, not art.
+export const aurora: Theme = {
+  id: "aurora",
+  name: "Aurora",
+  appearance: "dark",
+  colors: {
+    bg: "#0d1022",
+    bg2: "#171b3a",
+    bg3: "#232952",
+    border: "#2c3263",
+    fg: "#dbe2ff",
+    fgDim: "#7d86b8",
+    accent: "#37e6c3",
+    accentSoft: "rgba(55, 230, 195, 0.16)",
+  },
+  radius: { sm: "8px", md: "12px", lg: "16px" },
+  sidebar: { bg: "#12102b" },
+  chrome: {
+    paneGap: "10px",
+    paneRadius: "16px",
+    paneBorder: "rgba(150, 170, 255, 0.22)",
+    paneShadow: "0 6px 20px rgba(4, 8, 30, 0.5)",
+  },
+  term: {
+    background: "#0d1022",
+    foreground: "#dbe2ff",
+    cursor: "#37e6c3",
+    selectionBackground: "#2c3263",
+    black: "#232952",
+    red: "#ff6b8f",
+    green: "#3ddc97",
+    yellow: "#ffd166",
+    blue: "#5aa2ff",
+    magenta: "#b78cff",
+    cyan: "#45e3dd",
+    white: "#aeb6dd",
+    brightBlack: "#3a4373",
+    brightRed: "#ff8fab",
+    brightGreen: "#6ff0b4",
+    brightYellow: "#ffe08a",
+    brightBlue: "#82bbff",
+    brightMagenta: "#cfaaff",
+    brightCyan: "#74f0ea",
+    brightWhite: "#eef1ff",
+  },
+};

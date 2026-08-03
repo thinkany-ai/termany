@@ -1,9 +1,16 @@
 import { applyTermTheme } from "../terminal/manager";
+import { aurora } from "./aurora";
 import { charcoal } from "./charcoal";
 import { codex } from "./codex";
 import { daylight } from "./daylight";
 import { defaultDark } from "./default-dark";
+import { gruvbox } from "./gruvbox";
+import { gruvboxLight } from "./gruvbox-light";
+import { horizon } from "./horizon";
 import { meadow } from "./meadow";
+import { phosphor } from "./phosphor";
+import { rosePine } from "./rose-pine";
+import { rosePineDawn } from "./rose-pine-dawn";
 import { solarizedDark } from "./solarized-dark";
 import type { Theme } from "./types";
 
@@ -21,6 +28,13 @@ export const THEMES: Theme[] = [
   daylight,
   meadow,
   charcoal,
+  gruvbox,
+  gruvboxLight,
+  rosePine,
+  rosePineDawn,
+  aurora,
+  horizon,
+  phosphor,
   codex,
 ];
 
