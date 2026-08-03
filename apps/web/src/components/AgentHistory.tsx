@@ -3,7 +3,7 @@ import { useAgentConfigs } from "../agents";
 import { apiPath } from "../api";
 import { useI18n } from "../i18n";
 import { useImeGuard } from "../imeGuard";
-import { agentSessionPanes, useStore } from "../state/store";
+import { agentSessionPanes, focusedCwdSession, useStore } from "../state/store";
 import { queueCommand } from "../terminal/manager";
 import { AgentIcon, HistoryIcon } from "./icons";
 
@@ -16,22 +16,56 @@ interface AgentSession {
   mtimeMs: number;
   totalTokens: number | null;
   contextTokens: number | null;
+  gitBranch: string | null;
+  /** The session's cwd no longer exists (a deleted worktree, usually). */
+  cwdMissing?: true;
 }
 
-/** How each supported agent resumes a session id from inside its project dir. */
-const RESUME_COMMANDS: Record<string, (sessionId: string) => string> = {
-  claude: (id) => `claude --resume ${id}`,
-  codex: (id) => `codex resume ${id}`,
-};
+/**
+ * What the list is scoped to when it opens: the repo containing the focused
+ * pane (every worktree of it), or the pane's plain directory when it isn't in
+ * a repo. Captured once at open — the modal shouldn't reshuffle mid-use.
+ */
+interface ScopeInfo {
+  kind: "repo" | "dir";
+  /** Directories whose sessions are in scope (repo: every worktree root). */
+  roots: string[];
+  /** Worktree holding the focused pane — its group lists first. */
+  currentRoot: string;
+  /** The repo's own checkout: where a deleted-worktree session resumes. */
+  mainRoot: string;
+  worktrees: { path: string; name: string; branch: string; main: boolean }[];
+}
+
+interface Group {
+  key: string;
+  /** Branch name, or the deleted-worktrees label. */
+  label: string;
+  path: string | null;
+  sessions: AgentSession[];
+}
 
 /**
- * A transcript written to this recently is treated as a live conversation —
+ * How each supported agent resumes a session id from inside its project dir.
+ * Built from the user's configured binary and launch args (Settings → Agents),
+ * so a custom path or flags like claude's danger mode apply to resumed
+ * sessions exactly as they do to fresh ones started from the side rail.
+ *
+ * `fork`: a transcript written to recently is treated as a live conversation —
  * probably still running in some terminal (maybe outside termany, where we
  * can't jump to it). Resuming a live claude session forks it instead, because
  * two claude processes appending to one transcript interleave its history.
  */
+const RESUME_COMMANDS: Record<
+  string,
+  (cfg: { command: string; args: string }, sessionId: string, fork: boolean) => string
+> = {
+  claude: (cfg, id, fork) =>
+    [cfg.command, "--resume", id, fork ? "--fork-session" : "", cfg.args].filter(Boolean).join(" "),
+  codex: (cfg, id) => [cfg.command, "resume", id, cfg.args].filter(Boolean).join(" "),
+};
+
 const ACTIVE_WINDOW_MS = 2 * 60_000;
-const FORK_FLAGS: Record<string, string> = { claude: "--fork-session" };
 
 /** POSIX single-quote so an arbitrary project path survives the shell. */
 function shellQuote(s: string): string {
@@ -41,6 +75,11 @@ function shellQuote(s: string): string {
 /** Collapse the home-dir prefix so project paths read short in the list. */
 function tildify(p: string): string {
   return p.replace(/^\/(?:Users|home)\/[^/]+/, "~");
+}
+
+/** Whether `cwd` sits at or below `root` (prefix on path segments). */
+function underRoot(cwd: string, root: string): boolean {
+  return cwd === root || cwd.startsWith(root + "/") || cwd.startsWith(root + "\\");
 }
 
 function relativeTime(mtimeMs: number, t: Translate): string {
@@ -62,12 +101,17 @@ function formatTokens(n: number): string {
 
 /**
  * Agent session-history browser: one tab per enabled agent, each listing that
- * CLI's past conversations newest-first with folder / recency / token totals /
- * context size, read server-side from the agent's own on-disk transcript
- * format (claude and codex today — other agents show a not-supported note).
+ * CLI's past conversations newest-first, read server-side from the agent's own
+ * on-disk transcript format (claude and codex today — other agents show a
+ * not-supported note).
+ *
+ * The list opens scoped to wherever the focused pane is: the containing repo
+ * (grouped by worktree, current one first, deleted worktrees last) or, outside
+ * a repo, the pane's directory. Tab flips between that scope and everything.
  * Selecting a session opens a fresh terminal pane, cd's to the session's own
- * project directory (resume only works from there), and runs the agent's
- * resume command. Same modal skeleton and styles as SearchPalette.
+ * project directory (resume only works from there — a deleted worktree falls
+ * back to the repo root), and runs the agent's resume command. Same modal
+ * skeleton and styles as SearchPalette.
  */
 export function AgentHistory({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
@@ -78,26 +122,76 @@ export function AgentHistory({ onClose }: { onClose: () => void }) {
   const workspaces = useStore((s) => s.workspaces);
   const agents = useAgentConfigs().filter((a) => a.enabled);
   const [agentId, setAgentId] = useState(agents[0]?.id ?? "claude");
-  // agent id → fetched sessions; null = unsupported, undefined = not loaded.
-  const [byAgent, setByAgent] = useState<Record<string, AgentSession[] | null>>({});
+  // list key ("agent" or "agent|scoped") → sessions; null = unsupported.
+  const [byKey, setByKey] = useState<Record<string, AgentSession[] | null>>({});
   const [error, setError] = useState(false);
   const [stale, setStale] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
+  // undefined = resolving, null = no scope to offer (not in a repo or folder
+  // worth scoping to) — the toggle hides and the list shows everything.
+  const [scopeInfo, setScopeInfo] = useState<ScopeInfo | null | undefined>(undefined);
+  const [scope, setScope] = useState<"scoped" | "all">("scoped");
+  // The focused pane's session at the moment the modal opened, frozen so a
+  // focus change underneath doesn't reshuffle the list mid-use.
+  const [gitSession] = useState(() => focusedCwdSession(useStore.getState()));
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const sessions = byAgent[agentId];
   const agentName = agents.find((a) => a.id === agentId)?.name ?? agentId;
 
+  // Resolve the scope once: repo worktrees first, plain directory as fallback.
   useEffect(() => {
-    if (agentId in byAgent) return;
+    let cancelled = false;
+    (async () => {
+      const get = (url: string) =>
+        fetch(apiPath(url)).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      const session = encodeURIComponent(gitSession ?? "");
+      const ov = await get(`/api/git/worktrees?session=${session}`);
+      if (cancelled) return;
+      if (ov?.repo) {
+        const worktrees: ScopeInfo["worktrees"] = ov.worktrees?.length
+          ? ov.worktrees
+          : [{ path: ov.root, name: ov.root.split("/").pop() ?? ov.root, branch: ov.branch, main: true }];
+        setScopeInfo({
+          kind: "repo",
+          roots: worktrees.map((w) => w.path),
+          currentRoot: ov.root,
+          mainRoot: worktrees.find((w) => w.main)?.path ?? ov.root,
+          worktrees,
+        });
+        return;
+      }
+      const dir = await get(`/api/agent/acp/cwd?cwdFrom=${session}`);
+      if (cancelled) return;
+      // A pane sitting in the home dir has no meaningful "here" to scope to.
+      if (dir?.cwd && dir.cwd !== dir.home) {
+        setScopeInfo({ kind: "dir", roots: [dir.cwd], currentRoot: dir.cwd, mainRoot: dir.cwd, worktrees: [] });
+      } else {
+        setScopeInfo(null);
+        setScope("all");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [gitSession]);
+
+  const listKey = scope === "scoped" && scopeInfo ? `${agentId}|scoped` : agentId;
+  const sessions = byKey[listKey];
+
+  useEffect(() => {
+    // The scoped fetch needs the roots; wait for scope resolution first.
+    if (scope === "scoped" && scopeInfo === undefined) return;
+    if (listKey in byKey) return;
     let cancelled = false;
     setError(false);
-    fetch(apiPath(`/api/agent-sessions?agent=${encodeURIComponent(agentId)}`))
+    const params = new URLSearchParams({ agent: agentId });
+    if (scope === "scoped" && scopeInfo) for (const r of scopeInfo.roots) params.append("root", r);
+    fetch(apiPath(`/api/agent-sessions?${params}`))
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((data) => {
-        if (!cancelled) setByAgent((m) => ({ ...m, [agentId]: data.sessions ?? null }));
+        if (!cancelled) setByKey((m) => ({ ...m, [listKey]: data.sessions ?? null }));
       })
       .catch((e: Error) => {
         if (cancelled) return;
@@ -108,18 +202,45 @@ export function AgentHistory({ onClose }: { onClose: () => void }) {
     return () => {
       cancelled = true;
     };
-  }, [agentId, byAgent]);
+  }, [agentId, listKey, byKey, scope, scopeInfo]);
 
-  // Server order is already newest-first; filtering preserves it.
-  const rows = useMemo(() => {
-    if (!sessions) return [];
+  // Server order is already newest-first; filtering preserves it. In repo
+  // scope the flat order regroups by worktree — current one first, the rest
+  // as git lists them, sessions of since-deleted worktrees last.
+  const { rows, groups } = useMemo((): { rows: AgentSession[]; groups: Group[] | null } => {
+    if (!sessions) return { rows: [], groups: null };
     const q = query.trim().toLowerCase();
-    return q
+    const filtered = q
       ? sessions.filter(
           (s) => s.preview.toLowerCase().includes(q) || (s.cwd ?? "").toLowerCase().includes(q)
         )
       : sessions;
-  }, [sessions, query]);
+    if (scope !== "scoped" || scopeInfo?.kind !== "repo") return { rows: filtered, groups: null };
+
+    const byLen = [...scopeInfo.worktrees].sort((a, b) => b.path.length - a.path.length);
+    const buckets = new Map<string, AgentSession[]>();
+    const gone: AgentSession[] = [];
+    for (const s of filtered) {
+      const wt = s.cwd && !s.cwdMissing ? byLen.find((w) => underRoot(s.cwd!, w.path)) : undefined;
+      if (!wt) {
+        gone.push(s);
+        continue;
+      }
+      let list = buckets.get(wt.path);
+      if (!list) buckets.set(wt.path, (list = []));
+      list.push(s);
+    }
+    const ordered = [...scopeInfo.worktrees].sort(
+      (a, b) => Number(b.path === scopeInfo.currentRoot) - Number(a.path === scopeInfo.currentRoot)
+    );
+    const groups: Group[] = [];
+    for (const w of ordered) {
+      const list = buckets.get(w.path);
+      if (list?.length) groups.push({ key: w.path, label: w.branch, path: tildify(w.path), sessions: list });
+    }
+    if (gone.length) groups.push({ key: "|gone", label: t("history.group.deleted"), path: null, sessions: gone });
+    return { rows: groups.flatMap((g) => g.sessions), groups };
+  }, [sessions, query, scope, scopeInfo, t]);
 
   useEffect(() => setSelected(0), [rows]);
 
@@ -141,13 +262,21 @@ export function AgentHistory({ onClose }: { onClose: () => void }) {
       return;
     }
     const resumeCommand = RESUME_COMMANDS[agentId];
-    if (!resumeCommand) return;
-    const fork = FORK_FLAGS[agentId];
+    const cfg = agents.find((a) => a.id === agentId);
+    if (!resumeCommand || !cfg) return;
     const isLive = Date.now() - s.mtimeMs < ACTIVE_WINDOW_MS;
-    const run = resumeCommand(s.sessionId) + (fork && isLive ? ` ${fork}` : "");
+    const run = resumeCommand(
+      { command: cfg.command.trim() || agentId, args: cfg.args.trim() },
+      s.sessionId,
+      isLive
+    );
+    // A deleted worktree can't be cd'd into; in scope the repo root is the
+    // next-best home for that conversation. Outside a scope we can't tell
+    // which repo it belonged to, so just resume from wherever the shell lands.
+    const cwd = s.cwdMissing ? (scope === "scoped" ? scopeInfo?.mainRoot ?? null : null) : s.cwd;
     const paneId = addPane("terminal", agentId);
     if (paneId) {
-      queueCommand(paneId, s.cwd ? `cd ${shellQuote(s.cwd)} && ${run}` : run);
+      queueCommand(paneId, cwd ? `cd ${shellQuote(cwd)} && ${run}` : run);
       setPaneAgentSession(paneId, { agent: agentId, sessionId: s.sessionId });
     }
     onClose();
@@ -158,6 +287,58 @@ export function AgentHistory({ onClose }: { onClose: () => void }) {
     setQuery("");
     inputRef.current?.focus();
   };
+
+  const switchScope = (next: "scoped" | "all") => {
+    setScope(next);
+    inputRef.current?.focus();
+  };
+
+  const renderRow = (s: AgentSession, idx: number, inWorktreeGroup: boolean) => {
+    const isOpen = openPanes.has(`${agentId}|${s.sessionId}`);
+    const isLive = !isOpen && Date.now() - s.mtimeMs < ACTIVE_WINDOW_MS;
+    const meta = [
+      relativeTime(s.mtimeMs, t),
+      s.totalTokens !== null ? t("history.meta.tokens", { n: formatTokens(s.totalTokens) }) : null,
+      s.contextTokens !== null ? t("history.meta.ctx", { n: formatTokens(s.contextTokens) }) : null,
+      // The group header already names the branch; repeat it only elsewhere.
+      !inWorktreeGroup && s.gitBranch ? s.gitBranch : null,
+      s.cwd && !inWorktreeGroup ? tildify(s.cwd) : null,
+    ].filter(Boolean);
+    return (
+      <button
+        key={s.sessionId}
+        data-idx={idx}
+        className={`search-row pane ${idx === selected ? "active" : ""}`}
+        onMouseEnter={() => setSelected(idx)}
+        onClick={() => resume(s)}
+      >
+        <span className="search-row-main">
+          <span className="search-row-label">{s.preview || t("history.emptySession")}</span>
+          <span className={`search-row-breadcrumb ${s.cwdMissing ? "history-gone" : ""}`}>
+            {meta.join(" · ")}
+          </span>
+        </span>
+        {isOpen && (
+          <span className="history-badge open" title={t("history.badge.openTitle")}>
+            {t("history.badge.open")}
+          </span>
+        )}
+        {isLive && (
+          <span className="history-badge live" title={t("history.badge.activeTitle")}>
+            {t("history.badge.active")}
+          </span>
+        )}
+        {s.cwdMissing && (
+          <span className="history-badge stale" title={t("history.badge.staleTitle")}>
+            {t("history.badge.stale")}
+          </span>
+        )}
+      </button>
+    );
+  };
+
+  const scopedLabel = t(scopeInfo?.kind === "dir" ? "history.scope.dir" : "history.scope.repo");
+  const emptyScoped = scope === "scoped" && scopeInfo;
 
   return (
     <div className="search-backdrop" onClick={onClose}>
@@ -182,6 +363,9 @@ export function AgentHistory({ onClose }: { onClose: () => void }) {
               if (ime.handled(e)) return;
               if (e.key === "Escape") {
                 onClose();
+              } else if (e.key === "Tab" && scopeInfo !== null) {
+                e.preventDefault();
+                setScope((v) => (v === "all" ? "scoped" : "all"));
               } else if (e.key === "ArrowDown") {
                 e.preventDefault();
                 setSelected((i) => Math.min(i + 1, rows.length - 1));
@@ -195,6 +379,19 @@ export function AgentHistory({ onClose }: { onClose: () => void }) {
               }
             }}
           />
+          {scopeInfo !== null && (
+            <div className="history-scope" title={t("history.scope.hint")}>
+              <button
+                className={scope === "scoped" ? "active" : ""}
+                onClick={() => switchScope("scoped")}
+              >
+                {scopedLabel}
+              </button>
+              <button className={scope === "all" ? "active" : ""} onClick={() => switchScope("all")}>
+                {t("history.scope.all")}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="history-tabs">
@@ -226,45 +423,31 @@ export function AgentHistory({ onClose }: { onClose: () => void }) {
           )}
           {!error && Array.isArray(sessions) && rows.length === 0 && (
             <div className="search-empty">
-              {query.trim()
-                ? t("history.noMatch", { query: query.trim() })
-                : t("history.empty", { agent: agentName })}
+              <div>
+                {query.trim()
+                  ? t("history.noMatch", { query: query.trim() })
+                  : t(emptyScoped ? "history.emptyScoped" : "history.empty", { agent: agentName })}
+              </div>
+              {emptyScoped && <div className="history-scope-hint">{t("history.tabHint")}</div>}
             </div>
           )}
-          {rows.map((s, idx) => {
-            const isOpen = openPanes.has(`${agentId}|${s.sessionId}`);
-            const isLive = !isOpen && Date.now() - s.mtimeMs < ACTIVE_WINDOW_MS;
-            const meta = [
-              relativeTime(s.mtimeMs, t),
-              s.totalTokens !== null ? t("history.meta.tokens", { n: formatTokens(s.totalTokens) }) : null,
-              s.contextTokens !== null ? t("history.meta.ctx", { n: formatTokens(s.contextTokens) }) : null,
-              s.cwd ? tildify(s.cwd) : null,
-            ].filter(Boolean);
-            return (
-              <button
-                key={s.sessionId}
-                data-idx={idx}
-                className={`search-row pane ${idx === selected ? "active" : ""}`}
-                onMouseEnter={() => setSelected(idx)}
-                onClick={() => resume(s)}
-              >
-                <span className="search-row-main">
-                  <span className="search-row-label">{s.preview || t("history.emptySession")}</span>
-                  <span className="search-row-breadcrumb">{meta.join(" · ")}</span>
-                </span>
-                {isOpen && (
-                  <span className="history-badge open" title={t("history.badge.openTitle")}>
-                    {t("history.badge.open")}
-                  </span>
-                )}
-                {isLive && (
-                  <span className="history-badge live" title={t("history.badge.activeTitle")}>
-                    {t("history.badge.active")}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+          {groups
+            ? (() => {
+                let idx = 0;
+                return groups.map((g) => (
+                  <div key={g.key}>
+                    <div className="history-group">
+                      <span className="history-group-branch">{g.label}</span>
+                      {g.path && <span className="history-group-path">{g.path}</span>}
+                      <span className="history-group-count">
+                        {t("history.group.count", { n: g.sessions.length })}
+                      </span>
+                    </div>
+                    {g.sessions.map((s) => renderRow(s, idx++, g.key !== "|gone"))}
+                  </div>
+                ));
+              })()
+            : rows.map((s, idx) => renderRow(s, idx, false))}
         </div>
       </div>
     </div>

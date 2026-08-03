@@ -365,6 +365,21 @@ async function resolveScope(cwd: string, worktree?: string) {
   return { root: selected?.path ?? cwdRoot, worktrees, selected };
 }
 
+/**
+ * Just enough repo shape for scoping UIs (the session-history browser): root,
+ * branch, and the worktree list. gitOverview computes diff rows plus a
+ * changed-files badge per worktree — seconds of git on a repo with many
+ * worktrees — which a scope picker doesn't need.
+ */
+export async function worktreeOverview(cwd: string): Promise<
+  { repo: false } | { repo: true; root: string; branch: string; worktrees: Omit<GitWorktree, "files">[] }
+> {
+  const root = await repoRoot(cwd);
+  if (!root) return { repo: false };
+  const [branch, worktrees] = await Promise.all([currentBranch(root), listWorktrees(root)]);
+  return { repo: true, root, branch, worktrees };
+}
+
 export async function gitOverview(cwd: string, scope: GitScope = {}): Promise<GitOverview> {
   const resolved = await resolveScope(cwd, scope.worktree);
   if (!resolved) return { repo: false };

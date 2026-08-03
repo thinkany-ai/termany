@@ -43,7 +43,7 @@ import {
   setScrollBatch,
   setSessionCwd,
 } from "./db.js";
-import { gitDiffs, gitOverview } from "./git.js";
+import { gitDiffs, gitOverview, worktreeOverview } from "./git.js";
 import { pickFolder } from "./folderPicker.js";
 import { testProvider } from "./providerTest.js";
 import { ptyEnvironment } from "./ptyEnvironment.js";
@@ -1241,10 +1241,13 @@ const http = createServer((req, res) => {
   // Per-agent CLI conversation history for the SideRail history browser.
   // Readers live in agentSessions.ts (claude, codex); unknown agents return
   // sessions: null so the frontend can show "not supported" instead of empty.
+  // Repeated `root` params scope the list to sessions under those directories
+  // (the browser passes the current repo's worktree roots).
   if (req.method === "GET" && reqUrl.pathname === "/api/agent-sessions") {
     (async () => {
       const agent = reqUrl.searchParams.get("agent") ?? "claude";
-      json(200, { sessions: await listAgentSessions(agent) });
+      const roots = reqUrl.searchParams.getAll("root").filter(Boolean);
+      json(200, { sessions: await listAgentSessions(agent, roots) });
     })().catch(fail);
     return;
   }
@@ -1302,6 +1305,16 @@ const http = createServer((req, res) => {
         }
       })
       .catch(fail);
+    return;
+  }
+
+  // Cheap repo shape (root + branch + worktree list) for scoping UIs — the
+  // full overview below computes per-worktree diff badges, far too slow for this.
+  if (req.method === "GET" && reqUrl.pathname === "/api/git/worktrees") {
+    (async () => {
+      const cwd = await sessionCwd(reqUrl.searchParams.get("session") ?? "");
+      json(200, await worktreeOverview(cwd));
+    })().catch(fail);
     return;
   }
 

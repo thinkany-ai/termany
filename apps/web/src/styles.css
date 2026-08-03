@@ -689,6 +689,70 @@ html.tauri #root {
   background: rgba(74, 222, 128, 0.14);
   color: #4ade80;
 }
+/* The session's folder is gone (deleted worktree) — resume falls back. */
+.history-badge.stale {
+  background: rgba(251, 191, 36, 0.14);
+  color: #fbbf24;
+}
+.search-row-breadcrumb.history-gone {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+/* Scope toggle in the input row: this repo (or folder) vs everything. */
+.history-scope {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+.history-scope button {
+  padding: 2px 10px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 11.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.history-scope button.active {
+  background: var(--accent-soft);
+  color: var(--fg);
+}
+
+/* Worktree group header in repo scope: branch · path · count. */
+.history-group {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 10px 4px;
+  font-size: 11px;
+}
+.history-group-branch {
+  color: var(--fg);
+  font-weight: 600;
+}
+.history-group-path,
+.history-group-count {
+  color: var(--fg-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.history-group-count {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+/* "Press Tab to search all sessions" line under the scoped empty state. */
+.history-scope-hint {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
 
 .search-results {
   flex: 1;

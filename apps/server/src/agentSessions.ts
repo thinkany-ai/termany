@@ -27,6 +27,11 @@ export interface AgentSession {
   totalTokens: number | null;
   /** Size of the live context as of the last turn (null if unknown). */
   contextTokens: number | null;
+  /** Git branch the session ran on, as recorded in its transcript. */
+  gitBranch: string | null;
+  /** Set (per request, never cached) when `cwd` no longer exists on disk —
+   * typically a worktree that has since been deleted. */
+  cwdMissing?: true;
 }
 
 /** One day's token usage for one model within a single session file. */
@@ -97,6 +102,7 @@ function cleanPreview(s: string): string {
 
 async function parseClaudeFile(abs: string, st: fs.Stats): Promise<ParsedFile> {
   let cwd: string | null = null;
+  let gitBranch: string | null = null;
   let summary = "";
   let firstUserText = "";
   let totalTokens = 0;
@@ -149,6 +155,14 @@ async function parseClaudeFile(abs: string, st: fs.Stats): Promise<ParsedFile> {
       continue; // a line still being written
     }
     if (!cwd && typeof entry?.cwd === "string") cwd = entry.cwd;
+    if (!gitBranch && typeof entry?.gitBranch === "string" && entry.gitBranch) gitBranch = entry.gitBranch;
+    // A worktree session's early lines still carry the pre-enter branch; the
+    // worktree-state record knows the branch the session actually ran on.
+    const ws = entry?.worktreeSession;
+    if (typeof ws?.worktreeBranch === "string" && (!cwd || cwd === ws.worktreePath)) {
+      gitBranch = ws.worktreeBranch;
+      if (!cwd && typeof ws.worktreePath === "string") cwd = ws.worktreePath;
+    }
     if (!summary && entry?.type === "summary" && typeof entry.summary === "string") {
       summary = entry.summary;
     }
@@ -174,6 +188,7 @@ async function parseClaudeFile(abs: string, st: fs.Stats): Promise<ParsedFile> {
       mtimeMs: st.mtimeMs,
       totalTokens: sawUsage ? totalTokens : null,
       contextTokens,
+      gitBranch,
     },
     usage: [...buckets.values()],
   };
@@ -209,6 +224,7 @@ async function listClaudeFiles(): Promise<string[]> {
 async function parseCodexFile(abs: string, st: fs.Stats): Promise<ParsedFile | null> {
   let sessionId: string | null = null;
   let cwd: string | null = null;
+  let gitBranch: string | null = null;
   let firstUserText = "";
   let lineNo = 0;
   let model = "unknown";
@@ -255,6 +271,7 @@ async function parseCodexFile(abs: string, st: fs.Stats): Promise<ParsedFile | n
     if (entry?.type === "session_meta" && p) {
       if (typeof p.id === "string") sessionId = p.id;
       if (typeof p.cwd === "string") cwd = p.cwd;
+      if (typeof p.git?.branch === "string") gitBranch = p.git.branch;
     }
     if (!firstUserText) {
       // User text appears both as response_item message rows and user_message
@@ -281,6 +298,7 @@ async function parseCodexFile(abs: string, st: fs.Stats): Promise<ParsedFile | n
       mtimeMs: st.mtimeMs,
       totalTokens,
       contextTokens,
+      gitBranch,
     },
     usage: [...buckets.values()],
   };
@@ -338,12 +356,52 @@ async function scanAgent(agent: string): Promise<ParsedFile[]> {
   return parsed;
 }
 
-/** Newest-first sessions for one agent, or null when the agent has no reader. */
-export async function listAgentSessions(agent: string): Promise<AgentSession[] | null> {
+/** Whether `cwd` sits at or below `root` (plain prefix on path segments). */
+function underRoot(cwd: string, root: string): boolean {
+  return cwd === root || cwd.startsWith(root.endsWith(path.sep) ? root : root + path.sep);
+}
+
+/**
+ * Newest-first sessions for one agent, or null when the agent has no reader.
+ * `roots` scopes the list to sessions whose cwd lives under any of the given
+ * directories (the history browser passes every worktree root of the current
+ * repo). Scoping happens BEFORE the cap so a busy machine's global top-200
+ * can't crowd out an older session of the repo being asked about.
+ *
+ * Each returned session is also checked against the filesystem: a cwd that no
+ * longer exists (a deleted worktree, usually) gets cwdMissing so the client
+ * can warn and resume somewhere sensible. Checked per request — the parse
+ * cache outlives worktrees.
+ */
+export async function listAgentSessions(agent: string, roots?: string[]): Promise<AgentSession[] | null> {
   if (!PROVIDERS[agent]) return null;
-  const sessions = (await scanAgent(agent)).map((f) => f.session);
+  let sessions = (await scanAgent(agent)).map((f) => f.session);
+  if (roots?.length) {
+    sessions = sessions.filter((s) => s.cwd && roots.some((r) => underRoot(s.cwd!, r)));
+  }
   sessions.sort((a, b) => b.mtimeMs - a.mtimeMs);
-  return sessions.slice(0, SESSION_CAP);
+  // A session that entered a worktree mid-conversation has transcript files
+  // under two project slugs with the same uuid — keep the freshest copy only.
+  const ids = new Set<string>();
+  sessions = sessions.filter((s) => !ids.has(s.sessionId) && (ids.add(s.sessionId), true));
+  sessions = sessions.slice(0, SESSION_CAP);
+
+  const exists = new Map<string, boolean>();
+  return Promise.all(
+    sessions.map(async (s) => {
+      if (!s.cwd) return s;
+      let ok = exists.get(s.cwd);
+      if (ok === undefined) {
+        ok = await fs.promises
+          .stat(s.cwd)
+          .then((st) => st.isDirectory())
+          .catch(() => false);
+        exists.set(s.cwd, ok);
+      }
+      // Copy rather than mutate: the session object lives in the parse cache.
+      return ok ? s : { ...s, cwdMissing: true as const };
+    })
+  );
 }
 
 /**
