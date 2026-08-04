@@ -21,7 +21,9 @@ test("matchLanguage falls back from a region to its base language", () => {
 });
 
 test("matchLanguage reports unshipped languages rather than guessing", () => {
-  assert.equal(matchLanguage("sv"), null);
+  // Pick tags we deliberately do not ship — update these if either is added.
+  assert.equal(matchLanguage("fi"), null);
+  assert.equal(matchLanguage("el"), null);
   assert.equal(matchLanguage(""), null);
 });
 

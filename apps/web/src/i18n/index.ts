@@ -12,6 +12,15 @@ import ptBR from "./locales/pt-BR";
 import ru from "./locales/ru";
 import it from "./locales/it";
 import hi from "./locales/hi";
+import tr from "./locales/tr";
+import pl from "./locales/pl";
+import uk from "./locales/uk";
+import cs from "./locales/cs";
+import nl from "./locales/nl";
+import sv from "./locales/sv";
+import vi from "./locales/vi";
+import id from "./locales/id";
+import th from "./locales/th";
 
 const STORAGE_KEY = "termany.language";
 const LANGUAGE_CHANGED_EVENT = "termany:language-changed";
@@ -28,7 +37,16 @@ export type Language =
   | "pt-BR"
   | "ru"
   | "it"
-  | "hi";
+  | "hi"
+  | "tr"
+  | "pl"
+  | "uk"
+  | "cs"
+  | "nl"
+  | "sv"
+  | "vi"
+  | "id"
+  | "th";
 
 /**
  * Every shipped language, in the order the Settings picker shows them. Labels
@@ -48,6 +66,15 @@ export const LANGUAGES: ReadonlyArray<{ value: Language; label: string }> = [
   { value: "ru", label: "Русский" },
   { value: "it", label: "Italiano" },
   { value: "hi", label: "हिन्दी" },
+  { value: "tr", label: "Türkçe" },
+  { value: "pl", label: "Polski" },
+  { value: "uk", label: "Українська" },
+  { value: "cs", label: "Čeština" },
+  { value: "nl", label: "Nederlands" },
+  { value: "sv", label: "Svenska" },
+  { value: "vi", label: "Tiếng Việt" },
+  { value: "id", label: "Bahasa Indonesia" },
+  { value: "th", label: "ไทย" },
 ];
 
 /** English is the source locale; the rest may lag behind it and fall back. */
@@ -67,6 +94,15 @@ export const dictionaries: Record<Language, Dictionary> = {
   ru,
   it,
   hi,
+  tr,
+  pl,
+  uk,
+  cs,
+  nl,
+  sv,
+  vi,
+  id,
+  th,
 };
 
 const SUPPORTED = new Set<string>(LANGUAGES.map((l) => l.value));
