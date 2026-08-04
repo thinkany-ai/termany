@@ -2,7 +2,7 @@ import { Bot, Brain, Info, Keyboard, Palette } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { apiPath } from "../api";
 import { isTauri } from "../env";
-import { useI18n, type Language } from "../i18n";
+import { LANGUAGES, useI18n, type Language } from "../i18n";
 import { openExternal, revealPath } from "../openExternal";
 import { type RailItemId } from "../rail-config";
 import { useStore } from "../state/store";
@@ -335,10 +335,7 @@ export function Settings({
                 <UsageSelect
                   value={language}
                   width={200}
-                  options={[
-                    { value: "en", label: t("settings.language.en") },
-                    { value: "zh-CN", label: t("settings.language.zh") },
-                  ]}
+                  options={LANGUAGES.map((l) => ({ value: l.value, label: l.label }))}
                   onChange={(v) => setLanguage(v as Language)}
                 />
               </div>
