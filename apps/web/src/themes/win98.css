@@ -1,0 +1,1078 @@
+/* Windows 98 chrome — the part of the theme that flat color tokens can't carry:
+   3D bevels, title bars, and square hard-edged controls.
+
+   Every rule is scoped to html[data-theme="win98"], which applyThemeObject()
+   sets from the active theme's id, so this file is inert under every other
+   theme. The `html` prefix is deliberate: it lifts each selector one step above
+   the equally-specific base rule in styles.css, so these win no matter which
+   stylesheet the bundler emits first.
+
+   The bevels are inset box-shadows, two rings deep, exactly as the OS drew
+   them: highlight → light on the top/left, dark → shadow on the bottom/right
+   (reversed for a sunken control). */
+
+html[data-theme="win98"] {
+  --w98-face: #c0c0c0;
+  --w98-light: #dfdfdf;
+  --w98-hilite: #ffffff;
+  --w98-shadow: #808080;
+  --w98-dark: #0a0a0a;
+  --w98-navy: #000080;
+  --w98-navy-2: #1084d0;
+
+  /* Raised: buttons, tabs, menus, title bars. */
+  --w98-out:
+    inset -1px -1px 0 var(--w98-dark), inset 1px 1px 0 var(--w98-hilite),
+    inset -2px -2px 0 var(--w98-shadow), inset 2px 2px 0 var(--w98-light);
+  /* Sunken: text fields, list boxes, the terminal's client area. */
+  --w98-in:
+    inset -1px -1px 0 var(--w98-hilite), inset 1px 1px 0 var(--w98-shadow),
+    inset -2px -2px 0 var(--w98-light), inset 2px 2px 0 var(--w98-dark);
+  /* Pressed: one shallow ring, so the label appears to sink. */
+  --w98-down: inset 1px 1px 0 var(--w98-shadow), inset -1px -1px 0 var(--w98-light);
+}
+
+/* MS Sans Serif is the real thing; the next three are the closest faces that
+   ship on macOS/Linux. The CJK faces are the per-glyph fallback — none of the
+   Latin fonts carry those glyphs, and the app ships 21 languages. Smoothing off:
+   the era's UI text was aliased, and the pixel edges are half of what makes it
+   read as Windows 98. */
+html[data-theme="win98"] body,
+html[data-theme="win98"] #root {
+  font-family:
+    "MS Sans Serif", "Microsoft Sans Serif", Tahoma, Geneva, Verdana, "PingFang SC",
+    "Hiragino Sans", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  font-size: 12px;
+  -webkit-font-smoothing: none;
+}
+
+/* The desktop shell's rounded window corners don't belong on a 98 window. */
+html[data-theme="win98"] .app.tauri {
+  border-radius: 0;
+}
+
+/* Nothing in Windows 98 eased into place: a window was there on the next frame
+   or it wasn't. Transitions go everywhere; entrance animations are named one by
+   one so running indicators (spinners, progress) keep animating. */
+html[data-theme="win98"] * {
+  transition: none;
+}
+html[data-theme="win98"] .settings-backdrop,
+html[data-theme="win98"] .settings-window,
+html[data-theme="win98"] .zen-scrim,
+html[data-theme="win98"] .zen-pane {
+  animation: none;
+}
+
+/* A modal dialog in Windows 98 simply sat on top of the window — it did not dim
+   or blur what was behind it. The backdrops stay in the tree as click-catchers,
+   they just stop painting. */
+html[data-theme="win98"] .settings-backdrop,
+html[data-theme="win98"] .search-backdrop,
+html[data-theme="win98"] .ws-dialog-backdrop,
+html[data-theme="win98"] .ms-form-backdrop,
+html[data-theme="win98"] .ssh-manager-backdrop,
+html[data-theme="win98"] .ws-backdrop {
+  background: transparent;
+  backdrop-filter: none;
+}
+/* Zen keeps a dim, since it is the one case where the covered panes are still
+   on screen and have to read as covered — but flat, with no blur. */
+html[data-theme="win98"] .zen-scrim {
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: none;
+}
+
+/* Selected text is the same navy block as a selected list row. */
+html[data-theme="win98"] ::selection {
+  background: var(--w98-navy);
+  color: #fff;
+}
+
+/* The theme's radius tokens already square everything that reads them. These
+   are the leftovers with a hard-coded radius — status dots and hairline meters
+   are left alone, since roundness there is the indicator, not decoration. */
+html[data-theme="win98"] .agent-message-user .agent-message-content,
+html[data-theme="win98"] .agent-menu-icon,
+html[data-theme="win98"] .search-row-chord,
+html[data-theme="win98"] .ms-badge,
+html[data-theme="win98"] .codex-theme-mode,
+html[data-theme="win98"] .about-logo,
+html[data-theme="win98"] .update-progress-track,
+html[data-theme="win98"] .update-progress-fill,
+html[data-theme="win98"] .sysmon-port,
+html[data-theme="win98"] .usage-swatch,
+html[data-theme="win98"] .usage-bar,
+html[data-theme="win98"] .usage-model-bar,
+html[data-theme="win98"] .usage-model-bar i,
+html[data-theme="win98"] .sysmon-cell-bar,
+html[data-theme="win98"] .sysmon-membar,
+html[data-theme="win98"] .sysmon-membar i,
+html[data-theme="win98"] .sysmon-spark.empty {
+  border-radius: 0;
+}
+/* A progress bar was a sunken well filled with chunky blue blocks. */
+html[data-theme="win98"] .update-progress-track {
+  background: var(--w98-face);
+  box-shadow: var(--w98-in);
+}
+html[data-theme="win98"] .update-progress-fill {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--w98-navy) 0 8px,
+    transparent 8px 10px
+  );
+}
+
+/* A disabled control was gray text with a white shadow under it — embossed
+   into the face — rather than the whole control faded out. */
+html[data-theme="win98"] button:disabled,
+html[data-theme="win98"] select:disabled {
+  opacity: 1;
+  color: var(--w98-shadow);
+  text-shadow: 1px 1px 0 var(--w98-hilite);
+}
+html[data-theme="win98"] button:disabled svg {
+  opacity: 0.5;
+}
+
+/* --- Panels ------------------------------------------------------------- */
+
+/* Sidebar and rail are raised surfaces against the mid-gray workspace. */
+html[data-theme="win98"] .sidebar {
+  border-right: 1px solid var(--w98-shadow);
+  box-shadow: inset -1px 0 0 var(--w98-dark), inset 1px 0 0 var(--w98-hilite);
+}
+/* Toolbars were shallow — the base 36px reads as a modern app bar. These three
+   measurements are really one: the tab strip, the sidebar header that lines up
+   with it, and the rail's top inset (which the base stylesheet derives from the
+   strip's height by hand, so it has to be restated here). */
+html[data-theme="win98"] .htabbar,
+html[data-theme="win98"] .ws-switcher {
+  height: 28px;
+}
+html[data-theme="win98"] .side-rail {
+  padding-top: calc(28px + var(--pane-gap));
+  border-left: 1px solid var(--w98-hilite);
+  box-shadow: inset 1px 0 0 var(--w98-face);
+}
+/* The desktop shell's traffic lights are centered in a band as tall as the
+   sidebar header, so they have to follow it down. They stay macOS-shaped —
+   they are the platform's window controls, not the app's own chrome. */
+html[data-theme="win98"] .win-controls {
+  height: 28px;
+}
+html[data-theme="win98"] .htabbar {
+  border-bottom: 1px solid var(--w98-shadow);
+  box-shadow: inset 0 1px 0 var(--w98-hilite), inset 0 -2px 0 var(--w98-face);
+}
+
+/* --- Tabs --------------------------------------------------------------- */
+
+/* Classic notebook tabs: raised, square, the active one flush with its page. */
+html[data-theme="win98"] .htab {
+  align-self: flex-end;
+  height: 22px;
+  margin-bottom: -1px;
+  background: var(--w98-face);
+  color: #000;
+  box-shadow:
+    inset 1px 1px 0 var(--w98-hilite), inset -1px 0 0 var(--w98-dark),
+    inset -2px 0 0 var(--w98-shadow);
+}
+html[data-theme="win98"] .htab:hover {
+  background: var(--w98-light);
+  color: #000;
+}
+html[data-theme="win98"] .htab.active,
+html[data-theme="win98"] .htab.active:hover {
+  height: 25px;
+  background: var(--w98-face);
+  color: #000;
+  font-weight: bold;
+}
+
+/* --- Panes -------------------------------------------------------------- */
+
+/* Each pane is an MDI child window: raised outer edge, navy title bar, and a
+   sunken client area. The border is real (not an inset shadow) because the
+   pane's children paint over anything inside its padding box. */
+html[data-theme="win98"] .pane-slot,
+html[data-theme="win98"] .zen-pane {
+  border: 2px solid;
+  border-color: var(--w98-light) var(--w98-dark) var(--w98-dark) var(--w98-light);
+  background: var(--w98-face);
+}
+html[data-theme="win98"] .pane-head {
+  height: 20px;
+  margin: 2px 2px 0;
+  padding: 0 2px 0 4px;
+  border-bottom: none;
+  background: linear-gradient(90deg, var(--w98-navy), var(--w98-navy-2));
+}
+/* Inactive window: the OS grayed the caption bar rather than hiding it. Keyed
+   off a focused sibling, not off `:not(.focused)` alone — a lone pane carries
+   no focus class (SplitView only marks focus once a tab is split), and it is
+   the active window, so it keeps the navy bar. */
+html[data-theme="win98"] .pane-card:has(.pane-slot.focused) .pane-slot:not(.focused) .pane-head {
+  background: linear-gradient(90deg, var(--w98-shadow), #b5b5b5);
+}
+/* Caption text and its icons sit on the navy bar, so everything in the bar goes
+   white and bold — except the caption buttons, which keep their own black-on-gray. */
+html[data-theme="win98"] .pane-head-title,
+html[data-theme="win98"] .pane-slot.focused .pane-head-title,
+html[data-theme="win98"] .pane-head .pane-connection-trigger,
+html[data-theme="win98"] .pane-head .pane-connection-trigger > svg,
+html[data-theme="win98"] .pane-head .pop-trigger {
+  color: #fff;
+  font-weight: bold;
+}
+html[data-theme="win98"] .pane-head .pane-connection-trigger:hover,
+html[data-theme="win98"] .pane-head .pop-trigger:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+/* Caption buttons: small raised squares, pressed in on click. */
+html[data-theme="win98"] .pane-btn {
+  width: 18px;
+  height: 16px;
+  background: var(--w98-face);
+  color: #000;
+  box-shadow: var(--w98-out);
+}
+html[data-theme="win98"] .pane-btn:hover {
+  background: var(--w98-face);
+  color: #000;
+}
+html[data-theme="win98"] .pane-btn:active {
+  box-shadow: var(--w98-down);
+}
+html[data-theme="win98"] .pane-view-btn,
+html[data-theme="win98"] .pane-url-btn {
+  width: auto;
+  color: #000;
+}
+
+/* The terminal's client area: sunken, and black right up to its edge — the
+   default 8px inset would otherwise show the gray window face around it. */
+html[data-theme="win98"] .term-pane {
+  padding: 2px;
+  margin: 0 2px 2px;
+  background: #000;
+  box-shadow: var(--w98-in);
+}
+/* Non-terminal panes (file tree, agent, editor) keep the white client area. */
+html[data-theme="win98"] .pane-body {
+  margin: 0 2px 2px;
+  background: #fff;
+  box-shadow: var(--w98-in);
+}
+html[data-theme="win98"] .pane-body:has(.term-pane) {
+  margin: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Toolbars inside a pane sit on the window face, not on the client area, with
+   the same shallow raised edge as the tab strip. */
+html[data-theme="win98"] .web-toolbar,
+html[data-theme="win98"] .file-tree-head,
+html[data-theme="win98"] .agent-tools-header {
+  background: var(--w98-face);
+  border-bottom: 1px solid var(--w98-shadow);
+  box-shadow: inset 0 1px 0 var(--w98-hilite);
+}
+/* The find bar floats over the pane, so it is a small raised window of its own. */
+html[data-theme="win98"] .find-bar {
+  border: none;
+  border-radius: 0;
+  background: var(--w98-face);
+  box-shadow: var(--w98-out), 2px 2px 0 rgba(0, 0, 0, 0.4);
+}
+/* The prompt box is a text field, so it gets a field's sunken edge — not a
+   floating card with a soft shadow. */
+html[data-theme="win98"] .agent-composer {
+  border: none;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: var(--w98-in);
+}
+html[data-theme="win98"] .agent-permission,
+html[data-theme="win98"] .agent-tool-detail {
+  border: none;
+  border-radius: 0;
+  background: var(--w98-face);
+  box-shadow: var(--w98-out);
+}
+/* Send is a command button, not a floating circle. */
+html[data-theme="win98"] .agent-send {
+  width: 24px;
+  height: 22px;
+  flex: 0 0 24px;
+  border-radius: 0;
+  background: var(--w98-face);
+  color: #000;
+  box-shadow: var(--w98-out);
+}
+html[data-theme="win98"] .agent-send:hover:not(:disabled) {
+  transform: none;
+}
+html[data-theme="win98"] .agent-send:active:not(:disabled) {
+  box-shadow: var(--w98-down);
+}
+html[data-theme="win98"] .agent-welcome h2 {
+  font-size: 16px;
+  font-weight: bold;
+  letter-spacing: normal;
+}
+
+/* --- Buttons ------------------------------------------------------------ */
+
+/* Toolbar buttons stay flat until pointed at, the way the era's toolbars did;
+   dialog buttons are always raised. */
+html[data-theme="win98"] .bar-btn,
+html[data-theme="win98"] .mini,
+html[data-theme="win98"] .htab-add,
+html[data-theme="win98"] .side-rail-btn,
+html[data-theme="win98"] .ws-icon-btn,
+html[data-theme="win98"] .tree-act,
+html[data-theme="win98"] .find-bar-btn,
+html[data-theme="win98"] .term-scroll-btn,
+html[data-theme="win98"] .web-nav-btn,
+html[data-theme="win98"] .agent-message-action,
+html[data-theme="win98"] .agent-expand-btn,
+html[data-theme="win98"] .pane-port-cancel {
+  color: #000;
+  border-radius: 0;
+}
+html[data-theme="win98"] .bar-btn:hover:not(:disabled),
+html[data-theme="win98"] .mini:hover,
+html[data-theme="win98"] .htab-add:hover,
+html[data-theme="win98"] .side-rail-btn:hover,
+html[data-theme="win98"] .side-rail-btn.active,
+html[data-theme="win98"] .ws-icon-btn:hover,
+html[data-theme="win98"] .tree-act:hover,
+html[data-theme="win98"] .find-bar-btn:hover,
+html[data-theme="win98"] .term-scroll-btn:hover,
+html[data-theme="win98"] .web-nav-btn:hover:not(:disabled),
+html[data-theme="win98"] .agent-message-action:hover,
+html[data-theme="win98"] .agent-expand-btn:hover,
+html[data-theme="win98"] .pane-port-cancel:hover {
+  background: var(--w98-face);
+  color: #000;
+  box-shadow: var(--w98-out);
+}
+html[data-theme="win98"] .bar-btn:active,
+html[data-theme="win98"] .mini:active,
+html[data-theme="win98"] .htab-add:active,
+html[data-theme="win98"] .side-rail-btn:active,
+html[data-theme="win98"] .side-rail-btn.active,
+html[data-theme="win98"] .ws-icon-btn:active,
+html[data-theme="win98"] .web-nav-btn:active {
+  box-shadow: var(--w98-down);
+}
+
+/* Command buttons — always raised, and they sink on press. */
+html[data-theme="win98"] .ws-dialog-btn,
+html[data-theme="win98"] .ws-dialog-icon,
+html[data-theme="win98"] .history-load-more,
+html[data-theme="win98"] .ms-btn,
+html[data-theme="win98"] .kb-chord,
+html[data-theme="win98"] .kb-reset,
+html[data-theme="win98"] .font-size-btn,
+html[data-theme="win98"] .ai-theme-btn,
+html[data-theme="win98"] .update-btn,
+html[data-theme="win98"] .update-check-btn,
+html[data-theme="win98"] .agent-refresh-btn,
+html[data-theme="win98"] .agent-remove-btn,
+html[data-theme="win98"] .ssh-manager-action,
+html[data-theme="win98"] .file-open-finder-btn,
+html[data-theme="win98"] .md-code-btn,
+html[data-theme="win98"] .web-status-action {
+  height: 23px;
+  border: none;
+  border-radius: 0;
+  background: var(--w98-face);
+  color: #000;
+  box-shadow: var(--w98-out);
+}
+html[data-theme="win98"] .ws-dialog-btn:hover,
+html[data-theme="win98"] .ws-dialog-icon:hover,
+html[data-theme="win98"] .ms-btn:hover,
+html[data-theme="win98"] .kb-chord:hover,
+html[data-theme="win98"] .agent-refresh-btn:hover,
+html[data-theme="win98"] .md-code-btn:hover {
+  background: var(--w98-face);
+  color: #000;
+}
+html[data-theme="win98"] .ws-dialog-btn:active,
+html[data-theme="win98"] .ms-btn:active,
+html[data-theme="win98"] .kb-chord:active,
+html[data-theme="win98"] .font-size-btn:active {
+  box-shadow: var(--w98-down);
+}
+/* Capturing a chord is a modal, in-place edit — show it sunken, like a field. */
+html[data-theme="win98"] .kb-chord.capturing {
+  background: #fff;
+  color: #000;
+  box-shadow: var(--w98-in);
+}
+html[data-theme="win98"] .kb-chord.conflict {
+  color: #800000;
+}
+/* No color-filled buttons in this era — the default action wore a dark outline. */
+html[data-theme="win98"] .ws-dialog-btn.primary,
+html[data-theme="win98"] .ms-btn.primary,
+html[data-theme="win98"] .ssh-manager-actions button.primary {
+  background: var(--w98-face);
+  color: #000;
+  box-shadow: var(--w98-out), inset 0 0 0 3px var(--w98-face), 0 0 0 1px var(--w98-dark);
+}
+html[data-theme="win98"] .ws-dialog-btn.danger {
+  background: var(--w98-face);
+  color: #800000;
+  box-shadow: var(--w98-out);
+}
+
+/* Keyboard focus was a dotted rectangle drawn just inside the control, never a
+   colored glow. Text fields are excluded: there the caret is the cue. */
+html[data-theme="win98"] button:focus-visible,
+html[data-theme="win98"] [role="button"]:focus-visible,
+html[data-theme="win98"] select:focus-visible,
+html[data-theme="win98"] input[type="checkbox"]:focus-visible {
+  outline: 1px dotted #000;
+  outline-offset: -4px;
+}
+/* On a navy highlight the dots have to invert to stay visible. */
+html[data-theme="win98"] .pop-item:focus-visible,
+html[data-theme="win98"] .settings-nav-item.active:focus-visible,
+html[data-theme="win98"] .pane-head button:focus-visible {
+  outline-color: #fff;
+}
+
+/* --- Text fields -------------------------------------------------------- */
+
+/* Every text field is the same sunken white box — matched by element rather
+   than by class so a control added later gets it for free. */
+html[data-theme="win98"] textarea,
+html[data-theme="win98"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]) {
+  border: none;
+  border-radius: 0;
+  background: #fff;
+  color: #000;
+  box-shadow: var(--w98-in);
+}
+/* Windows 98 had no focus glow — the caret was the cue. */
+html[data-theme="win98"] .ws-dialog-input:focus {
+  border-color: transparent;
+}
+/* Wrappers that are drawn to look like a field take the sunken edge themselves,
+   and the real input inside them stays flat so the two don't nest. */
+html[data-theme="win98"] .ssh-connect-form {
+  border: none;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: var(--w98-in);
+}
+html[data-theme="win98"] .ssh-connect-form:focus-within {
+  border-color: transparent;
+}
+html[data-theme="win98"] .ssh-connect-form input,
+html[data-theme="win98"] .agent-composer textarea {
+  background: transparent;
+  box-shadow: none;
+}
+html[data-theme="win98"] .search-input-row {
+  border-bottom: none;
+  box-shadow: inset 0 -1px 0 var(--w98-hilite), inset 0 -2px 0 var(--w98-shadow);
+}
+/* A menu's accelerator was plain right-aligned text, never a keycap chip. */
+html[data-theme="win98"] .search-row-chord {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+}
+html[data-theme="win98"] .search-row-kind {
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+/* --- Menus, dialogs, popovers ------------------------------------------- */
+
+/* Raised panel plus the hard, un-blurred drop shadow the OS drew under menus. */
+html[data-theme="win98"] .ws-menu,
+html[data-theme="win98"] .pop-panel,
+html[data-theme="win98"] .pop-sub,
+html[data-theme="win98"] .emoji-pop,
+html[data-theme="win98"] .agent-menu,
+html[data-theme="win98"] .ws-dialog,
+html[data-theme="win98"] .search-palette,
+html[data-theme="win98"] .settings-window,
+html[data-theme="win98"] .ms-form,
+html[data-theme="win98"] .ssh-manager-dialog,
+html[data-theme="win98"] .drag-ghost {
+  border: none;
+  border-radius: 0;
+  background: var(--w98-face);
+  color: #000;
+  box-shadow: var(--w98-out), 2px 2px 0 rgba(0, 0, 0, 0.4);
+}
+/* Menu highlight: solid navy bar, white label — no rounding, no fade. */
+html[data-theme="win98"] .ws-menu-item:hover,
+html[data-theme="win98"] .ws-menu-row:hover,
+html[data-theme="win98"] .pop-item:hover,
+html[data-theme="win98"] .pop-item.active,
+html[data-theme="win98"] .search-row.active,
+html[data-theme="win98"] .ssh-connection-row:hover,
+html[data-theme="win98"] .emoji-cell:hover {
+  background: var(--w98-navy);
+  color: #fff;
+  border-radius: 0;
+}
+html[data-theme="win98"] .pop-item,
+html[data-theme="win98"] .ws-menu-row,
+html[data-theme="win98"] .ws-menu-pick {
+  border-radius: 0;
+  color: #000;
+}
+html[data-theme="win98"] .pop-item:hover svg,
+html[data-theme="win98"] .ws-menu-row:hover svg {
+  color: #fff;
+}
+/* A menu separator was an etched groove: one shadow line, one highlight. */
+html[data-theme="win98"] .ws-menu-sep,
+html[data-theme="win98"] .pop-sep,
+html[data-theme="win98"] .ssh-menu-separator {
+  height: 2px;
+  background: linear-gradient(var(--w98-shadow) 50%, var(--w98-hilite) 50%);
+}
+
+/* Two more dialogs carry their own heading element, so they get a caption bar
+   the same way the settings window does — the heading becomes the caption and
+   its close control becomes the caption button. Both are pulled full-bleed
+   against their container's known padding. */
+html[data-theme="win98"] .ssh-manager-header {
+  height: 18px;
+  padding: 0 2px 0 4px;
+  margin: 3px 3px 6px;
+  background: linear-gradient(90deg, var(--w98-navy), var(--w98-navy-2));
+}
+html[data-theme="win98"] .ssh-manager-header h2 {
+  font-size: 12px;
+  font-weight: bold;
+  color: #fff;
+}
+/* The provider form has no header row, so its title element becomes the bar
+   itself — pulled out to the edges against the form's own 18px padding. */
+html[data-theme="win98"] .ms-form-title {
+  margin: -18px -18px 14px;
+  padding: 1px 4px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #fff;
+  background: linear-gradient(90deg, var(--w98-navy), var(--w98-navy-2));
+}
+html[data-theme="win98"] .ssh-manager-close {
+  width: 16px;
+  height: 14px;
+  border-radius: 0;
+  background: var(--w98-face);
+  color: #000;
+  font-size: 14px !important;
+  line-height: 1;
+  box-shadow: var(--w98-out);
+}
+html[data-theme="win98"] .ssh-manager-close:hover {
+  background: var(--w98-face);
+  color: #000;
+}
+html[data-theme="win98"] .ssh-manager-close:active {
+  box-shadow: var(--w98-down);
+}
+
+/* The dialog's own controls: add/test/save buttons and the auth segmented
+   switch, which becomes a row of tab-style buttons. */
+html[data-theme="win98"] .ssh-manager-add,
+html[data-theme="win98"] .ssh-manager-actions button.test,
+html[data-theme="win98"] .ssh-manager-actions button.primary,
+html[data-theme="win98"] .ssh-auth-switch button {
+  height: 23px;
+  border: none;
+  border-radius: 0;
+  background: var(--w98-face);
+  color: #000;
+  box-shadow: var(--w98-out);
+}
+html[data-theme="win98"] .ssh-manager-add:hover,
+html[data-theme="win98"] .ssh-manager-actions button.test:hover:not(:disabled),
+html[data-theme="win98"] .ssh-auth-switch button:hover {
+  background: var(--w98-face);
+  color: #000;
+}
+html[data-theme="win98"] .ssh-auth-switch button.active {
+  background: var(--w98-face);
+  color: #000;
+  font-weight: bold;
+  box-shadow: var(--w98-down);
+}
+html[data-theme="win98"] .ssh-auth-switch,
+html[data-theme="win98"] .agent-enable-toggle {
+  gap: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+/* Same segmented-control treatment for the per-agent enable switch. */
+html[data-theme="win98"] .agent-enable-toggle button {
+  height: 23px;
+  border-radius: 0;
+  background: var(--w98-face);
+  color: #000;
+  box-shadow: var(--w98-out);
+}
+html[data-theme="win98"] .agent-enable-toggle button.active {
+  background: var(--w98-face);
+  color: #000;
+  font-weight: bold;
+  box-shadow: var(--w98-down);
+}
+html[data-theme="win98"] .ssh-auth-switch button:focus-visible {
+  outline: 1px dotted #000;
+  outline-offset: -4px;
+}
+
+/* --- Lists -------------------------------------------------------------- */
+
+html[data-theme="win98"] .tree-row,
+html[data-theme="win98"] .file-tree-row,
+html[data-theme="win98"] .search-row,
+html[data-theme="win98"] .history-tab {
+  border-radius: 0;
+  color: #000;
+}
+html[data-theme="win98"] .tree-row:hover,
+html[data-theme="win98"] .file-tree-row:hover {
+  background: var(--w98-light);
+  color: #000;
+}
+/* The selected item is a navy block with white text, edge to edge. */
+html[data-theme="win98"] .tree-row.active,
+html[data-theme="win98"] .tree-row.active:hover,
+html[data-theme="win98"] .file-tree-row.selected,
+html[data-theme="win98"] .file-tree-row.selected:hover {
+  background: var(--w98-navy);
+  color: #fff;
+}
+html[data-theme="win98"] .tree-row.active .tree-crumb,
+html[data-theme="win98"] .tree-row.active .tree-count,
+html[data-theme="win98"] .file-tree-row.selected .file-tree-twisty {
+  color: #fff;
+}
+/* List boxes: sunken white wells that the rows scroll inside. */
+html[data-theme="win98"] .tree {
+  background: #fff;
+  box-shadow: var(--w98-in);
+  margin: 0 4px 4px;
+  padding: 4px;
+}
+html[data-theme="win98"] .ssh-manager-list,
+html[data-theme="win98"] .ssh-host-list {
+  border: none;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: var(--w98-in);
+}
+html[data-theme="win98"] .ssh-manager-row {
+  border-bottom: 1px solid var(--w98-light);
+}
+/* Pills become squares: the shape didn't exist in 1998. Filter chips read as
+   notebook tabs, and the state badges as flat labels. */
+html[data-theme="win98"] .history-tab,
+html[data-theme="win98"] .history-scope button {
+  border-radius: 0;
+  background: var(--w98-face);
+  color: #000;
+  box-shadow: var(--w98-out);
+}
+html[data-theme="win98"] .history-tab:hover,
+html[data-theme="win98"] .history-scope button:hover {
+  background: var(--w98-face);
+  color: #000;
+}
+html[data-theme="win98"] .history-tab.active,
+html[data-theme="win98"] .history-scope button.active {
+  background: var(--w98-face);
+  color: #000;
+  font-weight: bold;
+  box-shadow: var(--w98-down);
+}
+html[data-theme="win98"] .history-scope {
+  border: none;
+  border-radius: 0;
+  gap: 0;
+  padding: 0;
+}
+html[data-theme="win98"] .history-tab-icon {
+  border-radius: 0;
+}
+html[data-theme="win98"] .history-badge {
+  border-radius: 0;
+  letter-spacing: normal;
+  text-transform: none;
+  box-shadow: inset 1px 1px 0 var(--w98-shadow), inset -1px -1px 0 var(--w98-hilite);
+}
+html[data-theme="win98"] .history-tabs {
+  border-bottom: 1px solid var(--w98-shadow);
+  box-shadow: inset 0 -2px 0 var(--w98-hilite);
+}
+
+/* MS Sans Serif shipped in exactly two weights, so the in-between weights the
+   app uses for soft emphasis round up to bold. */
+html[data-theme="win98"] .ws-name,
+html[data-theme="win98"] .ws-avatar,
+html[data-theme="win98"] .usage-title,
+html[data-theme="win98"] .usage-section-head,
+html[data-theme="win98"] .ssh-manager-row strong,
+html[data-theme="win98"] .ssh-profile-form label,
+html[data-theme="win98"] .ssh-auth-field legend,
+html[data-theme="win98"] .ms-card-title,
+html[data-theme="win98"] .agent-settings-name,
+html[data-theme="win98"] .history-group-branch {
+  font-weight: bold;
+}
+
+/* Windows 98 set its labels in plain bold — no uppercasing, no tracking. */
+html[data-theme="win98"] .section-title,
+html[data-theme="win98"] .settings-section-title,
+html[data-theme="win98"] .kb-group-title,
+html[data-theme="win98"] .search-section,
+html[data-theme="win98"] .ssh-menu-label {
+  color: #000;
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: normal;
+  text-transform: none;
+}
+/* Etched separator — a shadow line with a highlight under it, the divider the
+   OS used between groups of controls. */
+html[data-theme="win98"] .kb-row {
+  border-bottom: none;
+  box-shadow: inset 0 -1px 0 var(--w98-hilite), inset 0 -2px 0 var(--w98-shadow);
+}
+
+/* --- Settings window ---------------------------------------------------- */
+
+/* Give the settings window the caption bar every 98 dialog had. The gray face
+   becomes a 3px frame around the content, the navy bar sits inside it, and the
+   window's own two pieces of chrome move onto that bar: the nav's heading
+   becomes the caption text (so it stays localized) and the × becomes the
+   caption button. Both are already positioned against .settings-window, which
+   is the window's only positioned ancestor. */
+html[data-theme="win98"] .settings-window {
+  padding: 22px 3px 3px;
+}
+html[data-theme="win98"] .settings-window::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  right: 3px;
+  height: 18px;
+  background: linear-gradient(90deg, var(--w98-navy), var(--w98-navy-2));
+}
+html[data-theme="win98"] .settings-nav-title {
+  position: absolute;
+  top: 3px;
+  left: 6px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  color: #fff;
+  font-weight: bold;
+  font-size: 12px;
+  letter-spacing: normal;
+  text-transform: none;
+  line-height: 18px;
+}
+html[data-theme="win98"] .settings-close {
+  top: 5px;
+  right: 5px;
+  width: 16px;
+  height: 14px;
+  border-radius: 0;
+  background: var(--w98-face);
+  color: #000;
+  box-shadow: var(--w98-out);
+  transition: none;
+}
+html[data-theme="win98"] .settings-close:hover {
+  background: var(--w98-face);
+  color: #000;
+}
+html[data-theme="win98"] .settings-close:active {
+  box-shadow: var(--w98-down);
+}
+html[data-theme="win98"] .settings-close svg {
+  width: 10px;
+  height: 10px;
+}
+/* The section list is a sunken white list box, like Explorer's folder pane. */
+html[data-theme="win98"] .settings-nav {
+  /* The heading left the nav for the caption bar, so drop the room it held. */
+  width: 170px;
+  padding: 2px;
+  margin: 6px 3px 6px 6px;
+  gap: 0;
+  border-right: none;
+  background: #fff;
+  box-shadow: var(--w98-in);
+}
+html[data-theme="win98"] .settings-nav-item {
+  border-radius: 0;
+  color: #000;
+  /* A list row was plain text; the navy bar alone marks the selection. */
+  font-weight: normal;
+}
+html[data-theme="win98"] .settings-nav-item:hover {
+  background: var(--w98-light);
+  color: #000;
+}
+html[data-theme="win98"] .settings-nav-item.active,
+html[data-theme="win98"] .settings-nav-item.active .settings-nav-icon {
+  background: var(--w98-navy);
+  color: #fff;
+}
+
+/* Group boxes: the etched, single-pixel frame that surrounded a set of related
+   controls in every Windows 98 property sheet. */
+html[data-theme="win98"] .language-setting,
+html[data-theme="win98"] .rail-icons-setting {
+  border: none;
+  border-radius: 0;
+  padding-top: 18px;
+  background: transparent;
+  box-shadow:
+    inset 1px 1px 0 var(--w98-shadow), inset -1px -1px 0 var(--w98-hilite);
+}
+/* …and the group's caption sits ON the frame, interrupting its top line. Only
+   where a framed box actually follows — other section titles head a bare grid
+   and would collide with it. */
+html[data-theme="win98"] .settings-section-title:has(+ .language-setting),
+html[data-theme="win98"] .settings-section-title:has(+ .rail-icons-setting) {
+  position: relative;
+  z-index: 1;
+  width: fit-content;
+  margin: 0 0 -9px 8px;
+  padding: 0 4px;
+  background: var(--w98-face);
+}
+/* The other framed cards get the same etched group frame. Their caption is a
+   child, not a preceding sibling, so it stays where it is. */
+html[data-theme="win98"] .ms-card {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow:
+    inset 1px 1px 0 var(--w98-shadow), inset -1px -1px 0 var(--w98-hilite);
+}
+/* Column headers in a list view were raised buttons you could click to sort. */
+html[data-theme="win98"] .ms-table th,
+html[data-theme="win98"] .sysmon-row.head {
+  padding: 3px 8px;
+  border-bottom: none;
+  background: var(--w98-face);
+  color: #000;
+  font-size: 11px;
+  font-weight: normal;
+  letter-spacing: normal;
+  text-transform: none;
+  box-shadow: var(--w98-out);
+}
+html[data-theme="win98"] .ms-table td {
+  border-bottom: 1px solid var(--w98-light);
+}
+html[data-theme="win98"] .sysmon-row:not(.head):hover {
+  background: var(--w98-light);
+}
+/* Stat tiles read as small group boxes, etched into the window face. */
+html[data-theme="win98"] .usage-card {
+  border: none;
+  background: transparent;
+  box-shadow:
+    inset 1px 1px 0 var(--w98-shadow), inset -1px -1px 0 var(--w98-hilite);
+}
+html[data-theme="win98"] .usage-card-value {
+  font-weight: bold;
+}
+
+html[data-theme="win98"] .rail-icon-option {
+  border-color: transparent;
+  border-radius: 0;
+  color: #000;
+}
+html[data-theme="win98"] .rail-icon-option:hover {
+  border-color: transparent;
+  background: var(--w98-light);
+  color: #000;
+}
+
+/* --- Form controls ------------------------------------------------------ */
+
+/* Combo box: sunken white field with a raised drop-down button on its right. */
+html[data-theme="win98"] .usage-select-btn {
+  border: none;
+  border-radius: 0;
+  background: #fff;
+  color: #000;
+  padding: 3px 2px 3px 6px;
+  box-shadow: var(--w98-in);
+}
+html[data-theme="win98"] .usage-select-btn:hover,
+html[data-theme="win98"] .usage-select-btn.open {
+  background: #fff;
+}
+html[data-theme="win98"] .usage-select-btn svg {
+  width: 16px;
+  height: 16px;
+  padding: 2px;
+  background: var(--w98-face);
+  color: #000;
+  box-shadow: var(--w98-out);
+}
+html[data-theme="win98"] .usage-select-menu {
+  border: none;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--w98-dark), 2px 2px 0 rgba(0, 0, 0, 0.4);
+}
+html[data-theme="win98"] .usage-select-item {
+  border-radius: 0;
+  color: #000;
+}
+html[data-theme="win98"] .usage-select-item:hover,
+html[data-theme="win98"] .usage-select-item.active {
+  background: var(--w98-navy);
+  color: #fff;
+}
+
+/* Native <select>: same combo box, with the drop-down button painted into the
+   background as a 16px image — a real element can't be inserted into a select,
+   and this is the one control the OS drew with its button glued to the field. */
+html[data-theme="win98"] select {
+  appearance: none;
+  height: 21px;
+  padding: 0 20px 0 4px;
+  border: none;
+  border-radius: 0;
+  background-color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' shape-rendering='crispEdges'%3E%3Cpath fill='%23c0c0c0' d='M0 0h16v16H0z'/%3E%3Cpath fill='%23ffffff' d='M0 0h16v1H0zM0 0h1v16H0z'/%3E%3Cpath fill='%230a0a0a' d='M0 15h16v1H0zM15 0h1v16h-1z'/%3E%3Cpath fill='%23dfdfdf' d='M1 1h14v1H1zM1 1h1v14H1z'/%3E%3Cpath fill='%23808080' d='M1 14h14v1H1zM14 1h1v14h-1z'/%3E%3Cpath fill='%23000000' d='M5 6h6v1H5zM6 7h4v1H6zM7 8h2v1H7z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 2px center;
+  color: #000;
+  box-shadow: var(--w98-in);
+}
+
+/* Checkbox: a sunken white square with a hand-drawn black tick, the way the OS
+   drew it — the platform control renders as a filled accent-color box. */
+html[data-theme="win98"] input[type="checkbox"] {
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  margin: 0;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: var(--w98-in);
+  cursor: pointer;
+}
+html[data-theme="win98"] input[type="checkbox"]:checked {
+  /* crispEdges keeps the tick aliased, like the 7x7 bitmap the OS blitted. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 9' shape-rendering='crispEdges'%3E%3Cpath d='M1 4.5 L3.5 7 L8 1.5' stroke='%23000' stroke-width='1.6' fill='none'/%3E%3C/svg%3E");
+  background-size: 9px 9px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+html[data-theme="win98"] input[type="checkbox"]:disabled {
+  background: var(--w98-face);
+  cursor: default;
+}
+
+/* --- Theme picker cards ------------------------------------------------- */
+
+/* Each preview keeps its own theme's corner radius (set inline by Settings);
+   only the selected label picks up the 98 highlight. */
+html[data-theme="win98"] .theme-card.selected .theme-card-name {
+  /* Hugs its text, the way a selected desktop icon's caption did. */
+  align-self: center;
+  padding: 0 3px;
+  background: var(--w98-navy);
+  color: #fff;
+}
+
+/* --- Scrollbars --------------------------------------------------------- */
+
+/* Square, 16px, with a raised thumb and an arrow button at each end.
+   Both standard properties go back to `auto`: Chromium ignores every
+   ::-webkit-scrollbar rule below on any element that carries a non-initial
+   scrollbar-width or scrollbar-color, and the base stylesheet sets both. */
+html[data-theme="win98"] * {
+  scrollbar-width: auto;
+  scrollbar-color: auto;
+}
+/* The tab strip auto-scrolls to the active tab and hides its bar; the rule
+   above is specific enough to have re-shown it, so put it back. */
+html[data-theme="win98"] .htab-strip {
+  scrollbar-width: none;
+}
+html[data-theme="win98"] ::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+html[data-theme="win98"] ::-webkit-scrollbar-track,
+html[data-theme="win98"] ::-webkit-scrollbar-corner {
+  background: var(--w98-light);
+}
+html[data-theme="win98"] ::-webkit-scrollbar-thumb {
+  border: none;
+  border-radius: 0;
+  background: var(--w98-face);
+  background-clip: border-box;
+  box-shadow: var(--w98-out);
+}
+html[data-theme="win98"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--w98-face);
+  background-clip: border-box;
+}
+/* The arrow buttons at each end of the bar. Windows and Linux Chromium draw
+   these; macOS Chromium has no scrollbar buttons at all and ignores the block
+   below, so the bar is a plain slider there. */
+html[data-theme="win98"] ::-webkit-scrollbar-button:single-button {
+  display: block;
+  width: 16px;
+  height: 16px;
+  background: var(--w98-face) center / 7px 7px no-repeat;
+  box-shadow: var(--w98-out);
+}
+html[data-theme="win98"] ::-webkit-scrollbar-button:single-button:vertical:decrement {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 4' shape-rendering='crispEdges'%3E%3Cpath d='M3 0h1v1h1v1h1v1h-5v-1h1v-1h1z'/%3E%3C/svg%3E");
+}
+html[data-theme="win98"] ::-webkit-scrollbar-button:single-button:vertical:increment {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 4' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h7v1h-1v1h-1v1h-1v1h-1v-1h-1v-1h-1z'/%3E%3C/svg%3E");
+}
+html[data-theme="win98"] ::-webkit-scrollbar-button:single-button:horizontal:decrement {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 7' shape-rendering='crispEdges'%3E%3Cpath d='M3 0v7h-1v-1h-1v-1h-1v-1h-1v-1h1v-1h1v-1h1v-1z'/%3E%3C/svg%3E");
+}
+html[data-theme="win98"] ::-webkit-scrollbar-button:single-button:horizontal:increment {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 7' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h1v1h1v1h1v1h1v1h-1v1h-1v1h-1v1h-1z'/%3E%3C/svg%3E");
+}
+html[data-theme="win98"] ::-webkit-scrollbar-button:single-button:active {
+  box-shadow: var(--w98-down);
+}
+/* Chromium also renders a second (double) button at each end; hide it, the OS
+   only ever drew one per end. */
+html[data-theme="win98"] ::-webkit-scrollbar-button:double-button,
+html[data-theme="win98"] ::-webkit-scrollbar-button:no-button {
+  display: none;
+}

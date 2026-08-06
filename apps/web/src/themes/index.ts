@@ -13,6 +13,7 @@ import { rosePine } from "./rose-pine";
 import { rosePineDawn } from "./rose-pine-dawn";
 import { solarizedDark } from "./solarized-dark";
 import type { Theme } from "./types";
+import { win98 } from "./win98";
 
 export type { Theme };
 export { fromCodexTheme, isCodexTheme } from "./codex-import";
@@ -36,6 +37,7 @@ export const THEMES: Theme[] = [
   horizon,
   phosphor,
   codex,
+  win98,
 ];
 
 /** The bundled themes, i.e. THEMES minus anything registered at runtime. */
@@ -190,6 +192,10 @@ function applyThemeObject(theme: Theme) {
     root.style.setProperty(k.startsWith("--") ? k : `--${k}`, v);
   }
   root.dataset.appearance = theme.appearance;
+  // A theme whose look needs more than the flat tokens (Windows 98's 3D bevels,
+  // say) ships its own stylesheet scoped to html[data-theme="<id>"]. Every other
+  // theme just leaves that attribute unmatched.
+  root.dataset.theme = theme.id;
 
   applyTermTheme(theme.term);
 }
