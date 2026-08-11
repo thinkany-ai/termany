@@ -38,16 +38,19 @@ import {
   getAllScreens,
   getAllScroll,
   getScroll,
+  getSessionAgent,
   getSessionCwd,
   loadState,
   saveState,
   setScreenBatch,
   setScrollBatch,
+  setSessionAgent,
   setSessionCwd,
 } from "./db.js";
 import { gitDiffs, gitOverview, worktreeOverview } from "./git.js";
 import { pickFolder } from "./folderPicker.js";
 import { testProvider } from "./providerTest.js";
+import { collectPaneHistory, formatPaneHistory } from "./paneHistory.js";
 import { ptyEnvironment } from "./ptyEnvironment.js";
 import { resolveExecutable } from "./shellPath.js";
 import { generateTheme } from "./theme.js";
@@ -1687,25 +1690,30 @@ async function acpTarget(body: any): Promise<AcpRuntimeTarget> {
 }
 
 /**
- * Record every live session's working directory so a respawned shell can return
- * to it after the app is closed and reopened. Runs on an interval (the app may
- * be SIGKILLed on quit, so we can't rely on a shutdown hook) and once at exit.
+ * Record what is knowable about every live session from the outside — where its
+ * shell is, and which agent CLI is running in it — so a respawned shell can
+ * return to that directory and say what was there before.
+ *
+ * Runs on an interval (the app may be SIGKILLed on quit, so we can't rely on a
+ * shutdown hook) and once at exit. A machine that loses power keeps whatever
+ * the last tick saw, which is the case this exists for.
  */
-async function sweepCwds(): Promise<void> {
+async function sweepSessionState(): Promise<void> {
+  const activities = activityTracker.snapshot();
   for (const [id, session] of ptySessions) {
     const cwd = await dirIfValid(await cwdForPid(session.pty.pid));
-    if (cwd) {
-      try {
-        setSessionCwd(id, cwd);
-      } catch {
-        /* DB busy — next sweep will catch it */
-      }
+    const agent = activities[id]?.agent;
+    try {
+      if (cwd) setSessionCwd(id, cwd);
+      if (agent) setSessionAgent(id, agent, Date.now());
+    } catch {
+      /* DB busy — next sweep will catch it */
     }
   }
 }
 
 setInterval(() => {
-  void sweepCwds();
+  void sweepSessionState();
 }, 5000).unref();
 
 wss.on("connection", async (ws: WebSocket, req) => {
@@ -1863,6 +1871,22 @@ wss.on("connection", async (ws: WebSocket, req) => {
   }
 
   const cwd = await resolveSpawnCwd(url.searchParams.get("cwdFrom"), sessionId, true);
+  // What this pane was doing before its last shell died. Gathered before the
+  // spawn so it can be printed ahead of the shell's first output instead of
+  // landing in the middle of it. Local panes only: an ssh pane's directory and
+  // transcripts belong to the machine on the other end.
+  const banner =
+    sessionId && !sshTarget
+      ? formatPaneHistory(
+          await collectPaneHistory(sessionId, {
+            getCwd: getSessionCwd,
+            getAgent: getSessionAgent,
+            listSessions: async (agentId, root, limit) =>
+              (await listAgentSessions(agentId, [root], 0, limit)).sessions ?? [],
+          }),
+          Date.now(),
+        )
+      : "";
   if (closed) return;
 
   let pty: ReturnType<typeof spawn>;
@@ -1898,6 +1922,12 @@ wss.on("connection", async (ws: WebSocket, req) => {
     sshPortForwarding.register(sessionId, sshConnectionArgs, sshControlPath);
   }
   if (sessionId) activityTracker.bindAgent(sessionId, agent);
+  // Into the ring as well as the socket, so it survives a page reload the same
+  // way the rest of this pane's history does.
+  if (banner) {
+    ringAppend(session.ring, banner);
+    if (ws.readyState === ws.OPEN) ws.send(banner);
+  }
   wireSession(sessionId ?? undefined, session);
 
   pendingMessages.splice(0).forEach(applyClientMessage);
@@ -1911,7 +1941,7 @@ wss.on("connection", async (ws: WebSocket, req) => {
 async function shutdown() {
   // Best-effort: capture the final working directories before the shells die, so
   // a clean quit restores them exactly. Bounded so we never hang the exit.
-  await Promise.race([sweepCwds(), new Promise((r) => setTimeout(r, 800))]).catch(() => {});
+  await Promise.race([sweepSessionState(), new Promise((r) => setTimeout(r, 800))]).catch(() => {});
   flushScroll();
   for (const session of ptySessions.values()) {
     try {
