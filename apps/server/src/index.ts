@@ -49,6 +49,7 @@ import { gitDiffs, gitOverview, worktreeOverview } from "./git.js";
 import { pickFolder } from "./folderPicker.js";
 import { testProvider } from "./providerTest.js";
 import { ptyEnvironment } from "./ptyEnvironment.js";
+import { shellArgsForCommand } from "./shellCommand.js";
 import { resolveExecutable } from "./shellPath.js";
 import { generateTheme } from "./theme.js";
 
@@ -212,6 +213,7 @@ const OSC7_PS_HOOK = [
 const SHELL_ARGS = IS_WIN
   ? ["-NoLogo", "-NoProfile", "-NoExit", "-Command", OSC7_PS_HOOK]
   : ["-l"];
+
 
 // Populated from the PTY's own output (Windows only — see OSC7_PS_HOOK above),
 // keyed by pid so cwdForPid() can serve it the same way it serves the native
@@ -1718,6 +1720,9 @@ wss.on("connection", async (ws: WebSocket, req) => {
   const sessionId = url.searchParams.get("session");
   const sshTarget = url.searchParams.get("ssh");
   const agent = url.searchParams.get("agent") ?? undefined;
+  // Run this instead of an interactive prompt. Ignored when reattaching (the
+  // shell is already running) and when `ssh` is set (the remote decides).
+  const command = url.searchParams.get("cmd") ?? "";
 
   // --- Reattach: the session's shell is still running (detached or stolen
   // from a stale connection) — resume it instead of spawning a fresh one.
@@ -1867,7 +1872,10 @@ wss.on("connection", async (ws: WebSocket, req) => {
 
   let pty: ReturnType<typeof spawn>;
   try {
-    pty = spawn(sshArgs ? "ssh" : SHELL, sshArgs ?? SHELL_ARGS, {
+    const shellArgs = command
+      ? shellArgsForCommand(command, process.platform, IS_WIN ? OSC7_PS_HOOK : "")
+      : SHELL_ARGS;
+    pty = spawn(sshArgs ? "ssh" : SHELL, sshArgs ?? shellArgs, {
       name: "xterm-256color",
       cols: 80,
       rows: 24,
