@@ -11,7 +11,7 @@ import {
   aggregateAgentActivity,
   agentActivitySnapshot,
   agentActivityTitle,
-  focusSession,
+  reconcileTerminalFocus,
   subscribeAgentActivity,
   terminalSessionId,
 } from "../terminal/manager";
@@ -61,6 +61,18 @@ function findLeaf(pane: Pane, id: string): Leaf | undefined {
     if (hit) return hit;
   }
   return undefined;
+}
+
+/**
+ * Structure-only identity for focus reconciliation. Split sizes deliberately
+ * stay out so divider dragging does not refocus on every frame; changes that
+ * can remount a PaneSlot (split/collapse/reorder/view/SSH) remain visible.
+ */
+function focusTopologyKey(pane: Pane): string {
+  if (pane.kind === "leaf") {
+    return JSON.stringify([pane.id, pane.view ?? "terminal", pane.sshTarget ?? ""]);
+  }
+  return `${pane.dir}(${pane.children.map(focusTopologyKey).join(",")})`;
 }
 
 /** Pick the nearest edge of a rect for the given cursor point. */
@@ -385,7 +397,10 @@ function PaneHeader({
             // Don't let the slot's mousedown focus a pane we're about to close:
             // it would make closing ANY pane look like closing the focused one,
             // and focus would leave the pane the user was actually working in.
-            onMouseDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
             onClick={() => closePane(leaf.id)}
           >
             <CloseIcon />
@@ -417,22 +432,33 @@ function PaneSlot({
   const setFocusedPane = useStore((s) => s.setFocusedPane);
   const setPaneWebUrl = useStore((s) => s.setPaneWebUrl);
   const dropEdge = dropTarget?.id === leaf.id ? dropTarget.edge : null;
+  const isTerminal = (leaf.view ?? "terminal") === "terminal";
 
   useEffect(() => {
-    if (focused) {
-      focusSession(leaf.id);
-      acknowledgeAgentActivities([leaf.id]);
-    }
+    if (focused) acknowledgeAgentActivities([leaf.id]);
   }, [focused, leaf.id]);
+
+  const focusPane = () => {
+    // Update the one canonical state first; the ring and every later focus
+    // reconciliation now point at the same pane. The direct terminal focus is
+    // needed even when this pane was already selected (e.g. after a header
+    // control temporarily owned DOM focus).
+    setFocusedPane(leaf.id);
+    if (isTerminal) reconcileTerminalFocus(leaf.id);
+    acknowledgeAgentActivities([leaf.id]);
+  };
 
   return (
     <div
       data-pane-id={leaf.id}
-      className={`pane-slot ${showFocus && focused ? "focused" : ""}`}
-      onMouseDown={() => {
-        setFocusedPane(leaf.id);
-        acknowledgeAgentActivities([leaf.id]);
-      }}
+      // `focused` always mirrors the canonical store state. Whether a ring is
+      // useful is a separate presentation concern (single/zen panes omit it).
+      className={`pane-slot${focused ? " focused" : ""}${showFocus ? " show-focus-ring" : ""}`}
+      onMouseDown={focusPane}
+      // Keyboard navigation and child auto-focus can enter a pane without a
+      // mouse event. Feed that fact back into the same canonical state so the
+      // ring can never stay behind in another pane.
+      onFocusCapture={() => setFocusedPane(leaf.id)}
     >
       <PaneHeader
         leaf={leaf}
@@ -461,9 +487,10 @@ function PaneSlot({
             id={leaf.id}
             initialUrl={leaf.webUrl}
             onUrlChange={(url) => setPaneWebUrl(leaf.id, url)}
+            focused={focused}
           />
         ) : leaf.view === "agent" ? (
-          <AgentPane leaf={leaf} />
+          <AgentPane leaf={leaf} focused={focused} />
         ) : (
           <TerminalPane id={leaf.id} sshTarget={leaf.sshTarget} />
         )}
@@ -684,6 +711,19 @@ export function SplitView({ htab }: { htab: HTab }) {
   const newHTabDropRef = useRef(false);
   // Dropped on a sidebar page row → new tab on that page.
   const nodeDropTargetRef = useRef<string | null>(null);
+  const focusedLeaf = htab.focused ? findLeaf(htab.layout, htab.focused) : undefined;
+  const focusedTerminalId =
+    focusedLeaf && (focusedLeaf.view ?? "terminal") === "terminal" ? focusedLeaf.id : undefined;
+  const focusTopology = focusTopologyKey(htab.layout);
+
+  // TerminalPane attaches sessions in child effects before this parent effect
+  // runs. Reconcile from canonical focus after every tab/topology/zoom change;
+  // individual PaneSlots must not race focus against blur. The topology key
+  // also covers closing an unfocused sibling, where the focused id stays the
+  // same but React may remount its surviving PaneSlot while collapsing splits.
+  useEffect(() => {
+    reconcileTerminalFocus(focusedTerminalId);
+  }, [htab.id, htab.maximized, focusedTerminalId, focusTopology]);
 
   const updateDropTarget = (next: PaneDropTarget) => {
     dropTargetRef.current = next;

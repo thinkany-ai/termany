@@ -1,6 +1,6 @@
 {
   "name": "termany",
-  "version": "0.1.29",
+  "version": "0.1.30",
   "private": true,
   "license": "AGPL-3.0-only",
   "description": "Agent-native terminal — local-first, cloud-ready. Workspaces > vertical tabs > horizontal tabs.",

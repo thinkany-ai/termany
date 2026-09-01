@@ -15,7 +15,7 @@ import {
 } from "../rail-config";
 import { claimPage, readWindowPref, writeWindowPref } from "./windows";
 import { stepWorkspace } from "./layoutMerge";
-import { nextFocusAfterClose } from "./paneFocus";
+import { focusPane, focusPaneAfterRemoval, selectHTab } from "./paneFocus";
 import { nextCyclablePaneView } from "./paneViewCycle";
 
 /**
@@ -144,8 +144,15 @@ export interface HTab {
   id: string;
   title: string;
   layout: Pane;
-  /** The focused leaf (session id) — where split/close act and keyboard goes. */
+  /**
+   * The canonical focused leaf (session id). The ring, keyboard target and all
+   * pane actions derive from this same id; imperative DOM focus is never stored
+   * separately.
+   */
   focused: string;
+  /** Earlier focused panes, newest first. Excludes `focused`; optional so old
+   * persisted layouts migrate lazily on their first focus transition. */
+  focusHistory?: string[];
   /** When set, only this leaf is shown, filling the tab (Wave-style magnify). */
   maximized?: string;
   /**
@@ -395,6 +402,31 @@ export function findLeaf(pane: Pane, leafId: string): (Pane & { kind: "leaf" }) 
     if (hit) return hit;
   }
   return undefined;
+}
+
+/** Apply the one canonical focus transition while preserving the rest of a tab. */
+function withFocusedPane(tab: HTab, paneId: string, layout = tab.layout): HTab {
+  const next = focusPane(tab, paneId, leafIds(layout));
+  if (next === tab) return tab;
+  return { ...tab, focused: next.focused, focusHistory: next.focusHistory };
+}
+
+/** Apply a pane removal, including focus history and maximized-pane cleanup. */
+function tabAfterPaneRemoval(tab: HTab, paneId: string, layout: Pane): HTab {
+  const next = focusPaneAfterRemoval(tab, paneId, leafIds(layout));
+  return {
+    ...tab,
+    layout,
+    focused: next.focused,
+    focusHistory: next.focusHistory,
+    maximized: tab.maximized === paneId ? undefined : tab.maximized,
+  };
+}
+
+/** Activate a tab without touching the per-tab pane focus records. */
+function withActiveHTab(node: TreeNode, tabId: string): TreeNode {
+  const next = selectHTab({ activeHTab: node.activeHTab, htabs: node.htabs }, tabId);
+  return next.activeHTab === node.activeHTab ? node : { ...node, activeHTab: next.activeHTab };
 }
 
 /** Where a pane lives, in jumpToResult coordinates. */
@@ -878,9 +910,6 @@ function closeLeaf(s: State, leafId: string): Partial<State> {
   const { workspaceId, nodeId, htab } = home;
   disposePaneSessions(leafId);
   const layout = removeLeaf(htab.layout, leafId);
-  // Resolved against the layout as it stood, so the siblings are still there to
-  // pick from; `removeLeaf` only drops `leafId`, so the neighbour survives it.
-  const neighbor = nextFocusAfterClose(htab.layout, leafId);
   return {
     workspaces: inWs(s.workspaces, workspaceId, (ws) => ({
       ...ws,
@@ -898,12 +927,7 @@ function closeLeaf(s: State, leafId: string): Partial<State> {
           ...n,
           htabs: n.htabs.map((h) => {
             if (h.id !== htab.id) return h;
-            return {
-              ...h,
-              layout,
-              focused: h.focused === leafId ? (neighbor ?? firstLeaf(layout)) : h.focused,
-              maximized: h.maximized === leafId ? undefined : h.maximized,
-            };
+            return tabAfterPaneRemoval(h, leafId, layout);
           }),
         };
       }),
@@ -1161,7 +1185,9 @@ export const useStore = create<State>((set, get) => ({
               activeHTab: tabId,
               htabs: paneId
                 ? n.htabs.map((h) =>
-                    h.id === tabId ? { ...h, focused: paneId, maximized: undefined } : h
+                    h.id === tabId
+                      ? withFocusedPane({ ...h, maximized: undefined }, paneId)
+                      : h
                   )
                 : n.htabs,
             };
@@ -1238,7 +1264,7 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({
       workspaces: inActiveWs(s, (ws) => ({
         ...ws,
-        roots: updateNode(ws.roots, activeNodeId(s), (n) => ({ ...n, activeHTab: hId })),
+        roots: updateNode(ws.roots, activeNodeId(s), (n) => withActiveHTab(n, hId)),
       })),
     })),
 
@@ -1348,12 +1374,12 @@ export const useStore = create<State>((set, get) => ({
           htabs: n.htabs.map((h) => {
             if (h.id !== n.activeHTab || paneCount(h.layout) >= MAX_PANES_PER_TAB) return h;
             const leaf = makeLeaf(nextPaneTitle(h.layout), h.focused);
-            return {
+            const next = {
               ...h,
               layout: splitPane(h.layout, h.focused, dir, leaf),
-              focused: leaf.id,
               maximized: undefined,
             };
+            return withFocusedPane(next, leaf.id);
           }),
         })),
       })),
@@ -1368,15 +1394,21 @@ export const useStore = create<State>((set, get) => ({
   closePane: (leafId) => set((s) => closeLeaf(s, leafId)),
 
   setFocusedPane: (leafId) =>
-    set((s) => ({
-      workspaces: inActiveWs(s, (ws) => ({
-        ...ws,
-        roots: updateNode(ws.roots, activeNodeId(s), (n) => ({
-          ...n,
-          htabs: n.htabs.map((h) => (h.id === n.activeHTab ? { ...h, focused: leafId } : h)),
+    set((s) => {
+      const active = activeHtab(s);
+      if (!active || active.focused === leafId || !findLeaf(active.layout, leafId)) return s;
+      return {
+        workspaces: inActiveWs(s, (ws) => ({
+          ...ws,
+          roots: updateNode(ws.roots, activeNodeId(s), (n) => ({
+            ...n,
+            htabs: n.htabs.map((h) =>
+              h.id === n.activeHTab ? withFocusedPane(h, leafId) : h
+            ),
+          })),
         })),
-      })),
-    })),
+      };
+    }),
 
   nextHTab: () =>
     set((s) => ({
@@ -1385,7 +1417,7 @@ export const useStore = create<State>((set, get) => ({
         roots: updateNode(ws.roots, activeNodeId(s), (n) => {
           if (n.htabs.length < 2) return n;
           const i = n.htabs.findIndex((h) => h.id === n.activeHTab);
-          return { ...n, activeHTab: n.htabs[(i + 1) % n.htabs.length].id };
+          return withActiveHTab(n, n.htabs[(i + 1) % n.htabs.length].id);
         }),
       })),
     })),
@@ -1397,7 +1429,7 @@ export const useStore = create<State>((set, get) => ({
         roots: updateNode(ws.roots, activeNodeId(s), (n) => {
           if (n.htabs.length < 2) return n;
           const i = n.htabs.findIndex((h) => h.id === n.activeHTab);
-          return { ...n, activeHTab: n.htabs[(i - 1 + n.htabs.length) % n.htabs.length].id };
+          return withActiveHTab(n, n.htabs[(i - 1 + n.htabs.length) % n.htabs.length].id);
         }),
       })),
     })),
@@ -1413,7 +1445,7 @@ export const useStore = create<State>((set, get) => ({
             const ids = leafIds(h.layout);
             if (ids.length < 2) return h;
             const i = ids.indexOf(h.focused);
-            return { ...h, focused: ids[(i + 1) % ids.length] };
+            return withFocusedPane(h, ids[(i + 1) % ids.length]);
           }),
         })),
       })),
@@ -1430,7 +1462,7 @@ export const useStore = create<State>((set, get) => ({
             const ids = leafIds(h.layout);
             if (ids.length < 2) return h;
             const i = ids.indexOf(h.focused);
-            return { ...h, focused: ids[(i - 1 + ids.length) % ids.length] };
+            return withFocusedPane(h, ids[(i - 1 + ids.length) % ids.length]);
           }),
         })),
       })),
@@ -1587,7 +1619,8 @@ export const useStore = create<State>((set, get) => ({
                   ? { ...p, view: "files", filesRoot: root, filesSelected: selectedFile }
                   : p
                 : { ...p, children: p.children.map(open) };
-            return { ...h, layout: open(h.layout), focused: leafId };
+            const layout = open(h.layout);
+            return withFocusedPane({ ...h, layout }, leafId);
           }),
         })),
       })),
@@ -1630,12 +1663,12 @@ export const useStore = create<State>((set, get) => ({
               view,
             };
             created = leaf.id;
-            return {
+            const next = {
               ...h,
               layout: tileLayout(h.layout, leaf),
-              focused: leaf.id,
               maximized: undefined,
             };
+            return withFocusedPane(next, leaf.id);
           }),
         })),
       })),
@@ -1663,7 +1696,10 @@ export const useStore = create<State>((set, get) => ({
           ...n,
           htabs: n.htabs.map((h) =>
             h.id === n.activeHTab
-              ? { ...h, maximized: h.maximized === leafId ? undefined : leafId, focused: leafId }
+              ? withFocusedPane(
+                  { ...h, maximized: h.maximized === leafId ? undefined : leafId },
+                  leafId,
+                )
               : h
           ),
         })),
@@ -1682,12 +1718,12 @@ export const useStore = create<State>((set, get) => ({
             if (!dragged) return h;
             const without = removeLeaf(h.layout, dragId);
             if (!without || !findLeaf(without, targetId)) return h;
-            return {
+            const next = {
               ...h,
               layout: insertBeside(without, targetId, dragged, edge),
-              focused: dragId,
               maximized: undefined,
             };
+            return withFocusedPane(next, dragId);
           }),
         })),
       })),
@@ -1704,7 +1740,6 @@ export const useStore = create<State>((set, get) => ({
           const dragged = source ? findLeaf(source.layout, dragId) : undefined;
           if (!source || !target || !dragged) return n;
           const without = removeLeaf(source.layout, dragId);
-          const neighbor = nextFocusAfterClose(source.layout, dragId);
           return {
             ...n,
             activeHTab: targetHTabId,
@@ -1712,22 +1747,23 @@ export const useStore = create<State>((set, get) => ({
               if (h.id === source.id) {
                 if (!without) {
                   const replacement = makeLeaf();
-                  return { ...h, layout: replacement, focused: replacement.id, maximized: undefined };
+                  return {
+                    ...h,
+                    layout: replacement,
+                    focused: replacement.id,
+                    focusHistory: undefined,
+                    maximized: undefined,
+                  };
                 }
-                return {
-                  ...h,
-                  layout: without,
-                  focused: h.focused === dragId ? (neighbor ?? firstLeaf(without)) : h.focused,
-                  maximized: h.maximized === dragId ? undefined : h.maximized,
-                };
+                return tabAfterPaneRemoval(h, dragId, without);
               }
               if (h.id === target.id) {
-                return {
+                const next = {
                   ...h,
                   layout: tileLayout(h.layout, dragged),
-                  focused: dragged.id,
                   maximized: undefined,
                 };
+                return withFocusedPane(next, dragged.id);
               }
               return h;
             }),
@@ -1746,7 +1782,6 @@ export const useStore = create<State>((set, get) => ({
           if (!source || !dragged) return n;
           const without = removeLeaf(source.layout, dragId);
           if (!without) return n; // last pane of the tab — nothing to detach
-          const neighbor = nextFocusAfterClose(source.layout, dragId);
           const created: HTab = {
             id: id(),
             title: dragged.title,
@@ -1758,14 +1793,7 @@ export const useStore = create<State>((set, get) => ({
             activeHTab: created.id,
             htabs: [
               ...n.htabs.map((h) =>
-                h.id === source.id
-                  ? {
-                      ...h,
-                      layout: without,
-                      focused: h.focused === dragId ? (neighbor ?? firstLeaf(without)) : h.focused,
-                      maximized: h.maximized === dragId ? undefined : h.maximized,
-                    }
-                  : h
+                h.id === source.id ? tabAfterPaneRemoval(h, dragId, without) : h
               ),
               created,
             ],
@@ -1786,7 +1814,6 @@ export const useStore = create<State>((set, get) => ({
         if (!from || !source || !dragged || !findNode(ws.roots, toNodeId)) return ws;
         const without = removeLeaf(source.layout, dragId);
         if (!without) return ws; // last pane of the tab — nothing to detach
-        const neighbor = nextFocusAfterClose(source.layout, dragId);
         const created: HTab = {
           id: id(),
           title: dragged.title,
@@ -1797,12 +1824,7 @@ export const useStore = create<State>((set, get) => ({
           ...n,
           htabs: n.htabs.map((h) =>
             h.id === source.id
-              ? {
-                  ...h,
-                  layout: without,
-                  focused: h.focused === dragId ? (neighbor ?? firstLeaf(without)) : h.focused,
-                  maximized: h.maximized === dragId ? undefined : h.maximized,
-                }
+              ? tabAfterPaneRemoval(h, dragId, without)
               : h
           ),
         }));

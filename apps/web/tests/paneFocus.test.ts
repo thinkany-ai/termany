@@ -1,49 +1,119 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { nextFocusAfterClose } from "../src/state/paneFocus";
-import type { Pane } from "../src/state/store";
+import {
+  focusPane,
+  focusPaneAfterRemoval,
+  selectHTab,
+  type PaneFocusState,
+} from "../src/state/paneFocus";
 
-const leaf = (id: string): Pane => ({ kind: "leaf", id, title: id });
-const row = (...children: Pane[]): Pane => ({ kind: "split", dir: "row", children });
-const col = (...children: Pane[]): Pane => ({ kind: "split", dir: "col", children });
+const panes = ["a", "b", "c"];
 
-describe("nextFocusAfterClose", () => {
-  it("hands focus to the pane after the closed one", () => {
-    assert.equal(nextFocusAfterClose(row(leaf("a"), leaf("b"), leaf("c")), "b"), "c");
+describe("focusPane", () => {
+  it("records the previously focused pane as the most recent fallback", () => {
+    const first = focusPane({ focused: "a" }, "b", panes);
+    const second = focusPane(first, "c", panes);
+
+    assert.deepEqual(second, {
+      focused: "c",
+      focusHistory: ["b", "a"],
+    });
   });
 
-  it("falls back to the pane before it when the closed pane was last", () => {
-    assert.equal(nextFocusAfterClose(row(leaf("a"), leaf("b"), leaf("c")), "c"), "b");
+  it("moves a revisited pane to the front without duplicating it", () => {
+    const state: PaneFocusState = {
+      focused: "c",
+      focusHistory: ["b", "a"],
+    };
+
+    assert.deepEqual(focusPane(state, "a", panes), {
+      focused: "a",
+      focusHistory: ["c", "b"],
+    });
   });
 
-  it("stays inside the split that held the closed pane", () => {
-    // row[ a , col[b, c] ] — closing c must land on b, its own sibling, and
-    // not jump across the tab to a.
-    assert.equal(nextFocusAfterClose(row(leaf("a"), col(leaf("b"), leaf("c"))), "c"), "b");
+  it("ignores a pane that does not belong to this tab", () => {
+    const state: PaneFocusState = { focused: "a" };
+    assert.equal(focusPane(state, "outside", panes), state);
   });
 
-  it("picks the nearest edge of a neighbouring subtree, not its first leaf", () => {
-    // row[ col[a, b] , c ] — closing c grows the left column, whose visually
-    // nearest pane is b (its bottom), not a.
-    assert.equal(nextFocusAfterClose(row(col(leaf("a"), leaf("b")), leaf("c")), "c"), "b");
+  it("does not create a second focus state when focus is unchanged", () => {
+    const state: PaneFocusState = { focused: "a" };
+    assert.equal(focusPane(state, "a", panes), state);
+  });
+});
+
+describe("focusPaneAfterRemoval", () => {
+  it("restores the previously focused pane instead of the spatial neighbour", () => {
+    // Layout order is a, b, c. The old neighbour rule chose b after closing c,
+    // but the user's actual focus order was b -> a -> c, so a must come back.
+    const state: PaneFocusState = {
+      focused: "c",
+      focusHistory: ["a", "b"],
+    };
+
+    assert.deepEqual(focusPaneAfterRemoval(state, "c", ["a", "b"]), {
+      focused: "a",
+      focusHistory: ["b"],
+    });
   });
 
-  it("enters the next subtree at its first leaf", () => {
-    assert.equal(nextFocusAfterClose(row(leaf("a"), col(leaf("b"), leaf("c"))), "a"), "b");
+  it("keeps current focus when an unfocused pane closes and prunes its history", () => {
+    const state: PaneFocusState = {
+      focused: "c",
+      focusHistory: ["b", "a"],
+    };
+
+    assert.deepEqual(focusPaneAfterRemoval(state, "b", ["a", "c"]), {
+      focused: "c",
+      focusHistory: ["a"],
+    });
   });
 
-  it("never returns the pane being closed", () => {
-    const layout = row(leaf("a"), col(leaf("b"), leaf("c")), leaf("d"));
-    for (const id of ["a", "b", "c", "d"]) {
-      assert.notEqual(nextFocusAfterClose(layout, id), id);
-    }
+  it("skips stale history entries and falls back deterministically", () => {
+    const state: PaneFocusState = {
+      focused: "c",
+      focusHistory: ["gone"],
+    };
+
+    assert.deepEqual(focusPaneAfterRemoval(state, "c", ["a", "b"]), {
+      focused: "a",
+    });
   });
 
-  it("returns null when the closed pane was the only one", () => {
-    assert.equal(nextFocusAfterClose(leaf("a"), "a"), null);
+  it("repairs a stale focused id using a surviving history entry", () => {
+    const state: PaneFocusState = {
+      focused: "gone",
+      focusHistory: ["b", "a"],
+    };
+
+    assert.deepEqual(focusPaneAfterRemoval(state, "c", ["a", "b"]), {
+      focused: "b",
+      focusHistory: ["a"],
+    });
+  });
+});
+
+describe("selectHTab", () => {
+  it("preserves each tab's focused pane and history while switching", () => {
+    const tabs = [
+      { id: "tab-a", focused: "a", focusHistory: ["b"] },
+      { id: "tab-b", focused: "c", focusHistory: ["d"] },
+    ];
+    const state = { activeHTab: "tab-a", htabs: tabs };
+
+    const switched = selectHTab(state, "tab-b");
+
+    assert.equal(switched.activeHTab, "tab-b");
+    assert.equal(switched.htabs, tabs);
+    assert.deepEqual(switched.htabs, [
+      { id: "tab-a", focused: "a", focusHistory: ["b"] },
+      { id: "tab-b", focused: "c", focusHistory: ["d"] },
+    ]);
   });
 
-  it("returns null for a pane that is not in the layout", () => {
-    assert.equal(nextFocusAfterClose(row(leaf("a"), leaf("b")), "zzz"), null);
+  it("ignores an unknown tab instead of losing the active focus", () => {
+    const state = { activeHTab: "tab-a", htabs: [{ id: "tab-a", focused: "a" }] };
+    assert.equal(selectHTab(state, "missing"), state);
   });
 });

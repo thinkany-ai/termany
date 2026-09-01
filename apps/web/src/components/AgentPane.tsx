@@ -7,7 +7,14 @@ import { apiPath } from "../api";
 import { useI18n } from "../i18n";
 import { useImeGuard } from "../imeGuard";
 import { useNativeOccluder } from "../nativeViewOcclusion";
-import { cwdCandidates, useStore, type AgentMessage, type AgentPart, type Pane } from "../state/store";
+import {
+  activeHtab,
+  cwdCandidates,
+  useStore,
+  type AgentMessage,
+  type AgentPart,
+  type Pane,
+} from "../state/store";
 import { queueCommand } from "../terminal/manager";
 import { CheckIcon, ChevronIcon, CopyIcon, FolderIcon, SendIcon, SpinnerIcon, StopIcon, TerminalIcon } from "./icons";
 import { Markdown } from "./Markdown";
@@ -158,7 +165,7 @@ function AgentSteps({
   );
 }
 
-export function AgentPane({ leaf }: { leaf: Leaf }) {
+export function AgentPane({ leaf, focused = false }: { leaf: Leaf; focused?: boolean }) {
   const { t } = useI18n();
   const setAgentMessages = useStore((s) => s.setAgentMessages);
   const setAgentModel = useStore((s) => s.setAgentModel);
@@ -185,6 +192,12 @@ export function AgentPane({ leaf }: { leaf: Leaf }) {
   const ime = useImeGuard();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!focused) return;
+    const frame = requestAnimationFrame(() => textareaRef.current?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(frame);
+  }, [focused]);
 
   useEffect(() => {
     if (!streamingRef.current) setMessages(leaf.agentMessages ?? []);
@@ -463,7 +476,14 @@ export function AgentPane({ leaf }: { leaf: Leaf }) {
       setPermission(null);
       streamingRef.current = false;
       abortRef.current = null;
-      requestAnimationFrame(() => textareaRef.current?.focus());
+      // A reply can finish after the user moved to another pane. Never let an
+      // async completion create a second, DOM-only focus that disagrees with
+      // the canonical pane selection and its ring.
+      requestAnimationFrame(() => {
+        if (activeHtab(useStore.getState())?.focused === leaf.id) {
+          textareaRef.current?.focus();
+        }
+      });
     }
   };
 

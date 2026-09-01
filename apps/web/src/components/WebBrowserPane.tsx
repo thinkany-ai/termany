@@ -23,10 +23,13 @@ export function WebBrowserPane({
   id,
   initialUrl,
   onUrlChange,
+  focused = false,
 }: {
   id: string;
   initialUrl?: string;
   onUrlChange?: (url: string) => void;
+  /** The same canonical pane selection that draws the focus ring. */
+  focused?: boolean;
 }) {
   const startingUrl = normalizeUrl(initialUrl ?? DEFAULT_URL);
   const [url, setUrl] = useState(startingUrl);
@@ -40,6 +43,7 @@ export function WebBrowserPane({
     () => isTauri && document.body.classList.contains("native-webviews-suppressed"),
   );
   const viewportRef = useRef<HTMLDivElement>(null);
+  const nativeViewRef = useRef<import("@tauri-apps/api/webview").Webview | null>(null);
   // Mount-unique suffix: zen (maximize) toggling remounts this pane, and the
   // fresh webview would otherwise reuse the label of its still-closing
   // predecessor, which rejects the creation.
@@ -122,6 +126,7 @@ export function WebBrowserPane({
           focus: false,
           dragDropEnabled: false,
         });
+        nativeViewRef.current = webview;
         const bringForward = async () => {
           if (cancelled || !webview) return;
           try {
@@ -131,10 +136,9 @@ export function WebBrowserPane({
               return;
             }
             await appWindow.show();
-            await appWindow.setFocus();
-            // show()/focus() cross the native bridge. Suppression may have
-            // changed while the preceding calls were in flight, so check at
-            // the last possible moment before revealing the child view.
+            // show() crosses the native bridge. Suppression may have changed
+            // while the preceding calls were in flight, so check at the last
+            // possible moment before revealing the child view.
             if (!canReveal()) {
               visible = false;
               await webview.hide();
@@ -146,15 +150,9 @@ export function WebBrowserPane({
               await webview.hide();
               return;
             }
-            await webview.setFocus();
-            if (!canReveal()) {
-              visible = false;
-              await webview.hide();
-              return;
-            }
             visible = true;
           } catch (err) {
-            console.warn("Failed to focus webview", err);
+            console.warn("Failed to reveal webview", err);
           }
         };
         void webview.once("tauri://created", async () => {
@@ -167,6 +165,7 @@ export function WebBrowserPane({
         void webview.once<string>("tauri://error", (event) => {
           if (cancelled) return;
           webview = null;
+          nativeViewRef.current = null;
           setNativeState("error");
           setNativeError(event.payload || "Failed to create webview");
         });
@@ -237,8 +236,25 @@ export function WebBrowserPane({
       unsubscribeOcclusion();
       void webview?.hide().catch(() => {});
       void webview?.close();
+      if (nativeViewRef.current === webview) nativeViewRef.current = null;
     };
   }, [label, url]);
+
+  // Revealing a native child view and focusing it are different operations.
+  // Every web pane may mount during a tab switch, but only the pane selected by
+  // the canonical store state may take keyboard focus; otherwise an async
+  // `tauri://created` callback can steal focus long after the terminal ring has
+  // already settled elsewhere.
+  useEffect(() => {
+    if (!isTauri || !focused || nativeState !== "ready" || viewSuppressed) return;
+    const frame = requestAnimationFrame(() => {
+      const host = viewportRef.current;
+      const rect = host?.getBoundingClientRect();
+      if (!host?.isConnected || !rect || rect.width <= 2 || rect.height <= 2) return;
+      void nativeViewRef.current?.setFocus().catch(() => {});
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focused, nativeState, viewSuppressed]);
 
   return (
     <div className="web-pane">

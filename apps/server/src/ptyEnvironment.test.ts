@@ -30,6 +30,27 @@ test("replaces a non-UTF-8 LC_ALL without changing other locale categories", () 
   );
 });
 
+test("publishes the pane id so programs in the pane can identify it", () => {
+  assert.deepEqual(ptyEnvironment({ LANG: "en_US.UTF-8" }, "darwin", "pane-1"), {
+    LANG: "en_US.UTF-8",
+    TERM: "xterm-256color",
+    TERMANY_PANE_ID: "pane-1",
+  });
+});
+
+test("publishes the pane id on Windows too", () => {
+  assert.deepEqual(ptyEnvironment({ LANG: "C" }, "win32", "pane-1"), {
+    LANG: "C",
+    TERM: "xterm-256color",
+    TERMANY_PANE_ID: "pane-1",
+  });
+});
+
+test("omits the pane id for sessions that do not have one", () => {
+  const env = ptyEnvironment({ LANG: "en_US.UTF-8" }, "darwin");
+  assert.equal("TERMANY_PANE_ID" in env, false);
+});
+
 test("does not alter locale variables on Windows", () => {
   assert.deepEqual(ptyEnvironment({ LANG: "C" }, "win32"), {
     LANG: "C",

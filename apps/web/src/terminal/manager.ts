@@ -8,6 +8,7 @@ import { Terminal, type ITheme } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { loadAgentConfigs } from "../agents";
 import { apiUrl } from "../api";
+import { writeClipboard } from "../clipboard";
 import { DemoBackend, demoInteracted, isDemo } from "../demo";
 import { ACTIONS, loadKeybindings, matchChord } from "../keybindings";
 import {
@@ -22,6 +23,7 @@ import {
 } from "./agentIdleWatcher";
 import { SYMBOLS_FONT_FAMILY, withSymbolsFallback } from "./fonts";
 import { registerLocalPathLinks } from "./localLinks";
+import { registerOsc52 } from "./osc52";
 import {
   MAX_AUTO_RESTARTS,
   RESTART_HEALTHY_MS,
@@ -69,6 +71,8 @@ export interface Session {
   connectionState?: "connecting" | "connected" | "disconnected";
   /** Increments for every PTY output chunk, including in-place TUI redraws. */
   contentVersion: number;
+  /** Set when this session's shell is an OpenSSH destination. */
+  sshTarget?: string;
 }
 
 /**
@@ -1077,6 +1081,59 @@ let currentTermTheme: ITheme = {
   selectionBackground: "#2a3441",
 };
 
+const HIDDEN_CURSOR = "rgba(0, 0, 0, 0)";
+
+function inactiveTermTheme(): ITheme {
+  return {
+    ...currentTermTheme,
+    cursor: HIDDEN_CURSOR,
+    cursorAccent: HIDDEN_CURSOR,
+  };
+}
+
+/**
+ * Project canonical pane focus into xterm's renderer rather than asking the
+ * renderer to infer it from WebKit's focus events. A transparent bar avoids
+ * WebGL's block-cursor cell colour override, so it is invisible even if
+ * xterm's private browser-focus flag is stale.
+ */
+function setSessionCursorFocused(
+  session: Session,
+  focused: boolean,
+  forceTheme = false,
+): boolean {
+  let changed = false;
+  if (focused) {
+    if (forceTheme || session.term.options.theme !== currentTermTheme) {
+      session.term.options.theme = currentTermTheme;
+      changed = true;
+    }
+    if (session.term.options.cursorStyle !== "block") {
+      session.term.options.cursorStyle = "block";
+      changed = true;
+    }
+    if (!session.term.options.cursorBlink) {
+      session.term.options.cursorBlink = true;
+      changed = true;
+    }
+    return changed;
+  }
+  const theme = session.term.options.theme;
+  if (forceTheme || theme?.cursor !== HIDDEN_CURSOR || theme?.cursorAccent !== HIDDEN_CURSOR) {
+    session.term.options.theme = inactiveTermTheme();
+    changed = true;
+  }
+  if (session.term.options.cursorStyle !== "bar") {
+    session.term.options.cursorStyle = "bar";
+    changed = true;
+  }
+  if (session.term.options.cursorBlink) {
+    session.term.options.cursorBlink = false;
+    changed = true;
+  }
+  return changed;
+}
+
 /** User-configured font, loaded once at startup and updated from Settings.
  *  Every new session starts with these; applyFontFamily / applyFontSize
  *  push changes to all live sessions immediately. */
@@ -1237,7 +1294,10 @@ function traceImeEvents(term: Terminal) {
 /** Switch the terminal palette: future sessions + all currently open ones. */
 export function applyTermTheme(theme: ITheme) {
   currentTermTheme = theme;
-  for (const s of sessions.values()) s.term.options.theme = theme;
+  for (const s of sessions.values()) {
+    const focused = s.el.closest(".pane-slot")?.classList.contains("focused") ?? false;
+    setSessionCursorFocused(s, focused, true);
+  }
 }
 
 // The bundled "Symbols Nerd Font Mono" (@font-face in styles.css) loads
@@ -1286,12 +1346,21 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
     fontFamily: withSymbolsFallback(currentFontFamily),
     fontSize: currentFontSize,
     scrollback: SCROLLBACK_LINES,
-    cursorBlink: true,
+    // Sessions start visually inactive. The canonical focus reconciler turns
+    // exactly one into a blinking block after it has been attached.
+    cursorBlink: false,
+    cursorStyle: "bar",
+    // xterm's default inactive cursor is a full-strength outline in the same
+    // accent colour. That makes a correctly blurred pane still look focused,
+    // especially immediately after splitting. The pane ring/header retain the
+    // remembered focus cue; only the terminal that owns keyboard input draws
+    // a cursor.
+    cursorInactiveStyle: "none",
     allowProposedApi: true,
     // Lets art-forward themes use an rgba() terminal background so the window
     // artwork shows through the pane veil; opaque themes render identically.
     allowTransparency: true,
-    theme: currentTermTheme,
+    theme: inactiveTermTheme(),
   });
 
   const fit = new FitAddon();
@@ -1355,6 +1424,9 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
   // Make URLs open on Cmd+click. The custom provider also joins links hard-
   // wrapped by rich CLI output, which xterm's stock addon cannot do.
   registerWebLinks(term);
+  // Let programs copy to the local clipboard via OSC 52 — the only copy channel
+  // that survives SSH, and how agent CLIs expect "copy" to work. Write-only.
+  registerOsc52(term);
   // Local file paths (including relative ones like `src/foo.ts`) are verified
   // and resolved by the server against this shell's live cwd. If the server
   // can't answer (demo mode, old server), fall back to trusting absolute
@@ -1409,6 +1481,7 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
     ended: false,
     connectionState: sshTarget ? "connecting" : undefined,
     contentVersion: 0,
+    sshTarget,
   };
   sessions.set(id, session);
   refreshOnSymbolsFontLoad();
@@ -1544,7 +1617,7 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
     const sel = term.getSelection();
     // Use trim only as an emptiness check. Copy the original selection so
     // meaningful indentation and line breaks are preserved.
-    if (sel.trim()) navigator.clipboard?.writeText(sel).catch(() => {});
+    if (sel.trim()) void writeClipboard(sel);
   });
 
   // Paste image blobs as local file paths only when the active program looks
@@ -1729,12 +1802,10 @@ function fixAbandonedImeFinalize(term: Terminal) {
 /**
  * Attach the session's element into `host` and open the terminal (once).
  *
- * `focus` must say whether this pane is the focused one. Removing a pane
- * collapses its parent split, which changes the React key of every surviving
- * pane in it and remounts them all; taking the keyboard unconditionally here
- * handed it to whichever pane happened to mount LAST while the focus ring
- * stayed on the pane the store had focused. Ring and keyboard then disagreed
- * until the next click.
+ * Attaching deliberately does NOT focus. A tab switch or split collapse mounts
+ * several sessions at once, and mount order must never decide which one owns
+ * the keyboard. React reconciles the one canonical store focus after attach
+ * and at the SplitView level instead.
  */
 export function attachSession(
   id: string,
@@ -1742,7 +1813,6 @@ export function attachSession(
   cwdFrom?: string[],
   sshTarget?: string,
   paneId = id,
-  focus = true
 ) {
   activeSessionByPane.set(paneId, id);
   let owned = sessionIdsByPane.get(paneId);
@@ -1790,7 +1860,6 @@ export function attachSession(
     s.opened = true;
   }
   fitSession(id);
-  if (focus) focusSession(id);
   const queued = pendingCommands.get(paneId) ?? pendingCommands.get(id);
   if (queued?.length) {
     pendingCommands.delete(paneId);
@@ -1831,6 +1900,12 @@ export function fitSession(id: string) {
   id = activeSessionId(id);
   const s = sessions.get(id);
   if (!s || !s.opened) return;
+  // A minimized/hidden window lays out as (near-)zero size. Fitting then
+  // clamps the terminal to FitAddon's 2x1 minimum, which reflows the live
+  // screen into scrollback (and mangles ConPTY's buffer) — the "current
+  // screen is blank after showing the window again" bug. Skip degenerate
+  // measurements; the ResizeObserver fires a real fit once the layout is back.
+  if (s.el.isConnected && (s.el.clientWidth < 5 || s.el.clientHeight < 5)) return;
   try {
     s.fit.fit();
     s.backend.resize(s.term.cols, s.term.rows);
@@ -1847,7 +1922,61 @@ export function focusSession(id: string) {
   // In the landing-page demo iframe, programmatic focus on load would steal
   // the visitor's keyboard/scroll — hold off until they click into the demo.
   if (isDemo && !demoInteracted()) return;
-  sessions.get(id)?.term.focus();
+  const session = sessions.get(id);
+  if (!session) return;
+  setSessionCursorFocused(session, true);
+  session.term.focus();
+}
+
+function refreshSessionAfterLayout(id: string, expected: Session) {
+  // A split changes the old pane's dimensions in the same commit that moves
+  // focus to the new pane. WKWebView can coalesce xterm's blur repaint with
+  // the ResizeObserver-driven fit and leave the old WebGL cursor pixels on the
+  // canvas even though its textarea is correctly blurred. Wait until layout
+  // and the queued fit have both had a frame, then redraw from current focus
+  // state. Checking identity keeps a delayed callback away from disposed or
+  // replacement sessions.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const latest = sessions.get(id);
+      if (latest !== expected || !latest.opened) return;
+      latest.term.refresh(0, latest.term.rows - 1);
+    });
+  });
+}
+
+function blurRuntimeSession(id: string, session: Session) {
+  const hadDomFocus = session.term.element?.classList.contains("focus") ?? false;
+  const cursorChanged = setSessionCursorFocused(session, false);
+  session.term.blur();
+  if (!session.opened || (!hadDomFocus && !cursorChanged)) return;
+  session.term.refresh(0, session.term.rows - 1);
+  refreshSessionAfterLayout(id, session);
+}
+
+/** Immediately remove keyboard focus, then clear any post-resize cursor pixels. */
+export function blurSession(id: string) {
+  id = activeSessionId(id);
+  const session = sessions.get(id);
+  if (session) blurRuntimeSession(id, session);
+}
+
+/**
+ * Reconcile xterm's imperative DOM focus from the one canonical pane id.
+ *
+ * Splitting mounts the new terminal and updates the old PaneSlot in the same
+ * React commit. Independent pane effects have no useful ordering guarantee;
+ * focusing the new textarea before blurring the old one can make WebKit move
+ * `document.activeElement` without giving xterm's old WebGL renderer the blur
+ * transition that stops its cursor. A single coordinator makes the ordering
+ * explicit and also clears a terminal left focused in a background tab.
+ */
+export function reconcileTerminalFocus(focusedPaneId?: string) {
+  const focusedSessionId = focusedPaneId ? activeSessionId(focusedPaneId) : undefined;
+  for (const [id, session] of sessions) {
+    if (id !== focusedSessionId) blurRuntimeSession(id, session);
+  }
+  if (focusedSessionId) focusSession(focusedSessionId);
 }
 
 /**
@@ -1989,6 +2118,17 @@ export function queueCommand(id: string, command: string) {
 export function pasteIntoSession(id: string, text: string) {
   id = activeSessionId(id);
   sessions.get(id)?.term.paste(text);
+}
+
+/**
+ * Hand local paths to the active session's backend to upload. The server picks
+ * the transfer protocol and only honors this on SSH sessions; local panes show
+ * a refusal line instead of swallowing the drop.
+ */
+export function uploadFilesToSession(id: string, paths: string[]) {
+  id = activeSessionId(id);
+  if (!paths.length) return;
+  sessions.get(id)?.backend.uploadFiles(paths);
 }
 
 export function sessionUsesAlternateBuffer(id: string): boolean {

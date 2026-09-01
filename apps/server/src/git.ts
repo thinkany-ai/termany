@@ -198,12 +198,19 @@ function defaultBase(wt: Omit<GitWorktree, "files">, refs: string[], mainBranch:
  */
 async function changedCount(root: string, base: string | undefined): Promise<number> {
   try {
-    const status = git(["status", "--porcelain=v1", "-z"], root);
-    const tracked = base
-      ? git(["diff", "--name-only", "-z", await mergeBase(root, base)], root)
-      : Promise.resolve("");
-    const files = new Set((await tracked).split("\0").filter(Boolean));
-    const records = (await status).split("\0");
+    // Promise.all observes BOTH promises even when one rejects — awaiting them
+    // sequentially let the first rejection skip the second await, stranding an
+    // unhandled rejection that takes the whole server down (spawn git ENOENT
+    // when the worktree directory was deleted behind our back, or git itself
+    // is missing from the server's PATH).
+    const [statusOut, trackedOut] = await Promise.all([
+      git(["status", "--porcelain=v1", "-z"], root),
+      base
+        ? mergeBase(root, base).then((mb) => git(["diff", "--name-only", "-z", mb], root))
+        : Promise.resolve(""),
+    ]);
+    const files = new Set(trackedOut.split("\0").filter(Boolean));
+    const records = statusOut.split("\0");
     for (let i = 0; i < records.length; i++) {
       const record = records[i];
       if (record.length < 4) continue;

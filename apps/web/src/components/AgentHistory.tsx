@@ -145,6 +145,12 @@ export function AgentHistory({ autoFocus = false }: { autoFocus?: boolean }) {
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (!autoFocus) return;
+    const frame = requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(frame);
+  }, [autoFocus]);
+
   const agentName = agents.find((a) => a.id === agentId)?.name ?? agentId;
 
   // Resolve the scope once: repo worktrees first, plain directory as fallback.

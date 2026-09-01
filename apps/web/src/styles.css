@@ -14,6 +14,20 @@
   size-adjust: 60.2%;
 }
 
+/* Bundled Menlo (regular weight only), so the default terminal font stack
+   ('Menlo, "SF Mono", Monaco, monospace' in src/font-config.ts) renders
+   identically on platforms without Menlo installed — Windows, Linux. Where a
+   system Menlo exists (macOS) this face shadows it; it is the same font.
+   NOTE: keep this after the symbols @font-face — src/terminal/fonts.test.ts
+   matches the FIRST @font-face block in this file. */
+@font-face {
+  font-family: "Menlo";
+  src: url("./assets/fonts/Menlo-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* Design tokens — every value here is driven by the active theme (see
    src/themes/). These defaults mirror the Default Dark theme so the first
    paint (before JS applies a theme) is already correct. */
@@ -2026,7 +2040,7 @@ html.tauri #root {
 /* Draw the focus ring as a top-most overlay so it sits ABOVE the opaque header
    (an inset box-shadow gets painted over by the header's background). It lands
    exactly on the card's own 1px border, recolouring the whole outline. */
-.pane-slot.focused::after {
+.pane-slot.focused.show-focus-ring::after {
   content: "";
   position: absolute;
   inset: 0;

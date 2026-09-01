@@ -15,6 +15,8 @@ export interface ITerminalBackend {
   onData(cb: (data: string) => void): void;
   /** Send user keystrokes / input to the shell (UI -> server). */
   write(data: string): void;
+  /** Ask the session to upload local paths to the remote (SSH panes). */
+  uploadFiles(paths: string[]): void;
   /** Tell the PTY the new viewport size. */
   resize(cols: number, rows: number): void;
   /**
@@ -30,7 +32,8 @@ export interface ITerminalBackend {
 /** Wire protocol: UI -> server messages (JSON text frames). */
 export type ClientMessage =
   | { type: "input"; data: string }
-  | { type: "resize"; cols: number; rows: number };
+  | { type: "resize"; cols: number; rows: number }
+  | { type: "upload-files"; paths: string[] };
 
 /**
  * How a shell process ended, as observed by the PTY host.
