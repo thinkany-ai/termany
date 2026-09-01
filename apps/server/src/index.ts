@@ -1925,7 +1925,7 @@ wss.on("connection", async (ws: WebSocket, req) => {
       cols: 80,
       rows: 24,
       cwd,
-      env: ptyEnvironment(),
+      env: ptyEnvironment(process.env, process.platform, sessionId ?? undefined),
     });
   } catch (err) {
     // Never let one bad spawn take down the whole server.
