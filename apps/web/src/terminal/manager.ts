@@ -8,6 +8,7 @@ import { Terminal, type ITheme } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { loadAgentConfigs } from "../agents";
 import { apiUrl } from "../api";
+import { writeClipboard } from "../clipboard";
 import { DemoBackend, demoInteracted, isDemo } from "../demo";
 import { ACTIONS, loadKeybindings, matchChord } from "../keybindings";
 import {
@@ -22,6 +23,7 @@ import {
 } from "./agentIdleWatcher";
 import { SYMBOLS_FONT_FAMILY, withSymbolsFallback } from "./fonts";
 import { registerLocalPathLinks } from "./localLinks";
+import { registerOsc52 } from "./osc52";
 import {
   MAX_AUTO_RESTARTS,
   RESTART_HEALTHY_MS,
@@ -69,6 +71,8 @@ export interface Session {
   connectionState?: "connecting" | "connected" | "disconnected";
   /** Increments for every PTY output chunk, including in-place TUI redraws. */
   contentVersion: number;
+  /** Set when this session's shell is an OpenSSH destination. */
+  sshTarget?: string;
 }
 
 /**
@@ -1420,6 +1424,9 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
   // Make URLs open on Cmd+click. The custom provider also joins links hard-
   // wrapped by rich CLI output, which xterm's stock addon cannot do.
   registerWebLinks(term);
+  // Let programs copy to the local clipboard via OSC 52 — the only copy channel
+  // that survives SSH, and how agent CLIs expect "copy" to work. Write-only.
+  registerOsc52(term);
   // Local file paths (including relative ones like `src/foo.ts`) are verified
   // and resolved by the server against this shell's live cwd. If the server
   // can't answer (demo mode, old server), fall back to trusting absolute
@@ -1474,6 +1481,7 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
     ended: false,
     connectionState: sshTarget ? "connecting" : undefined,
     contentVersion: 0,
+    sshTarget,
   };
   sessions.set(id, session);
   refreshOnSymbolsFontLoad();
@@ -1609,7 +1617,7 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
     const sel = term.getSelection();
     // Use trim only as an emptiness check. Copy the original selection so
     // meaningful indentation and line breaks are preserved.
-    if (sel.trim()) navigator.clipboard?.writeText(sel).catch(() => {});
+    if (sel.trim()) void writeClipboard(sel);
   });
 
   // Paste image blobs as local file paths only when the active program looks
@@ -2104,6 +2112,17 @@ export function queueCommand(id: string, command: string) {
 export function pasteIntoSession(id: string, text: string) {
   id = activeSessionId(id);
   sessions.get(id)?.term.paste(text);
+}
+
+/**
+ * Hand local paths to the active session's backend to upload. The server picks
+ * the transfer protocol and only honors this on SSH sessions; local panes show
+ * a refusal line instead of swallowing the drop.
+ */
+export function uploadFilesToSession(id: string, paths: string[]) {
+  id = activeSessionId(id);
+  if (!paths.length) return;
+  sessions.get(id)?.backend.uploadFiles(paths);
 }
 
 export function sessionUsesAlternateBuffer(id: string): boolean {

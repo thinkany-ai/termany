@@ -148,6 +148,10 @@ export class DemoBackend implements ITerminalBackend {
     /* the demo session never ends */
   }
 
+  uploadFiles(_paths: string[]): void {
+    /* the demo shell has no remote side to upload to */
+  }
+
   resize(_cols: number, _rows: number): void {
     /* nothing to tell — there is no PTY */
   }

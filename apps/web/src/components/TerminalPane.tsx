@@ -10,6 +10,7 @@ import {
   subscribeTerminalScrollState,
   subscribeSshNaturalExit,
   terminalSessionId,
+  uploadFilesToSession,
   type TerminalScrollState,
 } from "../terminal/manager";
 import { subscribeDesktopFileDrops } from "../terminal/desktopFileDrop";
@@ -170,13 +171,17 @@ export function TerminalPane({ id, sshTarget }: { id: string; sshTarget?: string
 
       if (event.type === "drop") {
         setDragOver(false);
-        void openLocalPathsInSession(id, event.paths);
+        if (sshTarget && event.paths.length) {
+          uploadFilesToSession(terminalSessionId(id, sshTarget), event.paths);
+        } else {
+          void openLocalPathsInSession(id, event.paths);
+        }
         return;
       }
 
       setDragOver(true);
     });
-  }, [id]);
+  }, [id, sshTarget]);
 
   return (
     <div className={`term-pane ${dragOver ? "drag-over" : ""}`}>
@@ -198,7 +203,11 @@ export function TerminalPane({ id, sshTarget }: { id: string; sshTarget?: string
           e.preventDefault();
           setDragOver(false);
           const paths = extractDroppedPaths(e.dataTransfer);
-          void openLocalPathsInSession(id, paths);
+          if (sshTarget && paths.length) {
+            uploadFilesToSession(terminalSessionId(id, sshTarget), paths);
+          } else {
+            void openLocalPathsInSession(id, paths);
+          }
         }}
       />
       {scrollState.hasOverflow && (

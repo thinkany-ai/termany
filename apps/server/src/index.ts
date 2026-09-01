@@ -51,6 +51,12 @@ import { testProvider } from "./providerTest.js";
 import { ptyEnvironment } from "./ptyEnvironment.js";
 import { resolveExecutable } from "./shellPath.js";
 import { generateTheme } from "./theme.js";
+import {
+  createTransferPipeline,
+  stripTransferMagic,
+  TRANSFER_PROTOCOLS,
+  type TransferPipeline,
+} from "./fileTransfer.js";
 
 /** Read a JSON request body (capped) into an object. */
 function readJson(req: import("node:http").IncomingMessage, maxChars = 1_000_000): Promise<any> {
@@ -236,7 +242,8 @@ function trackOscCwd(pid: number, data: string): void {
 
 type ClientMessage =
   | { type: "input"; data: string }
-  | { type: "resize"; cols: number; rows: number };
+  | { type: "resize"; cols: number; rows: number }
+  | { type: "upload-files"; paths: string[] };
 
 // Mirrors packages/core's ShellExit wire format — kept in sync by hand because
 // this server bundles standalone (see scripts/bundle-server.mjs) and does not
@@ -302,7 +309,9 @@ function ringAppend(ring: ScrollRing, data: string): void {
  */
 function sanitizeForReplay(data: string): string {
   return (
-    data
+    // File transfer handshakes — replaying one would announce a phantom
+    // transfer to the restored session's pipeline
+    stripTransferMagic(data)
       // DCS strings (XTGETTCAP etc.) — queries wrapped in ESC P ... ESC \
       .replace(/\x1bP[\s\S]*?(?:\x1b\\|\x07)/g, "")
       // OSC 52 — replaying it would overwrite the user's clipboard
@@ -385,6 +394,8 @@ interface PtySession {
   detachedAt: number | null;
   /** Null is the local login shell; otherwise the OpenSSH destination. */
   sshTarget: string | null;
+  /** In-band file transfer, wired in wireSession() as the pty is attached. */
+  transfer?: TransferPipeline;
 }
 
 const ptySessions = new Map<string, PtySession>();
@@ -479,7 +490,9 @@ function wireSession(id: string | undefined, session: PtySession): void {
     if (!shellJob) shellJob = job || (session.sshTarget ? "ssh" : SHELL);
     if (id) activityTracker.noteForegroundJob(id, job, shellJob);
   });
-  session.pty.onData((data) => {
+  /** Everything a client should see: live output, plus the progress bar a
+   *  transfer draws while it runs. Also what history records. */
+  const emit = (data: string) => {
     if (isOpen(session.ws)) session.ws.send(data);
     ringAppend(session.ring, data);
     if (id) {
@@ -487,7 +500,18 @@ function wireSession(id: string | undefined, session: PtySession): void {
       jobSampler.noteOutput();
     }
     if (IS_WIN) trackOscCwd(session.pty.pid, data);
+  };
+  // In-band transfer only makes sense across SSH: it exists to reach the
+  // machine the human is on, which a local shell already is. So a local pane
+  // gets an empty pipeline — a pass-through that cannot be talked into popping
+  // a dialog by a stray handshake in its own output.
+  const transfer = createTransferPipeline({
+    protocols: session.sshTarget ? TRANSFER_PROTOCOLS : [],
+    sendToPty: (data) => session.pty.write(data),
+    sendToClient: emit,
   });
+  session.transfer = transfer;
+  session.pty.onData((data) => transfer.fromShell(data));
   session.pty.onExit(({ exitCode, signal }) => {
     jobSampler.dispose();
     oscCwdByPid.delete(session.pty.pid);
@@ -543,6 +567,28 @@ function killSession(id: string): void {
     /* already gone */
   }
   ptySessions.delete(id);
+}
+
+/**
+ * Drag-and-drop upload, driven by paths the webview harvested from a native OS
+ * file drop. Which protocol carries it, and whatever command it has to type to
+ * get the remote's attention, is the pipeline's business. Only remote panes
+ * have a protocol to offer, so a local one gets a visible refusal instead of a
+ * meaningless local path pasted into the shell.
+ */
+function runUpload(session: PtySession, paths: string[]): void {
+  if (!session.transfer?.canUpload) {
+    if (isOpen(session.ws)) {
+      session.ws.send("\r\n\x1b[31m[termany] file upload is only available on remote (SSH) panes\x1b[0m\r\n");
+    }
+    return;
+  }
+  void session.transfer.startUpload(paths).catch((err) => {
+    const message = err instanceof Error ? err.message : String(err);
+    if (isOpen(session.ws)) {
+      session.ws.send(`\r\n\x1b[31m[termany] upload failed: ${message}\x1b[0m\r\n`);
+    }
+  });
 }
 
 // Safety net: a shell detached (app closed, never reopened) longer than this
@@ -1744,7 +1790,7 @@ wss.on("connection", async (ws: WebSocket, req) => {
       }
       if (msg.type === "input") {
         activityTracker.noteInput(sessionId!, msg.data, agent);
-        existing.pty.write(msg.data);
+        if (!existing.transfer?.fromClient(msg.data)) existing.pty.write(msg.data);
       }
       else if (msg.type === "resize") {
         try {
@@ -1752,6 +1798,10 @@ wss.on("connection", async (ws: WebSocket, req) => {
         } catch {
           /* race during teardown */
         }
+        existing.transfer?.setColumns(Math.max(1, msg.cols));
+      }
+      else if (msg.type === "upload-files") {
+        runUpload(existing, msg.paths);
       }
     });
     ws.on("close", () => {
@@ -1790,13 +1840,16 @@ wss.on("connection", async (ws: WebSocket, req) => {
     }
     if (msg.type === "input") {
       if (sessionId) activityTracker.noteInput(sessionId, msg.data, agent);
-      session.pty.write(msg.data);
+      if (!session.transfer?.fromClient(msg.data)) session.pty.write(msg.data);
     } else if (msg.type === "resize") {
       try {
         session.pty.resize(Math.max(1, msg.cols), Math.max(1, msg.rows));
       } catch {
         /* race during teardown */
       }
+      session.transfer?.setColumns(Math.max(1, msg.cols));
+    } else if (msg.type === "upload-files") {
+      runUpload(session, msg.paths);
     }
   };
 
