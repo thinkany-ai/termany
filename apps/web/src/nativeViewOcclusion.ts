@@ -10,6 +10,8 @@
  * every web/office preview pane in the workspace.
  */
 
+import { useEffect, useRef } from "react";
+
 export interface OcclusionRect {
   x: number;
   y: number;
@@ -35,6 +37,30 @@ export function registerOccluder(id: string, rect: OcclusionRect) {
 export function unregisterOccluder(id: string) {
   if (!occluders.delete(id)) return;
   window.dispatchEvent(new Event(OCCLUSION_CHANGED_EVENT));
+}
+
+/**
+ * For modal dialogs: registers the referenced element (the backdrop, so the
+ * shaded region is what blanks native views) as an occluder while `active`,
+ * unregisters on close/unmount. Any dialog that can overlap a web/office
+ * preview pane needs this — without it the native view paints over the dialog
+ * and swallows its clicks, z-index notwithstanding.
+ */
+export function useNativeOccluder<T extends HTMLElement>(id: string, active = true) {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!active || !el) return;
+    const sync = () => registerOccluder(id, el.getBoundingClientRect());
+    const observer = new ResizeObserver(sync);
+    observer.observe(el);
+    sync();
+    return () => {
+      observer.disconnect();
+      unregisterOccluder(id);
+    };
+  }, [id, active]);
+  return ref;
 }
 
 function intersects(a: OcclusionRect, b: OcclusionRect): boolean {

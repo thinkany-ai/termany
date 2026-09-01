@@ -6,6 +6,7 @@ import { agentModelSetup } from "../agentModelSetup";
 import { apiPath } from "../api";
 import { useI18n } from "../i18n";
 import { useImeGuard } from "../imeGuard";
+import { useNativeOccluder } from "../nativeViewOcclusion";
 import { cwdCandidates, useStore, type AgentMessage, type AgentPart, type Pane } from "../state/store";
 import { queueCommand } from "../terminal/manager";
 import { CheckIcon, ChevronIcon, CopyIcon, FolderIcon, SendIcon, SpinnerIcon, StopIcon, TerminalIcon } from "./icons";
@@ -178,6 +179,7 @@ export function AgentPane({ leaf }: { leaf: Leaf }) {
   const [acpConfig, setAcpConfig] = useState<AcpConfigOption[] | null>(null);
   const [acpConfigBusy, setAcpConfigBusy] = useState(false);
   const [modelHelp, setModelHelp] = useState(false);
+  const modelHelpBackdropRef = useNativeOccluder<HTMLDivElement>("agent-models-help", modelHelp);
   const abortRef = useRef<AbortController | null>(null);
   const streamingRef = useRef(false);
   const ime = useImeGuard();
@@ -703,6 +705,7 @@ export function AgentPane({ leaf }: { leaf: Leaf }) {
         createPortal(
           <div
             className="ws-dialog-backdrop"
+            ref={modelHelpBackdropRef}
             onMouseDown={(event) => {
               if (event.target === event.currentTarget) setModelHelp(false);
             }}
