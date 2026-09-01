@@ -14,9 +14,15 @@
 // Set TERMANY_TARGET_ARCH=x64|arm64 to bundle for an arch other than the host's
 // — needed when cross-building the Intel macOS app from an Apple Silicon
 // machine, where the bundled runtime must match the app, not the builder.
+//
+// The Node runtime archive is cached at node_modules/.cache/termany/ so repeat
+// runs don't re-download ~30MB. To pre-seed the cache on a slow network, drop
+// the archive there yourself (e.g. from https://registry.npmmirror.com/-/binary/node/),
+// named exactly `node-v<VERSION>-<os>-<arch>.zip` (win) or `.tar.gz` (unix).
+// TERMANY_NODE_DIST_URL overrides the download base URL (e.g. a mirror).
 
 import { execSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -94,18 +100,31 @@ if (existsSync(prebuilds)) {
   }
 }
 
-// 3. Bundled Node runtime for the host platform.
+// 3. Bundled Node runtime for the host platform. The archive is cached outside
+//    `out` (which is wiped on every run) so repeat builds skip the download;
+//    download to a .tmp file first so a Ctrl+C can't leave a corrupt cache.
+const NODE_DIST_URL = process.env.TERMANY_NODE_DIST_URL?.trim() || "https://nodejs.org/dist";
+const cacheDir = path.join(root, "node_modules/.cache/termany");
+mkdirSync(cacheDir, { recursive: true });
+
+/** Return the cached archive path, downloading it on first use. */
+function fetchNodeArchive(ext) {
+  const archive = path.join(cacheDir, `${NODE_DIST}.${ext}`);
+  if (existsSync(archive)) return archive;
+  const tmp = `${archive}.tmp`;
+  rmSync(tmp, { force: true });
+  run(`curl -fsSL -o "${tmp}" ${NODE_DIST_URL}/v${NODE_VERSION}/${NODE_DIST}.${ext}`);
+  renameSync(tmp, archive);
+  return archive;
+}
+
 if (IS_WIN) {
-  const zip = path.join(out, "node.zip");
-  run(`curl -fsSL -o "${zip}" https://nodejs.org/dist/v${NODE_VERSION}/${NODE_DIST}.zip`);
+  const zip = fetchNodeArchive("zip");
   // bsdtar (shipped with Windows 10+) extracts .zip and honours --strip-components.
   run(`tar -xf "${zip}" --strip-components=1 -C "${out}" "${NODE_DIST}/node.exe"`);
-  rmSync(zip, { force: true });
 } else {
-  run(
-    `curl -fsSL https://nodejs.org/dist/v${NODE_VERSION}/${NODE_DIST}.tar.gz ` +
-      `| tar xz --strip-components=2 -C "${out}" "${NODE_DIST}/bin/node"`
-  );
+  const tgz = fetchNodeArchive("tar.gz");
+  run(`tar xzf "${tgz}" --strip-components=2 -C "${out}" "${NODE_DIST}/bin/node"`);
   chmodSync(path.join(out, NODE_BIN), 0o755);
 }
 

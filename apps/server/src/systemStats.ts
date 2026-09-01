@@ -247,6 +247,7 @@ async function memoryStats(total: number): Promise<MemoryStats> {
  * than the whole sample failing.
  */
 async function listeningPorts(): Promise<Map<number, number[]>> {
+  if (process.platform === "win32") return windowsListeningPorts();
   const byPid = new Map<number, Set<number>>();
   if (process.platform !== "darwin" && process.platform !== "linux") return new Map();
   let stdout: string;
@@ -272,6 +273,35 @@ async function listeningPorts(): Promise<Map<number, number[]>> {
 }
 
 /**
+ * The Windows counterpart of the `lsof` parse: `netstat` ships with every
+ * install and `-a -n -o -p tcp` prints one "proto local foreign state pid"
+ * row per socket — the same shape, columns in a different order.
+ */
+async function windowsListeningPorts(): Promise<Map<number, number[]>> {
+  const byPid = new Map<number, Set<number>>();
+  let stdout: string;
+  try {
+    ({ stdout } = await execAsync("netstat -ano -p tcp", { maxBuffer: 4 * 1024 * 1024 }));
+  } catch {
+    return new Map();
+  }
+
+  for (const line of stdout.split("\n")) {
+    // "  TCP    127.0.0.1:3000    0.0.0.0:0    LISTENING    1234"
+    const cols = line.trim().split(/\s+/);
+    if (cols.length < 5 || cols[0] !== "TCP" || cols[3] !== "LISTENING") continue;
+    const port = Number(cols[1].slice(cols[1].lastIndexOf(":") + 1));
+    const pid = Number(cols[4]);
+    if (!Number.isInteger(pid) || !Number.isInteger(port)) continue;
+    const hit = byPid.get(pid);
+    if (hit) hit.add(port);
+    else byPid.set(pid, new Set([port]));
+  }
+
+  return new Map([...byPid].map(([pid, ports]) => [pid, [...ports].sort((a, b) => a - b)]));
+}
+
+/**
  * Every process, grouped by executable name — a browser with 40 helper
  * processes should read as one heavy app, not flood the whole list. The full
  * set is returned rather than a top-N slice: the pane sorts and searches
@@ -279,49 +309,25 @@ async function listeningPorts(): Promise<Map<number, number[]>> {
  * searching for.
  */
 async function processGroups(): Promise<ProcessGroup[]> {
-  if (process.platform !== "darwin" && process.platform !== "linux") return [];
-  let stdout: string;
-  let ports: Map<number, number[]>;
-  try {
-    [{ stdout }, ports] = await Promise.all([
-      execAsync("ps -Ao pid=,pcpu=,rss=,user=,comm=", { maxBuffer: 16 * 1024 * 1024 }),
-      listeningPorts(),
-    ]);
-  } catch {
-    return []; // ps missing or sandboxed away — the footer stats still work
-  }
+  const instances = await processInstances();
+  if (!instances.length) return [];
 
   const byName = new Map<string, ProcessGroup>();
-  for (const line of stdout.split("\n")) {
-    // comm can contain spaces (".../OrbStack Helper"), so only split the
-    // four fixed-width columns off the front and keep the rest verbatim.
-    const m = /^\s*(\d+)\s+([\d.]+)\s+(\d+)\s+(\S+)\s+(.*)$/.exec(line);
-    if (!m) continue;
-    const [, pidStr, cpuStr, rssStr, user, comm] = m;
-    const name = path.basename(comm.trim()) || comm.trim();
-    if (!name) continue;
-    const pid = Number(pidStr);
-    const instance: ProcessInstance = {
-      pid,
-      cpu: Number(cpuStr),
-      memBytes: Number(rssStr) * 1024,
-      user,
-      ports: ports.get(pid) ?? [],
-    };
-    const hit = byName.get(name);
+  for (const instance of instances) {
+    const hit = byName.get(instance.name);
     if (hit) {
       hit.cpu += instance.cpu;
       hit.memBytes += instance.memBytes;
       hit.count++;
       hit.children.push(instance);
     } else {
-      byName.set(name, {
-        name,
+      byName.set(instance.name, {
+        name: instance.name,
         cpu: instance.cpu,
         memBytes: instance.memBytes,
         count: 1,
         pid: instance.pid,
-        user,
+        user: instance.user,
         ports: [],
         children: [instance],
       });
@@ -340,6 +346,114 @@ async function processGroups(): Promise<ProcessGroup[]> {
   }
 
   return [...byName.values()].sort((a, b) => b.cpu - a.cpu || b.memBytes - a.memBytes);
+}
+
+interface NamedProcessInstance extends ProcessInstance {
+  name: string;
+}
+
+async function processInstances(): Promise<NamedProcessInstance[]> {
+  if (process.platform === "win32") return windowsProcessInstances();
+  if (process.platform !== "darwin" && process.platform !== "linux") return [];
+  let stdout: string;
+  let ports: Map<number, number[]>;
+  try {
+    [{ stdout }, ports] = await Promise.all([
+      execAsync("ps -Ao pid=,pcpu=,rss=,user=,comm=", { maxBuffer: 16 * 1024 * 1024 }),
+      listeningPorts(),
+    ]);
+  } catch {
+    return []; // ps missing or sandboxed away — the footer stats still work
+  }
+
+  const instances: NamedProcessInstance[] = [];
+  for (const line of stdout.split("\n")) {
+    // comm can contain spaces (".../OrbStack Helper"), so only split the
+    // four fixed-width columns off the front and keep the rest verbatim.
+    const m = /^\s*(\d+)\s+([\d.]+)\s+(\d+)\s+(\S+)\s+(.*)$/.exec(line);
+    if (!m) continue;
+    const [, pidStr, cpuStr, rssStr, user, comm] = m;
+    const name = path.basename(comm.trim()) || comm.trim();
+    if (!name) continue;
+    const pid = Number(pidStr);
+    instances.push({
+      name,
+      pid,
+      cpu: Number(cpuStr),
+      memBytes: Number(rssStr) * 1024,
+      user,
+      ports: ports.get(pid) ?? [],
+    });
+  }
+  return instances;
+}
+
+// Get-Process reports cumulative CPU seconds, so a process's percentage is
+// the delta between two polls — the same trick the whole-machine counters in
+// cpuUsage() use. The first poll after a cold start reports 0 rather than a
+// fake spike.
+let prevWinProc: { t: number; cpuSec: Map<number, number> } | null = null;
+
+/**
+ * The Windows counterpart of the `ps` parse. PowerShell's Get-Process is the
+ * only no-dependency source that has both working set and CPU time (tasklist
+ * has no CPU counter); per-process CPU% is derived from the CPU-seconds delta
+ * between polls, percent of one core like the Unix side.
+ *
+ * The owning user is left empty: resolving it needs a per-process CIM owner
+ * lookup that costs far more than the whole rest of the sample, and the table
+ * already renders "" as "—".
+ */
+async function windowsProcessInstances(): Promise<NamedProcessInstance[]> {
+  let stdout: string;
+  let ports: Map<number, number[]>;
+  try {
+    [{ stdout }, ports] = await Promise.all([
+      execAsync(
+        'powershell -NoProfile -NonInteractive -Command "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; Get-Process | Select-Object Id,ProcessName,WorkingSet64,CPU | ConvertTo-Json -Compress"',
+        { maxBuffer: 16 * 1024 * 1024, timeout: 15000 },
+      ),
+      windowsListeningPorts(),
+    ]);
+  } catch {
+    return []; // powershell missing or too slow — the footer stats still work
+  }
+
+  let raw: { Id?: number; ProcessName?: string; WorkingSet64?: number; CPU?: number | null }[];
+  try {
+    const parsed: unknown = JSON.parse(stdout);
+    // ConvertTo-Json drops the array wrapper when the list has one element.
+    raw = Array.isArray(parsed) ? parsed : [parsed];
+  } catch {
+    return [];
+  }
+
+  const now = Date.now();
+  const prevSample = prevWinProc;
+  const wallSec = prevSample ? (now - prevSample.t) / 1000 : 0;
+  const cpuSec = new Map<number, number>();
+
+  const instances: NamedProcessInstance[] = [];
+  for (const p of raw) {
+    const pid = Number(p?.Id);
+    const name = String(p?.ProcessName ?? "").trim();
+    if (!Number.isInteger(pid) || pid <= 0 || !name) continue;
+    const totalCpuSec = Number(p?.CPU) || 0;
+    cpuSec.set(pid, totalCpuSec);
+    const prevSec = prevSample?.cpuSec.get(pid);
+    const cpu =
+      prevSec !== undefined && wallSec > 0 ? Math.max(0, ((totalCpuSec - prevSec) / wallSec) * 100) : 0;
+    instances.push({
+      name,
+      pid,
+      cpu,
+      memBytes: Number(p?.WorkingSet64) || 0,
+      user: "",
+      ports: ports.get(pid) ?? [],
+    });
+  }
+  prevWinProc = { t: now, cpuSec };
+  return instances;
 }
 
 export async function readSystemStats(): Promise<SystemStats> {

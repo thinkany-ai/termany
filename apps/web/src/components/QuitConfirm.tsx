@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { isTauri } from "../env";
+import { useNativeOccluder } from "../nativeViewOcclusion";
 
 /**
  * Confirms before the app actually quits. The Rust side always intercepts
@@ -12,6 +13,7 @@ import { isTauri } from "../env";
  */
 export function QuitConfirm() {
   const [open, setOpen] = useState(false);
+  const backdropRef = useNativeOccluder<HTMLDivElement>("quit-confirm", open);
 
   useEffect(() => {
     if (!isTauri) return;
@@ -45,7 +47,7 @@ export function QuitConfirm() {
   };
 
   return (
-    <div className="ws-dialog-backdrop" onClick={() => setOpen(false)}>
+    <div className="ws-dialog-backdrop" ref={backdropRef} onClick={() => setOpen(false)}>
       <div className="ws-dialog" onClick={(e) => e.stopPropagation()}>
         <p className="quit-confirm-text">Quit Termany? All open tabs and panes will close.</p>
         <div className="ws-dialog-actions">

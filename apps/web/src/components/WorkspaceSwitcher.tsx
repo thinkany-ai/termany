@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useI18n } from "../i18n";
+import { useNativeOccluder } from "../nativeViewOcclusion";
 import { useStore } from "../state/store";
 import { titleBarBackground, useTitleBarGesture } from "../titleBar";
 import { EmojiPicker } from "./EmojiPicker";
@@ -31,6 +32,7 @@ export function WorkspaceSwitcher({ onOpenSettings }: { onOpenSettings: () => vo
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
+  const deleteBackdropRef = useNativeOccluder<HTMLDivElement>("workspace-delete", deleteTarget !== null);
 
   const active = workspaces.find((w) => w.id === activeId) ?? workspaces[0];
   // Doubles as the window's title bar on desktop, same as the tab strip: the
@@ -166,7 +168,7 @@ export function WorkspaceSwitcher({ onOpenSettings }: { onOpenSettings: () => vo
       )}
 
       {deleteTarget && (
-        <div className="ws-dialog-backdrop" onClick={() => setDeleteTarget(null)}>
+        <div className="ws-dialog-backdrop" ref={deleteBackdropRef} onClick={() => setDeleteTarget(null)}>
           <div className="ws-dialog" onClick={(e) => e.stopPropagation()}>
             <p className="quit-confirm-text">
               {t("workspace.deleteConfirm", { name: deleteTarget.title })}

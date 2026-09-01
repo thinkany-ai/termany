@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiPath } from "../api";
 import { useI18n } from "../i18n";
+import { useNativeOccluder } from "../nativeViewOcclusion";
 import { ActivityIcon } from "./icons";
 
 type Translate = ReturnType<typeof useI18n>["t"];
@@ -218,6 +219,9 @@ export function SystemMonitor() {
   const [detail, setDetail] = useState<ProcessDetail | null>(null);
   const [detailHistory, setDetailHistory] = useState<{ cpu: number; mem: number }[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  // Native web/office preview panes paint above the DOM and ignore z-index,
+  // so one overlapping this centered dialog would swallow the buttons' clicks.
+  const detailBackdropRef = useNativeOccluder<HTMLDivElement>("sysmon-process-detail", detail !== null);
 
   const openDetail = (d: ProcessDetail, group: boolean) => {
     setDetailId({ pid: d.pid, name: d.name, group });
@@ -513,7 +517,7 @@ export function SystemMonitor() {
       </div>
 
       {detail && (
-        <div className="ws-dialog-backdrop" onClick={closeDetail}>
+        <div className="ws-dialog-backdrop" ref={detailBackdropRef} onClick={closeDetail}>
           <div className="ws-dialog sysmon-detail" onClick={(e) => e.stopPropagation()}>
             <div className="sysmon-detail-head">
               <span className="sysmon-detail-icon" aria-hidden>
