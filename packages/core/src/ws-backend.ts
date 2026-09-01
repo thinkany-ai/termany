@@ -80,6 +80,10 @@ export class WebSocketBackend implements ITerminalBackend {
     this.send({ type: "input", data });
   }
 
+  uploadFiles(paths: string[]) {
+    this.send({ type: "upload-files", paths });
+  }
+
   resize(cols: number, rows: number) {
     this.send({ type: "resize", cols, rows });
   }

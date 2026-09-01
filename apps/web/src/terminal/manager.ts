@@ -71,6 +71,8 @@ export interface Session {
   connectionState?: "connecting" | "connected" | "disconnected";
   /** Increments for every PTY output chunk, including in-place TUI redraws. */
   contentVersion: number;
+  /** Set when this session's shell is an OpenSSH destination. */
+  sshTarget?: string;
 }
 
 /**
@@ -1479,6 +1481,7 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
     ended: false,
     connectionState: sshTarget ? "connecting" : undefined,
     contentVersion: 0,
+    sshTarget,
   };
   sessions.set(id, session);
   refreshOnSymbolsFontLoad();
@@ -2109,6 +2112,17 @@ export function queueCommand(id: string, command: string) {
 export function pasteIntoSession(id: string, text: string) {
   id = activeSessionId(id);
   sessions.get(id)?.term.paste(text);
+}
+
+/**
+ * Hand local paths to the active session's backend to upload. The server picks
+ * the transfer protocol and only honors this on SSH sessions; local panes show
+ * a refusal line instead of swallowing the drop.
+ */
+export function uploadFilesToSession(id: string, paths: string[]) {
+  id = activeSessionId(id);
+  if (!paths.length) return;
+  sessions.get(id)?.backend.uploadFiles(paths);
 }
 
 export function sessionUsesAlternateBuffer(id: string): boolean {
