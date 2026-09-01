@@ -8,6 +8,7 @@ import { Terminal, type ITheme } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { loadAgentConfigs } from "../agents";
 import { apiUrl } from "../api";
+import { writeClipboard } from "../clipboard";
 import { DemoBackend, demoInteracted, isDemo } from "../demo";
 import { ACTIONS, loadKeybindings, matchChord } from "../keybindings";
 import {
@@ -22,6 +23,7 @@ import {
 } from "./agentIdleWatcher";
 import { SYMBOLS_FONT_FAMILY, withSymbolsFallback } from "./fonts";
 import { registerLocalPathLinks } from "./localLinks";
+import { registerOsc52 } from "./osc52";
 import {
   MAX_AUTO_RESTARTS,
   RESTART_HEALTHY_MS,
@@ -1420,6 +1422,9 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
   // Make URLs open on Cmd+click. The custom provider also joins links hard-
   // wrapped by rich CLI output, which xterm's stock addon cannot do.
   registerWebLinks(term);
+  // Let programs copy to the local clipboard via OSC 52 — the only copy channel
+  // that survives SSH, and how agent CLIs expect "copy" to work. Write-only.
+  registerOsc52(term);
   // Local file paths (including relative ones like `src/foo.ts`) are verified
   // and resolved by the server against this shell's live cwd. If the server
   // can't answer (demo mode, old server), fall back to trusting absolute
@@ -1609,7 +1614,7 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
     const sel = term.getSelection();
     // Use trim only as an emptiness check. Copy the original selection so
     // meaningful indentation and line breaks are preserved.
-    if (sel.trim()) navigator.clipboard?.writeText(sel).catch(() => {});
+    if (sel.trim()) void writeClipboard(sel);
   });
 
   // Paste image blobs as local file paths only when the active program looks
