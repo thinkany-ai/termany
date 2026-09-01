@@ -1900,6 +1900,12 @@ export function fitSession(id: string) {
   id = activeSessionId(id);
   const s = sessions.get(id);
   if (!s || !s.opened) return;
+  // A minimized/hidden window lays out as (near-)zero size. Fitting then
+  // clamps the terminal to FitAddon's 2x1 minimum, which reflows the live
+  // screen into scrollback (and mangles ConPTY's buffer) — the "current
+  // screen is blank after showing the window again" bug. Skip degenerate
+  // measurements; the ResizeObserver fires a real fit once the layout is back.
+  if (s.el.isConnected && (s.el.clientWidth < 5 || s.el.clientHeight < 5)) return;
   try {
     s.fit.fit();
     s.backend.resize(s.term.cols, s.term.rows);
