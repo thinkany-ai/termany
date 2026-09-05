@@ -26,6 +26,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS session_cwd (id TEXT PRIMARY KEY, cwd TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS session_scroll (id TEXT PRIMARY KEY, data TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS session_screen (id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE IF NOT EXISTS session_agent (id TEXT PRIMARY KEY, agent TEXT NOT NULL, updated_at INTEGER NOT NULL);
 `);
 // updated_at orders the prune below (added after 0.1.3 shipped, so migrate).
 try {
@@ -135,6 +136,31 @@ export function setSessionCwd(id: string, cwd: string): void {
   ).run(id, cwd);
 }
 
+export interface SessionAgentRecord {
+  agent: string;
+  /** When the agent was last observed running in this pane. */
+  updatedAt: number;
+}
+
+/**
+ * Which agent CLI was last seen in a pane. Survives a reboot, which is the
+ * point: the shell does not, so this is all that is left to tell the user what
+ * the pane was doing before the machine went down.
+ */
+export function getSessionAgent(id: string): SessionAgentRecord | null {
+  const row = db.prepare("SELECT agent, updated_at FROM session_agent WHERE id = ?").get(id) as
+    | { agent: string; updated_at: number }
+    | undefined;
+  return row ? { agent: row.agent, updatedAt: row.updated_at } : null;
+}
+
+export function setSessionAgent(id: string, agent: string, updatedAt: number): void {
+  db.prepare(
+    "INSERT INTO session_agent(id, agent, updated_at) VALUES(?, ?, ?) " +
+      "ON CONFLICT(id) DO UPDATE SET agent = excluded.agent, updated_at = excluded.updated_at"
+  ).run(id, agent, updatedAt);
+}
+
 /** All saved scroll histories, as an `{ id: data }` map — for startup prime. */
 export function getAllScroll(): Record<string, string> {
   const rows = db.prepare("SELECT id, data FROM session_scroll").all() as {
@@ -217,10 +243,12 @@ export function forgetSessions(ids: string[]): void {
     const delCwd = db.prepare("DELETE FROM session_cwd WHERE id = ?");
     const delScroll = db.prepare("DELETE FROM session_scroll WHERE id = ?");
     const delScreen = db.prepare("DELETE FROM session_screen WHERE id = ?");
+    const delAgent = db.prepare("DELETE FROM session_agent WHERE id = ?");
     for (const id of ids) {
       delCwd.run(String(id));
       delScroll.run(String(id));
       delScreen.run(String(id));
+      delAgent.run(String(id));
     }
     db.exec("COMMIT");
   } catch (e) {
