@@ -3,6 +3,7 @@
 // in README.md. Re-run it whenever a theme is added or its colors change:
 //
 //   node scripts/theme-previews.mjs
+//   node scripts/theme-previews.mjs winxp  # render only the named theme(s)
 //
 // Each card is a miniature of the app — the same class names, drawn from the
 // theme's own tokens — so a theme that ships a stylesheet for chrome its tokens
@@ -230,7 +231,12 @@ ${prompt} <span class="cur">&nbsp;</span></pre>
 const tmp = mkdtempSync(path.join(os.tmpdir(), "termany-themes-"));
 try {
   mkdirSync(OUT_DIR, { recursive: true });
-  const themes = readThemes(tmp);
+  const requested = process.argv.slice(2);
+  const allThemes = readThemes(tmp);
+  for (const id of requested) {
+    if (!allThemes.some((t) => t.id === id)) throw new Error(`Unknown theme: ${id}`);
+  }
+  const themes = requested.length ? allThemes.filter((t) => requested.includes(t.id)) : allThemes;
   for (const t of themes) {
     const html = path.join(tmp, `${t.id}.html`);
     const png = path.join(OUT_DIR, `${t.id}.png`);

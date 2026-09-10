@@ -372,6 +372,7 @@ export function Settings({
                 <div className="theme-preview-wrap">
                   <button
                     className="theme-preview"
+                    aria-label={item.name}
                     onClick={() => setTheme(item.id)}
                     style={{
                       background: item.term.background as string,
@@ -381,9 +382,9 @@ export function Settings({
                   >
                     <span className="theme-preview-side" style={{ background: item.colors.bg2 }} />
                     <span className="theme-preview-dot" style={{ background: item.colors.accent }} />
-                    <span className="theme-preview-line lg" style={{ background: item.colors.fg }} />
-                    <span className="theme-preview-line" style={{ background: item.colors.fgDim }} />
-                    <span className="theme-preview-line sm" style={{ background: item.colors.fgDim }} />
+                    <span className="theme-preview-line lg" style={{ background: item.term.foreground ?? item.colors.fg }} />
+                    <span className="theme-preview-line" style={{ background: item.term.foreground ?? item.colors.fgDim, opacity: 0.65 }} />
+                    <span className="theme-preview-line sm" style={{ background: item.term.foreground ?? item.colors.fgDim, opacity: 0.45 }} />
                   </button>
                 </div>
                 <span className="theme-card-name">{item.name}</span>

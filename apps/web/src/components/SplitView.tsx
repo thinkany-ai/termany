@@ -392,7 +392,7 @@ function PaneHeader({
             reads as "exit zoom" and would silently close the pane instead. */}
         {!zen && (
           <button
-            className="pane-btn"
+            className="pane-btn pane-close-btn"
             title={withShortcut("Close pane", "closePane")}
             // Don't let the slot's mousedown focus a pane we're about to close:
             // it would make closing ANY pane look like closing the focused one,
