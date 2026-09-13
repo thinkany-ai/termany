@@ -44,3 +44,14 @@ test("other Shifted keys are untouched", () => {
   assert.equal(isShiftEnterNewline(key({ key: "A", shiftKey: true })), false);
   assert.equal(isShiftEnterNewline(key({ key: "Shift", shiftKey: true })), false);
 });
+
+test("a real Shift+Enter still matches with its keyCode present", () => {
+  assert.equal(isShiftEnterNewline(key({ shiftKey: true, keyCode: 13 })), true);
+});
+
+test("Shift+Enter mid-composition is left to the IME", () => {
+  // The interceptor runs before xterm's CompositionHelper; synthesising here
+  // would emit the newline ahead of the committed preedit text.
+  assert.equal(isShiftEnterNewline(key({ shiftKey: true, isComposing: true })), false);
+  assert.equal(isShiftEnterNewline(key({ shiftKey: true, keyCode: 229 })), false);
+});

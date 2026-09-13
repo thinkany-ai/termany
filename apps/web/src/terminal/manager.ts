@@ -838,8 +838,11 @@ function submittedAgentForTerminalInput(
   );
 }
 
-function writeTerminalInput(id: string, session: Session, data: string) {
-  const agent = submittedAgentForTerminalInput(id, data);
+function writeTerminalInput(id: string, session: Session, data: string, isSubmit = true) {
+  // A synthetic newline (Shift+Enter) carries a CR in its bytes but is not a
+  // submit: running submit detection on it would flash the agent "working"
+  // state and hold the bytes behind the activity registration roundtrip.
+  const agent = isSubmit ? submittedAgentForTerminalInput(id, data) : undefined;
   const previous = terminalInputSendChains.get(id);
   if (!agent && !previous) {
     session.backend.write(data);
@@ -879,13 +882,19 @@ function writeTerminalInput(id: string, session: Session, data: string) {
  * bypasses xterm's encoder — funnels through here: an Enter-containing
  * keystroke wakes an ended SSH session, every keystroke feeds the agent
  * activity trackers, and the bytes go to the backend in submit order.
+ *
+ * `isSubmit` carries the keystroke's intent, which the bytes alone cannot:
+ * the synthetic newline shares its CR with a real submit. Only a submit runs
+ * submit detection; a newline skips it and goes straight to the backend
+ * (still ordered behind any in-flight submit chain).
  */
 function deliverTerminalInput(
   id: string,
   session: Session,
   term: Terminal,
   sshTarget: string | undefined,
-  data: string
+  data: string,
+  isSubmit = true
 ) {
   if (sshTarget && session.ended) {
     if (/[\r\n]/.test(data)) {
@@ -895,7 +904,7 @@ function deliverTerminalInput(
     return;
   }
   noteAgentInput(id, data);
-  writeTerminalInput(id, session, data);
+  writeTerminalInput(id, session, data, isSubmit);
 }
 
 export function subscribeAgentActivity(listener: () => void): () => void {
@@ -1422,7 +1431,7 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
       event.preventDefault();
       event.stopPropagation();
       const live = sessions.get(id);
-      if (live) deliverTerminalInput(id, live, live.term, sshTarget, SHIFT_ENTER_DATA);
+      if (live) deliverTerminalInput(id, live, live.term, sshTarget, SHIFT_ENTER_DATA, false);
       return false;
     }
     return true;

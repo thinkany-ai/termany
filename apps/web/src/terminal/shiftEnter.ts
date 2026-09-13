@@ -26,6 +26,10 @@ export interface ShiftEnterKey {
   altKey: boolean;
   ctrlKey: boolean;
   metaKey: boolean;
+  /** True while an IME composition is in flight — the key belongs to the IME. */
+  isComposing?: boolean;
+  /** 229 is the "handled by IME" sentinel, never a real Shift+Enter. */
+  keyCode?: number;
 }
 
 /**
@@ -33,8 +37,15 @@ export interface ShiftEnterKey {
  * the numpad key) with Shift as the ONLY modifier. Any other modifier routes
  * elsewhere — Cmd+Enter is an app shortcut, Option+Enter already encodes
  * correctly through xterm — so those must not be intercepted here.
+ *
+ * A Shift+Enter that lands mid-composition is not intercepted either: this
+ * handler runs before xterm's CompositionHelper, so synthesising here would
+ * emit the newline ahead of the committed preedit text (or disturb
+ * finalisation). Letting it through keeps composition ownership with the IME,
+ * consistent with the repo's other IME guards.
  */
 export function isShiftEnterNewline(e: ShiftEnterKey): boolean {
+  if (e.isComposing || e.keyCode === 229) return false;
   return (
     e.key === "Enter" &&
     e.shiftKey &&
