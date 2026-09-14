@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
+import { agentEnvironment } from "./agentEnvironment.js";
 import type { AgentConfig } from "./agentConfig.js";
 import { resolveExecutable } from "./shellPath.js";
 
@@ -73,16 +74,13 @@ export async function prepareManagedAcpLaunch(
   const adapterPath = managedAcpAdapterPath(agent.id);
   if (!adapterPath) throw new Error(`Termany's ${agent.name} ACP bridge is missing. Reinstall or update Termany.`);
 
-  const nodeDirectory = path.dirname(process.execPath);
-  const currentPath = baseEnv.PATH ?? "";
   return {
     command: process.execPath,
     args: [adapterPath, ...adapterArgs],
     adapterPath,
     cliPath,
     env: {
-      ...baseEnv,
-      PATH: currentPath ? `${nodeDirectory}${path.delimiter}${currentPath}` : nodeDirectory,
+      ...agentEnvironment(baseEnv),
       [definition.cliEnvironmentVariable]: cliPath,
     },
   };

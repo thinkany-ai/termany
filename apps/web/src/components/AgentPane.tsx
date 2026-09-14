@@ -3,10 +3,11 @@ import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useR
 import { createPortal } from "react-dom";
 import type { BotIdentity } from "@termany/core";
 import { agentCommand, useAgentConfigs } from "../agents";
-import { authenticationErrorSummary, needsInteractiveAgentLogin } from "../agentAuthentication";
+import { needsInteractiveAgentLogin } from "../agentAuthentication";
 import { modelLabelFor, modelMenuItems, shortModelName, type AcpConfigOption } from "../agentModelMenu";
 import { agentModelSetup } from "../agentModelSetup";
 import { agentReplyPrompt, splitAgentReply, visibleAgentMessages } from "../agentMessages";
+import { AGENT_RESPONSE_INACTIVITY_TIMEOUT_MS, isAgentResponseActivity } from "../agentResponseTimeout";
 import {
   isNearLatestMessage,
   latestMessagePageStart,
@@ -38,7 +39,7 @@ import {
   type AgentPart,
   type Pane,
 } from "../state/store";
-import { queueCommand } from "../terminal/manager";
+import { queueCommand, queueCommandWhenShellReady } from "../terminal/manager";
 import { extractDroppedPaths, subscribeDesktopFileDrops } from "../terminal/desktopFileDrop";
 import { AgentIcon, AttachmentIcon, ChatIcon, ChevronIcon, CloseIcon, CopyIcon, EditIcon, FolderIcon, MoreIcon, PlusIcon, ReadIcon, ReplyIcon, SearchIcon, SendIcon, SpinnerIcon, StopIcon, TerminalIcon, ToolIcon, TrashIcon } from "./icons";
 import { Markdown } from "./Markdown";
@@ -85,7 +86,11 @@ function message(role: AgentMessage["role"], content: string): AgentMessage {
   return { id: crypto.randomUUID(), role, content, createdAt: Date.now() };
 }
 
-async function streamGreeting(response: Response, onText: (text: string) => void): Promise<string> {
+async function streamGreeting(
+  response: Response,
+  onText: (text: string) => void,
+  onActivity?: () => void,
+): Promise<string> {
   if (!response.ok || !response.body) {
     throw new Error((await response.text()) || `HTTP ${response.status}`);
   }
@@ -96,6 +101,7 @@ async function streamGreeting(response: Response, onText: (text: string) => void
   const consume = (line: string) => {
     if (!line.trim()) return;
     const event = JSON.parse(line) as { type?: string; text?: string; error?: string };
+    if (isAgentResponseActivity(event.type)) onActivity?.();
     if (event.type === "delta" && event.text) text += event.text;
     else if (event.type === "replace" && typeof event.text === "string") text = event.text;
     else if (event.type === "error") throw new Error(event.error || "Greeting generation failed");
@@ -979,6 +985,16 @@ export function AgentPane({
     if (speaker) assistant.sender = { id: speaker.id, name: speaker.title };
     const startedAt = Date.now();
     const abort = new AbortController();
+    let timedOut = false;
+    let inactivityTimer: ReturnType<typeof setTimeout> | undefined;
+    const resetInactivityTimer = () => {
+      if (!selectedRuntime) return;
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => {
+        timedOut = true;
+        abort.abort(new DOMException("Agent response timed out", "TimeoutError"));
+      }, AGENT_RESPONSE_INACTIVITY_TIMEOUT_MS);
+    };
     abortRef.current = abort;
     streamingRef.current = true;
     setStreaming(true);
@@ -1007,15 +1023,17 @@ export function AgentPane({
 
     void (async () => {
       try {
+        resetInactivityTimer();
         const response = await fetch(apiPath(endpoint), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           signal: abort.signal,
           body: JSON.stringify(body),
         });
+        resetInactivityTimer();
         const content = await streamGreeting(response, (partial) => {
           replaceReply(assistant.id, [{ ...assistant, content: partial }]);
-        });
+        }, resetInactivityTimer);
         if (!content) throw new Error("Greeting generation returned no text");
         pendingIdsRef.current.delete(assistant.id);
         replaceReply(assistant.id, [{
@@ -1024,10 +1042,28 @@ export function AgentPane({
           durationMs: Date.now() - startedAt,
           openingGreeting: true,
         }], true);
-      } catch {
+      } catch (cause) {
         pendingIdsRef.current.delete(assistant.id);
-        replaceReply(assistant.id, [], true);
+        if (timedOut && selectedRuntime) {
+          const runtimeName = runtimes.find((runtime) => runtime.id === selectedRuntime)?.name ?? selectedRuntime;
+          replaceReply(assistant.id, [{
+            ...assistant,
+            durationMs: Date.now() - startedAt,
+            error: t("agentChat.runtimeTimeout", { agent: runtimeName }),
+            recovery: { action: "open-agent-terminal", agentId: selectedRuntime },
+          }], true);
+        } else {
+          const failure = cause instanceof Error ? cause.message : String(cause);
+          if (selectedRuntime && needsInteractiveAgentLogin(selectedRuntime, failure)) {
+            replaceReply(assistant.id, [{
+              ...assistant,
+              durationMs: Date.now() - startedAt,
+              error: failure,
+            }], true);
+          } else replaceReply(assistant.id, [], true);
+        }
       } finally {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
         setPendingReplies((current) => {
           if (!(assistant.id in current)) return current;
           const next = { ...current };
@@ -1055,6 +1091,7 @@ export function AgentPane({
     botLabels,
     language,
     selectedRuntime,
+    runtimes,
     runtimeOwner,
     acpPicks,
     selectedModel,
@@ -1130,7 +1167,12 @@ export function AgentPane({
       let rawText = "";
       let failure = "";
       const parts: AgentPart[] = [];
-      const attemptAbort = group && member ? new AbortController() : null;
+      const timeoutMs = group && member
+        ? GROUP_MEMBER_INACTIVITY_TIMEOUT_MS
+        : !member && replyRuntime
+          ? AGENT_RESPONSE_INACTIVITY_TIMEOUT_MS
+          : null;
+      const attemptAbort = timeoutMs ? new AbortController() : null;
       let attemptTimedOut = false;
       let inactivityTimer: ReturnType<typeof setTimeout> | undefined;
       const forwardAbort = () => attemptAbort?.abort(abort.signal.reason);
@@ -1139,8 +1181,8 @@ export function AgentPane({
         if (inactivityTimer) clearTimeout(inactivityTimer);
         inactivityTimer = setTimeout(() => {
           attemptTimedOut = true;
-          attemptAbort.abort(new DOMException("Group member response timed out", "TimeoutError"));
-        }, GROUP_MEMBER_INACTIVITY_TIMEOUT_MS);
+          attemptAbort.abort(new DOMException("Agent response timed out", "TimeoutError"));
+        }, timeoutMs ?? AGENT_RESPONSE_INACTIVITY_TIMEOUT_MS);
       };
       if (attemptAbort) {
         abort.signal.addEventListener("abort", forwardAbort, { once: true });
@@ -1203,7 +1245,6 @@ export function AgentPane({
           buffer = lines.pop() ?? "";
           for (const line of lines) {
             if (!line.trim()) continue;
-            resetInactivityTimer();
             const event = JSON.parse(line) as {
               type: string;
               text?: string;
@@ -1220,6 +1261,7 @@ export function AgentPane({
               path?: string;
               mimeType?: string;
             };
+            if (isAgentResponseActivity(event.type)) resetInactivityTimer();
             if (event.type === "activity") {
               if (event.phase === "processing" || event.status === "Thinking") updatePhase("processing");
               else if (event.phase === "starting" || event.title === "Starting agent") updatePhase("preparing");
@@ -1320,6 +1362,10 @@ export function AgentPane({
         if (!abort.signal.aborted) {
           failure = attemptTimedOut && member
             ? t("agentGroup.memberUnavailable", { name: member.title })
+            : attemptTimedOut && replyRuntime
+              ? t("agentChat.runtimeTimeout", {
+                  agent: runtimes.find((runtime) => runtime.id === replyRuntime)?.name ?? replyRuntime,
+                })
             : cause instanceof Error ? cause.message : String(cause);
         }
       } finally {
@@ -1335,7 +1381,14 @@ export function AgentPane({
         if (failure && group && member) {
           completed = [];
         } else if (text.trim() || assistant.attachments?.length || hasTools() || failure) {
-          const result = { ...draftReply(), durationMs: Date.now() - startedAt, ...(failure ? { error: failure } : {}) };
+          const result = {
+            ...draftReply(),
+            durationMs: Date.now() - startedAt,
+            ...(failure ? { error: failure } : {}),
+            ...(attemptTimedOut && !member && replyRuntime
+              ? { recovery: { action: "open-agent-terminal" as const, agentId: replyRuntime } }
+              : {}),
+          };
           completed = splitAgentReply(result).map((item) => group ? {
             ...item,
             recipients: mentionedGroupMembers(item.content, group.members)
@@ -1523,13 +1576,24 @@ export function AgentPane({
     if (source.agentCwd) queueCommand(paneId, `cd '${source.agentCwd.replace(/'/g, "'\\''")}'`);
     queueCommand(paneId, code);
   };
-  const openRuntimeLogin = () => {
-    if (!activeRuntime) return;
-    const paneId = addPane("terminal", `${activeRuntime.name} Login`);
+  const openRuntimeLogin = (agentId = selectedRuntime, purpose: "login" | "verify" = "login") => {
+    const runtime = runtimes.find((agent) => agent.id === agentId);
+    if (!runtime) return;
+    const title = `${runtime.name} ${purpose === "login" ? "Login" : "Verify"}`;
+    let paneId = addPane("terminal", title);
+    // A Pages tab holds at most six panes. Authentication is a recovery action,
+    // so it must still work when that tab is full: start a fresh tab and use its
+    // initial terminal rather than silently ignoring the click or replacing work.
+    if (!paneId) {
+      const store = useStore.getState();
+      store.addHTab();
+      paneId = activeHtab(useStore.getState())?.focused ?? null;
+      if (paneId) store.renamePane(paneId, title);
+    }
     if (!paneId) return;
-    const run = agentCommand(activeRuntime);
-    if (cwdInfo?.cwd) queueCommand(paneId, `cd '${cwdInfo.cwd.replace(/'/g, "'\\''")}' && ${run}`);
-    else queueCommand(paneId, run);
+    const run = agentCommand(runtime);
+    if (cwdInfo?.cwd) queueCommandWhenShellReady(paneId, `cd '${cwdInfo.cwd.replace(/'/g, "'\\''")}' && ${run}`);
+    else queueCommandWhenShellReady(paneId, run);
     window.dispatchEvent(new Event("termany:open-pages"));
   };
   const pickCwd = async () => {
@@ -1631,6 +1695,9 @@ export function AgentPane({
               const running = streaming && Boolean(pendingPhase);
               const { steps, body } = splitSteps(item);
               const loginRequired = needsInteractiveAgentLogin(selectedRuntime, item.error);
+              const recoveryRuntime = item.recovery?.action === "open-agent-terminal"
+                ? runtimes.find((runtime) => runtime.id === item.recovery?.agentId)
+                : undefined;
               const hasVisibleBody = Boolean(body || item.attachments?.length || item.files?.length || item.error || (running && steps.length === 0));
               const speaker = mentionMembers.find((member) => member.id === item.sender?.id);
               return (
@@ -1691,16 +1758,25 @@ export function AgentPane({
                             ) : running && steps.length === 0 ? (
                               <AgentReplyStatus phase={pendingPhase} startedAt={item.createdAt} />
                             ) : null}
-                            {item.error && (loginRequired ? (
+                            {item.error && (recoveryRuntime ? (
                               <div className="agent-auth-recovery" role="alert">
-                                <strong>{authenticationErrorSummary(item.error)}</strong>
+                                <strong>{item.error}</strong>
+                                <span>{t("agentChat.runtimeTimeoutHint", { agent: recoveryRuntime.name })}</span>
+                                <button type="button" onClick={() => openRuntimeLogin(recoveryRuntime.id, "verify")}>
+                                  <TerminalIcon />
+                                  {t("agentChat.verifyInTerminal")}
+                                </button>
+                              </div>
+                            ) : loginRequired ? (
+                              <div className="agent-auth-recovery" role="alert">
+                                <strong>{t("agentChat.authenticationRequired", { agent: activeRuntime?.name ?? selectedRuntime })}</strong>
                                 <span>
                                   {t("agentChat.agentModelsSignIn", { agent: activeRuntime?.name ?? "Claude" })}
                                   <code>/login</code>
                                 </span>
-                                <button type="button" onClick={openRuntimeLogin}>
+                                <button type="button" onClick={() => openRuntimeLogin()}>
                                   <TerminalIcon />
-                                  {t("agentChat.agentModelsRun")}
+                                  {t("agentChat.agentModelsLogin")}
                                 </button>
                               </div>
                             ) : <div className="agent-message-error">{item.error}</div>)}

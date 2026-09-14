@@ -28,9 +28,9 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Node 24: matches the dev runtime and supports node:sqlite without a flag
-// (v22 doesn't ship node:sqlite at all). Keep in sync with the dev Node major.
-const NODE_VERSION = "24.0.0";
+// Used by both the server and chat agents. OpenClaw's SQLite capability probe
+// rejects early Node 24 releases; keep a tested, patched Node 24 LTS runtime.
+const NODE_VERSION = "24.18.0";
 
 const PLATFORM = process.platform; // 'darwin' | 'win32' | 'linux'
 const ARCH = process.env.TERMANY_TARGET_ARCH?.trim() || process.arch; // 'arm64' | 'x64'

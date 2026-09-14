@@ -21,6 +21,7 @@ import { findAgentConfig, type AgentConfig } from "./agentConfig.js";
 import { overriddenCredentials, subscriptionEnvironment } from "./agentCredentials.js";
 import { getMeta, setMeta } from "./db.js";
 import { resolveExecutable, spawnEnvironment } from "./shellPath.js";
+import { agentEnvironment } from "./agentEnvironment.js";
 import { botAcpPrompt } from "./botIdentity.js";
 import { splitAgentRuntimeNotices } from "@termany/core";
 import { AcpConfigCompatibility } from "./acpConfigCompatibility.js";
@@ -185,11 +186,9 @@ class Runtime {
       throw new Error("Termany model routing for ACP runtimes is not available yet; choose Agent-managed models");
     }
 
-    // ACP runtimes and their agent CLIs need the login PATH rather than the
-    // bundle's launchd-inherited one — but not the API keys a shell profile may
-    // also export. Managed bridges below run on Termany's bundled Node and get
-    // an absolute path to the user's authenticated CLI. See agentCredentials.ts.
-    let env = subscriptionEnvironment(await spawnEnvironment(), agent);
+    // Reuse user-installed CLIs and their dependencies, with Termany's Node
+    // first on PATH for both native ACP CLIs and managed bridges.
+    let env = subscriptionEnvironment(agentEnvironment(await spawnEnvironment()), agent);
     let command: string;
     let args: string[];
     if (spec.distribution === "managed") {

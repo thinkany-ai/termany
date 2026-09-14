@@ -96,6 +96,8 @@ export interface AgentMessage {
   durationMs?: number;
   /** Why the reply stopped, rendered in place of (or after) the content. */
   error?: string;
+  /** A safe recovery action offered when the runtime could not answer. */
+  recovery?: { action: "open-agent-terminal"; agentId: string };
   /** Attribution remains readable even after a Bot is removed from the group. */
   sender?: { id: string; name: string };
   recipient?: { id: string; name: string };

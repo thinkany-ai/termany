@@ -3,6 +3,7 @@ import { checkGeminiAuthSupport } from "./geminiAuth.js";
 import { managedAcpAdapterPath, managedAcpDefinition } from "./managedAcp.js";
 import { checkNativeAcpSupport } from "./nativeAcp.js";
 import { resolveExecutable, spawnEnvironment } from "./shellPath.js";
+import { agentEnvironment } from "./agentEnvironment.js";
 
 export type AgentDetection = {
   id?: string;
@@ -153,7 +154,7 @@ export async function detectAgentExecutable(
   if (!result.installed || !result.path || !agent.runtime) return { ...result, ...terminalResult };
 
   try {
-    const runtimeEnv = env ?? await spawnEnvironment();
+    const runtimeEnv = agentEnvironment(env ?? await spawnEnvironment());
     await checkGeminiAuthSupport(agent, runtimeEnv);
     await checkNativeAcpSupport(agent, result.path, runtimeEnv);
     return { ...result, ...terminalResult };

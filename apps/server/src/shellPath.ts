@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs";
+import path from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -32,13 +33,14 @@ function capture(stdout: string): string | undefined {
  * `-lc` alone is not enough: a non-interactive zsh reads .zshenv, .zprofile and
  * .zlogin but *skips ~/.zshrc*, which is exactly where CLI installers (opencode,
  * pnpm, nvm, ~/.local/bin) append to PATH. Terminal panes never hit this because
- * node-pty hands the shell a tty, so `zsh -l` is interactive there. Retry with
- * `-i` whenever the quiet pass comes back empty so both worlds see one PATH.
+ * node-pty hands the shell a tty, so `zsh -l` is interactive there. Prefer the
+ * interactive form: even an incomplete non-interactive PATH is nonempty.
+ * Fall back to the quiet form if interactive startup fails.
  */
 async function loginShellValue(expression: string): Promise<string | undefined> {
   const shell = loginShell();
   const script = `printf '%s%s\\n' ${shellQuote(MARKER)} "${expression}"`;
-  for (const flags of ["-lc", "-lic"]) {
+  for (const flags of ["-lic", "-lc"]) {
     try {
       const { stdout } = await execFileAsync(shell, [flags, script], {
         timeout: 5_000,
@@ -123,6 +125,12 @@ export async function resolveExecutable(command: string): Promise<string | undef
       return undefined;
     }
   }
-  const found = await loginShellValue(`$(command -v -- ${shellQuote(trimmed)} 2>/dev/null)`);
-  return found && await isRunnable(found) ? found : undefined;
+  // Search the same PATH passed to child processes. `command -v` can return
+  // alias/function descriptions, which cannot be launched with execFile.
+  const env = await spawnEnvironment();
+  for (const directory of (env.PATH ?? "").split(path.delimiter)) {
+    const candidate = path.resolve(directory || ".", trimmed);
+    if (await isRunnable(candidate)) return candidate;
+  }
+  return undefined;
 }
