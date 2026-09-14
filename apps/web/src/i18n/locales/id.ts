@@ -1,6 +1,9 @@
 // Indonesian — Bahasa Indonesia
 
 export default {
+  "agentGroup.routingAttempt": "{name} sedang mengarahkan pesan Anda ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "Agen sebelumnya kehabisan waktu. {name} mengambil alih ({attempt}/{total})…",
+  "agentGroup.routingFallback": "Agen sebelumnya gagal. {name} mengambil alih ({attempt}/{total})…",
   "agentGroup.addMembers": "Tambah",
   "agentGroup.topics": "Topik",
   "agentGroup.newTopic": "Topik baru",

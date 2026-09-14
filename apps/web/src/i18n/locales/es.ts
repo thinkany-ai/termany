@@ -1,6 +1,9 @@
 // Spanish — Español
 
 export default {
+  "agentGroup.routingAttempt": "{name} está asignando tu mensaje ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "El agente anterior agotó el tiempo de espera. {name} toma el relevo ({attempt}/{total})…",
+  "agentGroup.routingFallback": "El agente anterior falló. {name} toma el relevo ({attempt}/{total})…",
   "agentGroup.addMembers": "Añadir",
   "agentGroup.topics": "Temas",
   "agentGroup.newTopic": "Nuevo tema",

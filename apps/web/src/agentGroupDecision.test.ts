@@ -135,3 +135,83 @@ test("user cancellation stops coordinator failover", async () => {
   }), { name: "AbortError" });
   assert.equal(calls, 1);
 });
+
+const candidates = (members = group.members) => members.map((member) => ({
+  member, endpoint: `/coordinator/${member.id}`, target: { paneId: groupControllerSessionId("g"), model: member.id },
+}));
+
+test("routing tries at most three unique coordinators and reports each takeover", async () => {
+  const members = ["a", "b", "c", "d"].map((id) => ({ ...group.members[0], id }));
+  const attempts: { attempt: number; total: number; previousFailure?: string }[] = [];
+  let calls = 0;
+  await assert.rejects(requestGroupDecisionWithFailover({ ...base,
+    candidates: candidates([members[0], ...members]), onAttempt: (attempt) => attempts.push(attempt),
+    fetcher: async () => { calls++; return new Response("unavailable", { status: 503 }); },
+  }), AggregateError);
+  assert.equal(calls, 3);
+  assert.deepEqual(attempts.map(({ attempt, total, previousFailure }) => ({ attempt, total, previousFailure })), [
+    { attempt: 1, total: 3, previousFailure: undefined },
+    { attempt: 2, total: 3, previousFailure: "error" },
+    { attempt: 3, total: 3, previousFailure: "error" },
+  ]);
+});
+
+test("heartbeat-only routing is cancelled before a backup takes over", async () => {
+  let cancelled = false;
+  let oldSignal: AbortSignal | undefined;
+  const reasons: (string | undefined)[] = [];
+  const result = await requestGroupDecisionWithFailover({ ...base, candidates: candidates(), timeoutMs: 10,
+    onAttempt: ({ previousFailure }) => reasons.push(previousFailure),
+    fetcher: async (url, init) => {
+      if (String(url).endsWith("/a")) {
+        oldSignal = init?.signal as AbortSignal;
+        return new Response(new ReadableStream({
+          start(controller) { controller.enqueue(new TextEncoder().encode('{"type":"heartbeat"}\n')); },
+          cancel() { cancelled = true; },
+        }));
+      }
+      assert.equal(oldSignal?.aborted, true);
+      assert.equal(cancelled, true);
+      return stream(events('{"memberId":"b","triggerMessageIds":["u"]}'));
+    },
+  });
+  assert.equal(result.leader.id, "b");
+  assert.deepEqual(reasons, [undefined, "timeout"]);
+});
+
+test("stop returns promptly even if the transport ignores abort", { timeout: 1000 }, async () => {
+  const abort = new AbortController();
+  let calls = 0;
+  await assert.rejects(requestGroupDecisionWithFailover({ ...base, signal: abort.signal, candidates: candidates(),
+    fetcher: async () => { calls++; abort.abort(); return new Promise<Response>(() => {}); },
+  }), { name: "AbortError" });
+  assert.equal(calls, 1);
+});
+
+test("done completes routing even when the connection stays open", { timeout: 1000 }, async () => {
+  let cancelled = false;
+  const result = await requestGroupDecision({ ...base, fetcher: async () => new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(events('{"memberId":"b","triggerMessageIds":["u"]}') + '\n'));
+    },
+    cancel() { cancelled = true; },
+  })) });
+  assert.equal(result.memberIds[0], "b");
+  assert.equal(cancelled, true);
+});
+
+test("a late response from a timed-out attempt cannot update routing status", async () => {
+  let resolveFirst!: (response: Response) => void;
+  let cancelled = false;
+  const phases: string[] = [];
+  await requestGroupDecisionWithFailover({ ...base, candidates: candidates(), timeoutMs: 5,
+    onPhase: (phase) => phases.push(phase), fetcher: async (url) => {
+      if (String(url).endsWith("/a")) return new Promise<Response>((resolve) => { resolveFirst = resolve; });
+      return stream(events('{"memberId":"b","triggerMessageIds":["u"]}'));
+    },
+  });
+  resolveFirst(new Response(new ReadableStream({ cancel() { cancelled = true; } })));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(phases, ["processing"]);
+  assert.equal(cancelled, true);
+});

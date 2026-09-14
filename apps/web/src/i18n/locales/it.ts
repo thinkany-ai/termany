@@ -1,6 +1,9 @@
 // Italian — Italiano
 
 export default {
+  "agentGroup.routingAttempt": "{name} sta assegnando il messaggio ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "Tempo scaduto per l’agente precedente. {name} subentra ({attempt}/{total})…",
+  "agentGroup.routingFallback": "L’agente precedente ha riscontrato un errore. {name} subentra ({attempt}/{total})…",
   "agentGroup.addMembers": "Aggiungi",
   "agentGroup.topics": "Argomenti",
   "agentGroup.newTopic": "Nuovo argomento",

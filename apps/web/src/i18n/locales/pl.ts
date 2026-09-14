@@ -2,6 +2,9 @@
 // need three plural stems)
 
 export default {
+  "agentGroup.routingAttempt": "{name} przydziela wiadomość ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "Poprzedni agent przekroczył limit czasu. {name} przejmuje zadanie ({attempt}/{total})…",
+  "agentGroup.routingFallback": "Poprzedni agent zakończył się błędem. {name} przejmuje zadanie ({attempt}/{total})…",
   "agentGroup.addMembers": "Dodaj",
   "agentGroup.topics": "Tematy",
   "agentGroup.newTopic": "Nowy temat",

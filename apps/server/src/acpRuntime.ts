@@ -141,6 +141,7 @@ function formatToolOutput(content: unknown, rawOutput: unknown): string | undefi
 class Runtime {
   private emit: Emit | null = null;
   private prompting = false;
+  private hasPrompted = false;
   private promptSignal: AbortSignal | null = null;
   private stderr = "";
   private replayCapture: { sessionId: string; finalText: string; lastUpdateAt: number } | null = null;
@@ -179,7 +180,7 @@ class Runtime {
     });
   }
 
-  static async create(paneId: string, agent: AgentConfig, cwd: string): Promise<Runtime> {
+  static async create(paneId: string, agent: AgentConfig, cwd: string, saved?: SuspendedRuntime): Promise<Runtime> {
     const spec = agent.runtime;
     if (!spec || spec.protocol !== "acp") throw new Error(`${agent.name} has no ACP runtime configured`);
     if (spec.modelSource === "termany") {
@@ -245,10 +246,23 @@ class Runtime {
         clientCapabilities: {},
         clientInfo: { name: "Termany", version: "0.1.21" },
       });
-      const session = await connection.agent.buildSession(cwd).start();
+      let session: ActiveSession;
+      if (saved?.sessionId) {
+        if (!initialization.agentCapabilities?.loadSession) {
+          throw new Error("Agent no longer supports restoring this conversation");
+        }
+        // Attach after load: transcript replay must not leak into the next reply.
+        const response = await connection.agent.request(methods.agent.session.load, {
+          sessionId: saved.sessionId, cwd, mcpServers: [],
+        });
+        session = connection.agent.attachSession({ ...response, sessionId: saved.sessionId });
+      } else {
+        session = await connection.agent.buildSession(cwd).start();
+      }
       runtime = new Runtime(paneId, agent, cwd, child, connection, session, compatibility,
         initialization.agentCapabilities?.promptCapabilities?.image === true,
         initialization.agentCapabilities?.loadSession === true);
+      runtime.hasPrompted = Boolean(saved?.sessionId);
       return runtime;
     } catch (error) {
       connection.close(error);
@@ -265,6 +279,7 @@ class Runtime {
     signal.throwIfAborted();
     if (this.prompting) throw new Error("This agent is already responding");
     this.prompting = true;
+    this.hasPrompted = true;
     this.promptSignal = signal;
     this.emit = emit;
     let forceClose: ReturnType<typeof setTimeout> | undefined;
@@ -409,6 +424,14 @@ class Runtime {
     }
   }
 
+  checkpoint(): SuspendedRuntime | undefined {
+    if (this.prompting || (this.hasPrompted && !this.supportsSessionLoad)) return;
+    return {
+      agent: this.agent, cwd: this.cwd, config: this.configOptions,
+      sessionId: this.hasPrompted ? this.session.sessionId : undefined,
+    };
+  }
+
   get config(): SessionConfigOption[] {
     return this.configOptions;
   }
@@ -508,6 +531,37 @@ class Runtime {
 type RuntimeHandle = Runtime | FastClawRuntime;
 
 const runtimes = new Map<string, RuntimeHandle>();
+interface SuspendedRuntime {
+  agent: AgentConfig;
+  cwd: string;
+  config: SessionConfigOption[];
+  sessionId?: string;
+}
+const suspended = new Map<string, SuspendedRuntime>();
+const starting = new Map<string, Promise<RuntimeHandle>>();
+const usage = new WeakMap<RuntimeHandle, { active: number; lastUsed: number }>();
+const IDLE_TIMEOUT_MS = 5 * 60_000;
+
+/** Only idle, resumable conversations (or unused config probes) can be reaped. */
+export function reapIdleAcpRuntimes(now = Date.now()): void {
+  for (const [paneId, runtime] of runtimes) {
+    const state = usage.get(runtime);
+    if (!(runtime instanceof Runtime) || !state || state.active || now - state.lastUsed < IDLE_TIMEOUT_MS) continue;
+    const checkpoint = runtime.checkpoint();
+    if (!checkpoint) continue;
+    suspended.set(paneId, checkpoint);
+    runtime.close();
+  }
+}
+setInterval(reapIdleAcpRuntimes, 30_000).unref();
+
+async function useRuntime<T>(input: AcpRuntimeTarget, action: (runtime: RuntimeHandle) => Promise<T>): Promise<T> {
+  const runtime = await acquire(input);
+  const state = usage.get(runtime)!;
+  state.active++;
+  try { return await action(runtime); }
+  finally { state.active--; state.lastUsed = Date.now(); }
+}
 
 /**
  * Last selector list each agent reported, kept in SQLite so it also survives a
@@ -562,22 +616,49 @@ export interface AcpRuntimeTarget {
  * throws away.
  */
 async function acquire(input: AcpRuntimeTarget): Promise<RuntimeHandle> {
+  // Share a cold start between config requests and prompts, including startup
+  // config application. A closed pane invalidates the pending promise.
+  const pending = starting.get(input.paneId);
+  if (pending) {
+    await pending;
+    return acquire(input);
+  }
   const agent = findAgentConfig(input.agentId);
   if (!agent?.runtime) throw new Error("Agent conversation runtime is missing or disabled");
-  let runtime = runtimes.get(input.paneId);
-  const configChanged = runtime && JSON.stringify(runtime.agent.runtime) !== JSON.stringify(agent.runtime);
-  if (runtime && (runtime.agent.id !== input.agentId || configChanged || (input.cwdExplicit && runtime.cwd !== input.cwd))) {
-    runtime.close();
-    runtimes.delete(input.paneId);
-    runtime = undefined;
+  const previous = runtimes.get(input.paneId) ?? suspended.get(input.paneId);
+  const changed = previous && (previous.agent.id !== input.agentId ||
+    JSON.stringify(previous.agent.runtime) !== JSON.stringify(agent.runtime) ||
+    (input.cwdExplicit && previous.cwd !== input.cwd));
+  if (changed) {
+    const live = runtimes.get(input.paneId);
+    if (live && usage.get(live)?.active) throw new Error("This agent is already responding");
+    closeAcpRuntimes([input.paneId]);
   }
-  if (runtime) return runtime;
-  runtime = agent.runtime?.protocol === "acp-http"
-    ? await FastClawRuntime.create(input.paneId, agent, input.cwd || os.homedir())
-    : await Runtime.create(input.paneId, agent, input.cwd || os.homedir());
-  runtimes.set(input.paneId, runtime);
-  if (input.config) await runtime.applyConfig(input.config);
-  return runtime;
+  const live = runtimes.get(input.paneId);
+  if (live) return live;
+  const saved = suspended.get(input.paneId);
+  const cwd = saved?.cwd ?? (input.cwd || os.homedir());
+  const promise: Promise<RuntimeHandle> = (async () => {
+    const runtime = agent.runtime?.protocol === "acp-http"
+      ? await FastClawRuntime.create(input.paneId, agent, cwd)
+      : await Runtime.create(input.paneId, agent, cwd, saved);
+    try {
+      if (starting.get(input.paneId) !== promise) throw new Error("Agent conversation was closed during startup");
+      const picks = saved ? Object.fromEntries(saved.config.map((option) => [option.id, String(option.currentValue)])) : {};
+      await runtime.applyConfig({ ...picks, ...input.config });
+      if (starting.get(input.paneId) !== promise) throw new Error("Agent conversation was closed during startup");
+      runtimes.set(input.paneId, runtime);
+      usage.set(runtime, { active: 0, lastUsed: Date.now() });
+      suspended.delete(input.paneId);
+      return runtime;
+    } catch (error) {
+      runtime.close();
+      throw error;
+    }
+  })();
+  starting.set(input.paneId, promise);
+  try { return await promise; }
+  finally { if (starting.get(input.paneId) === promise) starting.delete(input.paneId); }
 }
 
 /**
@@ -595,6 +676,8 @@ async function acquire(input: AcpRuntimeTarget): Promise<RuntimeHandle> {
 export function acpRuntimeConfig(input: AcpRuntimeTarget): SessionConfigOption[] | null {
   const live = runtimes.get(input.paneId);
   if (live && live.agent.id === input.agentId) return live.config;
+  const saved = suspended.get(input.paneId);
+  if (saved && saved.agent.id === input.agentId) return withPicks(saved.config, input.config ?? {});
   if (findAgentConfig(input.agentId)?.runtime?.protocol === "acp-http") return null;
   const cached = cachedConfig(input.agentId);
   return cached && withPicks(cached, input.config ?? {});
@@ -602,7 +685,7 @@ export function acpRuntimeConfig(input: AcpRuntimeTarget): SessionConfigOption[]
 
 /** Start the agent and ask it directly — for when the cache has no answer. */
 export async function loadAcpRuntimeConfig(input: AcpRuntimeTarget): Promise<SessionConfigOption[]> {
-  return (await acquire(input)).config;
+  return useRuntime(input, async (runtime) => runtime.config);
 }
 
 /**
@@ -617,12 +700,17 @@ export async function setAcpConfigOption(
   input: AcpRuntimeTarget & { configId: string; value: string }
 ): Promise<SessionConfigOption[]> {
   const live = runtimes.get(input.paneId);
-  if (live && live.agent.id === input.agentId) return live.setConfigOption(input.configId, input.value);
+  if (live && live.agent.id === input.agentId) return useRuntime(input, (runtime) => runtime.setConfigOption(input.configId, input.value));
   if (findAgentConfig(input.agentId)?.runtime?.protocol === "acp-http") {
-    return (await acquire(input)).setConfigOption(input.configId, input.value);
+    return useRuntime(input, (runtime) => runtime.setConfigOption(input.configId, input.value));
+  }
+  const saved = suspended.get(input.paneId);
+  if (saved && saved.agent.id === input.agentId) {
+    saved.config = withPicks(saved.config, { ...input.config, [input.configId]: input.value });
+    return saved.config;
   }
   const cached = cachedConfig(input.agentId);
-  if (!cached) return (await acquire(input)).setConfigOption(input.configId, input.value);
+  if (!cached) return useRuntime(input, (runtime) => runtime.setConfigOption(input.configId, input.value));
   return withPicks(cached, { ...input.config, [input.configId]: input.value });
 }
 
@@ -640,20 +728,21 @@ export async function promptAcpRuntime(
 ): Promise<void> {
   input.signal.throwIfAborted();
   input.emit({ type: "activity", title: "Starting agent", status: input.agentId, phase: "starting" });
-  const runtime = await acquire(input);
-  // Stopping during a cold start must not begin a model request afterwards.
-  input.signal.throwIfAborted();
-  // A group has its own session for each Bot. Reconcile the Bot's saved model
-  // on later turns too, since it may have changed through its private settings.
-  if (input.applySavedConfig && input.config) await runtime.applyConfig(input.config);
-  input.signal.throwIfAborted();
-  input.emit({ type: "activity", title: runtime.agent.name, status: "Thinking", phase: "processing" });
-  await runtime.prompt(input.prompt, input.emit, input.signal, input.botIdentity, await loadAgentImages(input.images));
+  await useRuntime(input, async (runtime) => {
+    // Stopping during a cold start must not begin a model request afterwards.
+    input.signal.throwIfAborted();
+    // A group has its own session for each Bot. Reconcile the Bot's saved model
+    // on later turns too, since it may have changed through its private settings.
+    if (input.applySavedConfig && input.config) await runtime.applyConfig(input.config);
+    input.signal.throwIfAborted();
+    input.emit({ type: "activity", title: runtime.agent.name, status: "Thinking", phase: "processing" });
+    await runtime.prompt(input.prompt, input.emit, input.signal, input.botIdentity, await loadAgentImages(input.images));
+  });
 }
 
 /** The folder a pane's live ACP session is actually bound to, if one exists. */
 export function acpRuntimeCwd(paneId: string): string | undefined {
-  return runtimes.get(paneId)?.cwd;
+  return runtimes.get(paneId)?.cwd ?? suspended.get(paneId)?.cwd;
 }
 
 export function respondAcpPermission(paneId: string, requestId: string, optionId: string): boolean {
@@ -662,11 +751,13 @@ export function respondAcpPermission(paneId: string, requestId: string, optionId
 
 export function closeAcpRuntimes(paneIds: string[]): void {
   for (const paneId of paneIds) {
+    starting.delete(paneId);
+    suspended.delete(paneId);
     runtimes.get(paneId)?.close();
     runtimes.delete(paneId);
   }
 }
 
 export function closeAllAcpRuntimes(): void {
-  closeAcpRuntimes([...runtimes.keys()]);
+  closeAcpRuntimes([...new Set([...runtimes.keys(), ...suspended.keys(), ...starting.keys()])]);
 }

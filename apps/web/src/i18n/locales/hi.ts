@@ -2,6 +2,9 @@
 // as Indian developers read and speak them that way)
 
 export default {
+  "agentGroup.routingAttempt": "{name} आपका संदेश आवंटित कर रहा है ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "पिछले एजेंट का समय समाप्त हो गया। {name} कार्य संभाल रहा है ({attempt}/{total})…",
+  "agentGroup.routingFallback": "पिछला एजेंट विफल हुआ। {name} कार्य संभाल रहा है ({attempt}/{total})…",
   "agentGroup.addMembers": "जोड़ें",
   "agentGroup.topics": "विषय",
   "agentGroup.newTopic": "नया विषय",

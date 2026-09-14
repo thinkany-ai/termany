@@ -58,6 +58,12 @@ conversation, delegates work, and consolidates the result; `@` mentions route a 
 specific member. Topics keep separate tasks from sharing one long transcript, while every Bot
 retains a clear identity in the conversation.
 
+Idle ACP Bot processes are released after five minutes when the agent supports restoring
+sessions. Sending another message restarts the agent and loads the same conversation; this
+first reply may take a little longer to start. Active replies and permission requests stay
+running. Agents without session restore keep their conversations in memory; unused processes
+started only to discover settings can still be released. This does not stop terminal sessions.
+
 ![A group of coding Bots playing a coordinated game in a shared topic](docs/bots.png)
 
 ## Review in the same window

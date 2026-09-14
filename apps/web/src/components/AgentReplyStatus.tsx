@@ -5,7 +5,7 @@ import { SpinnerIcon } from "./icons";
 export type AgentReplyPhase = "sending" | "preparing" | "processing" | "routing" | "greeting";
 
 /** Transient delivery feedback, never saved as a reply or sent to the model. */
-export function AgentReplyStatus({ phase, startedAt }: { phase: AgentReplyPhase; startedAt: number }) {
+export function AgentReplyStatus({ phase, startedAt, label }: { phase: AgentReplyPhase; startedAt: number; label?: string }) {
   const { t } = useI18n();
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -29,7 +29,7 @@ export function AgentReplyStatus({ phase, startedAt }: { phase: AgentReplyPhase;
   return (
     <span className="agent-reply-loading">
       <SpinnerIcon />
-      <span role="status" aria-live="polite">{t(`agentChat.${phase}`)}</span>
+      <span role="status" aria-live="polite">{label ?? t(`agentChat.${phase}`)}</span>
       {seconds >= 3 && <span className="agent-reply-elapsed" aria-hidden="true" aria-live="off">{elapsed}</span>}
     </span>
   );

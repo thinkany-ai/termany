@@ -1,6 +1,9 @@
 // Portuguese (Brazil) — Português (Brasil)
 
 export default {
+  "agentGroup.routingAttempt": "{name} está encaminhando sua mensagem ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "O agente anterior excedeu o tempo limite. {name} está assumindo ({attempt}/{total})…",
+  "agentGroup.routingFallback": "O agente anterior falhou. {name} está assumindo ({attempt}/{total})…",
   "agentGroup.addMembers": "Adicionar",
   "agentGroup.topics": "Tópicos",
   "agentGroup.newTopic": "Novo tópico",

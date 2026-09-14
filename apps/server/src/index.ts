@@ -1767,7 +1767,15 @@ async function acpTarget(body: any): Promise<AcpRuntimeTarget> {
  * to it after the app is closed and reopened. Runs on an interval (the app may
  * be SIGKILLed on quit, so we can't rely on a shutdown hook) and once at exit.
  */
-async function sweepCwds(): Promise<void> {
+let cwdSweep: Promise<void> | undefined;
+function sweepCwds(): Promise<void> {
+  // A slow lsof sweep must not pile up another full scan every five seconds.
+  if (cwdSweep) return cwdSweep;
+  cwdSweep = collectCwds().finally(() => { cwdSweep = undefined; });
+  return cwdSweep;
+}
+
+async function collectCwds(): Promise<void> {
   for (const [id, session] of ptySessions) {
     const cwd = await dirIfValid(await cwdForPid(session.pty.pid));
     if (cwd) {

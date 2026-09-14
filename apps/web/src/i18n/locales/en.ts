@@ -1,6 +1,9 @@
 // English (source locale — every other dictionary falls back to this one)
 
 export default {
+  "agentGroup.routingAttempt": "{name} is routing your message ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "Previous agent timed out. {name} is taking over ({attempt}/{total})…",
+  "agentGroup.routingFallback": "Previous agent failed. {name} is taking over ({attempt}/{total})…",
   "agentGroup.addMembers": "Add",
   "agentGroup.topics": "Topics",
   "agentGroup.newTopic": "New topic",

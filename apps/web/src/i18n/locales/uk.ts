@@ -2,6 +2,9 @@
 // Slavic plural stems)
 
 export default {
+  "agentGroup.routingAttempt": "{name} розподіляє повідомлення ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "Час очікування попереднього агента минув. {name} перебирає завдання ({attempt}/{total})…",
+  "agentGroup.routingFallback": "Попередній агент завершився з помилкою. {name} перебирає завдання ({attempt}/{total})…",
   "agentGroup.addMembers": "Додати",
   "agentGroup.topics": "Теми",
   "agentGroup.newTopic": "Нова тема",

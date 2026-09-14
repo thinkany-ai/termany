@@ -1851,10 +1851,28 @@ html.tauri #root {
 .agent-group-topic-select:focus-visible {
   outline: none;
 }
-.agent-group-topic-select > span {
+.agent-group-topic-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.agent-group-topic-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin: 0 4px;
+  color: var(--accent);
+}
+.agent-group-topic-loading svg {
+  width: 14px;
+  height: 14px;
+  animation: ms-spin 0.9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-group-topic-loading svg { animation: none; }
 }
 .agent-group-topic-menu-trigger {
   width: 28px;

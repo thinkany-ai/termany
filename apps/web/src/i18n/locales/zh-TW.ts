@@ -1,6 +1,9 @@
 // Chinese (Traditional) — 繁體中文（台灣用語：設定／終端機／檔案／預設）
 
 export default {
+  "agentGroup.routingAttempt": "{name} 正在分派訊息（{attempt}/{total}）…",
+  "agentGroup.routingTimeout": "上一個 agent 回應逾時，{name} 正在接手（{attempt}/{total}）…",
+  "agentGroup.routingFallback": "上一個 agent 分派失敗，{name} 正在接手（{attempt}/{total}）…",
   "agentGroup.addMembers": "新增",
   "agentGroup.topics": "話題",
   "agentGroup.newTopic": "新話題",

@@ -1,6 +1,9 @@
 // Russian — Русский
 
 export default {
+  "agentGroup.routingAttempt": "{name} распределяет сообщение ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "Время ожидания предыдущего агента истекло. {name} принимает задачу ({attempt}/{total})…",
+  "agentGroup.routingFallback": "Предыдущий агент завершился с ошибкой. {name} принимает задачу ({attempt}/{total})…",
   "agentGroup.addMembers": "Добавить",
   "agentGroup.topics": "Темы",
   "agentGroup.newTopic": "Новая тема",

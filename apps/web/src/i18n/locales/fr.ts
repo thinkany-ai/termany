@@ -1,6 +1,9 @@
 // French — Français
 
 export default {
+  "agentGroup.routingAttempt": "{name} attribue votre message ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "Le délai de l’agent précédent a expiré. {name} prend le relais ({attempt}/{total})…",
+  "agentGroup.routingFallback": "L’agent précédent a échoué. {name} prend le relais ({attempt}/{total})…",
   "agentGroup.addMembers": "Ajouter",
   "agentGroup.topics": "Sujets",
   "agentGroup.newTopic": "Nouveau sujet",

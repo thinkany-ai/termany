@@ -1,6 +1,9 @@
 // Vietnamese — Tiếng Việt
 
 export default {
+  "agentGroup.routingAttempt": "{name} đang phân công tin nhắn của bạn ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "Tác nhân trước đã hết thời gian chờ. {name} đang tiếp quản ({attempt}/{total})…",
+  "agentGroup.routingFallback": "Tác nhân trước đã thất bại. {name} đang tiếp quản ({attempt}/{total})…",
   "agentGroup.addMembers": "Thêm",
   "agentGroup.topics": "Chủ đề",
   "agentGroup.newTopic": "Chủ đề mới",

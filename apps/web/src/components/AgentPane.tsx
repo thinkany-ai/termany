@@ -495,7 +495,8 @@ export function AgentPane({
   const mentionsRef = useRef<AgentGroupMentionsHandle>(null);
   const mentionsId = useId();
   const [groupLimited, setGroupLimited] = useState(false);
-  const [groupPlanning, setGroupPlanning] = useState<{ startedAt: number } | null>(null);
+  const [groupPlanning, setGroupPlanning] = useState<{ startedAt: number; name?: string;
+    attempt?: number; total?: number; previousFailure?: "timeout" | "error" } | null>(null);
   const [groupError, setGroupError] = useState(false);
   const [groupTakeover, setGroupTakeover] = useState<{
     unavailableName: string;
@@ -1440,6 +1441,9 @@ export function AgentPane({
                 .filter((member): member is AgentConversation =>
                   member !== undefined && !unavailableCoordinators.has(member.id));
               const outcome = await requestGroupDecisionWithFailover({ group, context, signal: abort.signal,
+                onAttempt: ({ member, attempt, total, previousFailure }) => {
+                  setGroupPlanning({ startedAt: Date.now(), name: member.title, attempt, total, previousFailure });
+                },
                 candidates: coordinators.map((member) => {
                   const configured = member.agentRuntime;
                   const runtime = configured === undefined ? runtimes[0]?.id ?? "" : configured;
@@ -1799,7 +1803,12 @@ export function AgentPane({
             })}
             {groupPlanning && (
               <div className="agent-group-routing">
-                <AgentReplyStatus phase="routing" startedAt={groupPlanning.startedAt} />
+                <AgentReplyStatus phase="routing" startedAt={groupPlanning.startedAt}
+                  label={groupPlanning.name ? t(groupPlanning.previousFailure === "timeout"
+                    ? "agentGroup.routingTimeout" : groupPlanning.previousFailure === "error"
+                      ? "agentGroup.routingFallback" : "agentGroup.routingAttempt", {
+                    name: groupPlanning.name, attempt: groupPlanning.attempt ?? 1, total: groupPlanning.total ?? 1,
+                  }) : undefined} />
               </div>
             )}
           </div>

@@ -1,6 +1,9 @@
 // Turkish — Türkçe
 
 export default {
+  "agentGroup.routingAttempt": "{name} mesajınızı yönlendiriyor ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "Önceki ajan zaman aşımına uğradı. {name} devralıyor ({attempt}/{total})…",
+  "agentGroup.routingFallback": "Önceki ajan başarısız oldu. {name} devralıyor ({attempt}/{total})…",
   "agentGroup.addMembers": "Ekle",
   "agentGroup.topics": "Konular",
   "agentGroup.newTopic": "Yeni konu",

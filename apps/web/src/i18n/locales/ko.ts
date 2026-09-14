@@ -1,6 +1,9 @@
 // Korean — 한국어
 
 export default {
+  "agentGroup.routingAttempt": "{name}이(가) 메시지를 배정하고 있습니다 ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "이전 에이전트의 시간이 초과되었습니다. {name}이(가) 이어받습니다 ({attempt}/{total})…",
+  "agentGroup.routingFallback": "이전 에이전트가 실패했습니다. {name}이(가) 이어받습니다 ({attempt}/{total})…",
   "agentGroup.addMembers": "추가",
   "agentGroup.topics": "주제",
   "agentGroup.newTopic": "새 주제",

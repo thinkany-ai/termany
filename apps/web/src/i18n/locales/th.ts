@@ -2,6 +2,9 @@
 // which is how Thai developers read and write them)
 
 export default {
+  "agentGroup.routingAttempt": "{name} กำลังจัดสรรข้อความของคุณ ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "เอเจนต์ก่อนหน้าหมดเวลา {name} กำลังรับช่วงต่อ ({attempt}/{total})…",
+  "agentGroup.routingFallback": "เอเจนต์ก่อนหน้าล้มเหลว {name} กำลังรับช่วงต่อ ({attempt}/{total})…",
   "agentGroup.addMembers": "เพิ่ม",
   "agentGroup.topics": "หัวข้อ",
   "agentGroup.newTopic": "หัวข้อใหม่",

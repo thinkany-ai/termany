@@ -2,6 +2,9 @@
 // plural stems)
 
 export default {
+  "agentGroup.routingAttempt": "{name} přiřazuje zprávu ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "Předchozímu agentovi vypršel čas. {name} přebírá úkol ({attempt}/{total})…",
+  "agentGroup.routingFallback": "Předchozí agent selhal. {name} přebírá úkol ({attempt}/{total})…",
   "agentGroup.addMembers": "Přidat",
   "agentGroup.topics": "Témata",
   "agentGroup.newTopic": "Nové téma",

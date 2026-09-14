@@ -1,6 +1,9 @@
 // Chinese (Simplified) — 简体中文
 
 export default {
+  "agentGroup.routingAttempt": "{name} 正在分配消息（{attempt}/{total}）…",
+  "agentGroup.routingTimeout": "上一个 agent 响应超时，{name} 正在接管（{attempt}/{total}）…",
+  "agentGroup.routingFallback": "上一个 agent 分配失败，{name} 正在接管（{attempt}/{total}）…",
   "agentGroup.addMembers": "添加",
   "agentGroup.topics": "话题",
   "agentGroup.newTopic": "新话题",

@@ -1,6 +1,9 @@
 // Dutch — Nederlands (informal "je", matching the product's tone)
 
 export default {
+  "agentGroup.routingAttempt": "{name} wijst je bericht toe ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "De vorige agent heeft de tijdslimiet overschreden. {name} neemt het over ({attempt}/{total})…",
+  "agentGroup.routingFallback": "De vorige agent is mislukt. {name} neemt het over ({attempt}/{total})…",
   "agentGroup.addMembers": "Toevoegen",
   "agentGroup.topics": "Onderwerpen",
   "agentGroup.newTopic": "Nieuw onderwerp",

@@ -21,7 +21,8 @@ import { compareConversationOrganization, conversationMoveUpdates } from "../age
 import { beginDragCursor, createDragGhost, endDragCursor, type DragGhost } from "../dragGhost";
 import { latestAssistantPreview } from "../agentMessagePreview";
 import { a2aInboxStreamingId } from "../agentA2A";
-import { activeAgentConversationTopic, agentConversationTopics, allAgentConversationMessages } from "../agentGroupTopics";
+import { activeAgentConversationTopic, agentConversationTopics, agentConversationTopicSessionId, allAgentConversationMessages } from "../agentGroupTopics";
+import { groupTopicPaneId } from "../agentGroupChat";
 import { unreadAgentMessages } from "../agentPrivateMessages";
 import { useI18n } from "../i18n";
 import { useImeGuard } from "../imeGuard";
@@ -1730,6 +1731,9 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
                   {visibleTopics.map((topic) => {
                     const selected = topic.id === activeTopic?.id;
                     const editing = editingTopicId === topic.id;
+                    const topicStreaming = streamingIds.has(active.agentGroup
+                      ? groupTopicPaneId(active.id, topic.id)
+                      : agentConversationTopicSessionId(active.id, topic.id));
                     return <div key={topic.id} className={`agent-group-topic-item ${selected ? "active" : ""} ${editing ? "editing" : ""}`}>
                       {editing ? (
                         <input
@@ -1759,9 +1763,13 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
                             setTopicMenu(null);
                             setActiveTopic(active.id, topic.id);
                           }}>
-                          <span>{topic.title || t("agentGroup.newTopic")}</span>
+                          <span className="agent-group-topic-title">{topic.title || t("agentGroup.newTopic")}</span>
                         </button>
                       )}
+                      {topicStreaming && <span className="agent-group-topic-loading" role="status"
+                        aria-label={t("agentChat.working")} title={t("agentChat.working")}>
+                        <SpinnerIcon />
+                      </span>}
                       {!editing && <button
                         type="button"
                         className="agent-group-topic-menu-trigger"

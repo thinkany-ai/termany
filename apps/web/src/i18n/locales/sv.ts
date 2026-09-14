@@ -1,6 +1,9 @@
 // Swedish — Svenska
 
 export default {
+  "agentGroup.routingAttempt": "{name} fördelar ditt meddelande ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "Den föregående agentens tidsgräns överskreds. {name} tar över ({attempt}/{total})…",
+  "agentGroup.routingFallback": "Den föregående agenten misslyckades. {name} tar över ({attempt}/{total})…",
   "agentGroup.addMembers": "Lägg till",
   "agentGroup.topics": "Ämnen",
   "agentGroup.newTopic": "Nytt ämne",

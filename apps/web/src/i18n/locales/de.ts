@@ -1,6 +1,9 @@
 // German — Deutsch (informal "du", consistent with the product's tone)
 
 export default {
+  "agentGroup.routingAttempt": "{name} weist deine Nachricht zu ({attempt}/{total})…",
+  "agentGroup.routingTimeout": "Zeitüberschreitung beim vorherigen Agenten. {name} übernimmt ({attempt}/{total})…",
+  "agentGroup.routingFallback": "Der vorherige Agent ist fehlgeschlagen. {name} übernimmt ({attempt}/{total})…",
   "agentGroup.addMembers": "Hinzufügen",
   "agentGroup.topics": "Themen",
   "agentGroup.newTopic": "Neues Thema",
