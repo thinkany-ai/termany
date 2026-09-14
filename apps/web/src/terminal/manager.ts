@@ -807,11 +807,13 @@ function updateAgentActivityFromOutput(id: string, data: string) {
   }
 }
 
-function noteAgentInput(id: string, data: string) {
+function noteAgentInput(id: string, data: string, isSubmit = true) {
   clearAgentIdleTimer(id);
   agentIdleReports.delete(id);
   if (!isDemo) return;
-  if (!data.includes("\r")) return;
+  // A synthetic newline is never a submit — in demo mode no less, where the
+  // scripted reply still drives the activity animation from its own output.
+  if (!isSubmit || !data.includes("\r")) return;
   const session = sessions.get(id);
   if (!session) return;
   if (agentActivities.has(id) || AGENT_RE.test(sessionVisibleText(id))) {
@@ -903,7 +905,7 @@ function deliverTerminalInput(
     }
     return;
   }
-  noteAgentInput(id, data);
+  noteAgentInput(id, data, isSubmit);
   writeTerminalInput(id, session, data, isSubmit);
 }
 
