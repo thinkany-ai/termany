@@ -59,10 +59,12 @@ specific member. Topics keep separate tasks from sharing one long transcript, wh
 retains a clear identity in the conversation.
 
 Idle ACP Bot processes are released after five minutes when the agent supports restoring
-sessions. Sending another message restarts the agent and loads the same conversation; this
-first reply may take a little longer to start. Active replies and permission requests stay
-running. Agents without session restore keep their conversations in memory; unused processes
-started only to discover settings can still be released. This does not stop terminal sessions.
+sessions (`loadSession`, or `sessionCapabilities.resume` for agents that restore context
+without replaying the transcript). Sending another message restarts the agent and loads the
+same conversation; this first reply may take a little longer to start. Active replies and
+permission requests stay running. Agents without session restore keep their conversations in
+memory; unused processes started only to discover settings can still be released. This does
+not stop terminal sessions.
 
 ![A group of coding Bots playing a coordinated game in a shared topic](docs/bots.png)
 
