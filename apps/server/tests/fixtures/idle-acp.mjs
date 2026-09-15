@@ -12,15 +12,29 @@ for await (const line of createInterface({ input: process.stdin })) {
   if (method === 'initialize') {
     // Make overlapping cold starts deterministic.
     await new Promise((resolve) => setTimeout(resolve, 60));
-    send({ id, result: { protocolVersion: params.protocolVersion, agentCapabilities: { loadSession: dialect !== 'no-load' }, authMethods: [] } });
+    send({ id, result: { protocolVersion: params.protocolVersion,
+      // The `resume` dialect models an agent that restores context without
+      // replaying it (ACP `sessionCapabilities.resume`) and has no `session/load`.
+      agentCapabilities: dialect === 'resume'
+        ? { sessionCapabilities: { resume: {} } }
+        : { loadSession: dialect !== 'no-load' },
+      authMethods: [] } });
   } else if (method === 'session/new') {
     sessionId = `idle-${process.pid}`;
     send({ id, result: { sessionId, configOptions: options() } });
   } else if (method === 'session/load') {
     if (dialect === 'fail-load') { send({ id, error: { code: -32603, message: 'Cannot load saved session' } }); continue; }
+    // A resume-only agent has no `session/load`; failing loudly turns any
+    // accidental replay attempt into a test failure instead of a silent pass.
+    if (dialect === 'resume') { send({ id, error: { code: -32601, message: 'Method not found' } }); continue; }
     sessionId = params.sessionId;
     ({ turns, model } = JSON.parse(readFileSync(`${sessionId}.json`, 'utf8')));
     send({ method: 'session/update', params: { sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'OLD REPLAY' } } } });
+    send({ id, result: { configOptions: options() } });
+  } else if (method === 'session/resume') {
+    sessionId = params.sessionId;
+    ({ turns, model } = JSON.parse(readFileSync(`${sessionId}.json`, 'utf8')));
+    // Deliberately no `session/update`: resume must not replay the transcript.
     send({ id, result: { configOptions: options() } });
   } else if (method === 'session/set_config_option') {
     model = params.value;
