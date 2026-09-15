@@ -114,10 +114,11 @@ output and cache tokens, a daily chart, and breakdowns by model and by project.
 
 ## Appearance and keys
 
-Fourteen themes ship built in. A theme restyles the whole window, not only the terminal
+Fifteen themes ship built in. A theme restyles the whole window, not only the terminal
 palette: the sidebar, the tab strip, the gap and corner radius of each pane, and the shadow
 under it all come from the theme — far enough that Windows 98 gets its bevels and navy title
-bars back. Step through them with ⌥⌘. and ⌥⌘, or open the picker with ⌥⌘T.
+bars back, while Windows XP brings Luna's blue captions and cream controls.
+Step through them with ⌥⌘. and ⌥⌘, or open the picker with ⌥⌘T.
 
 <table>
   <tr>
@@ -143,12 +144,12 @@ bars back. Step through them with ⌥⌘. and ⌥⌘, or open the picker with �
   <tr>
     <td align="center"><img src="docs/themes/phosphor.png" alt="The Phosphor theme: a green CRT, flush edge to edge"><br><b>Phosphor</b><br><sub>Dark</sub></td>
     <td align="center"><img src="docs/themes/win98.png" alt="The Windows 98 theme: bevelled gray chrome, a navy title bar, and a black VGA console"><br><b>Windows 98</b><br><sub>Light</sub></td>
-    <td></td>
+    <td align="center"><img src="docs/themes/winxp.png" alt="The Windows XP theme: glossy blue Luna captions, cream controls, and a black command prompt"><br><b>Windows XP</b><br><sub>Light</sub></td>
   </tr>
 </table>
 
 Any [CodexThemes](https://codexthemes.ai) pack you install appears in Settings → Appearance
-with its artwork, and applies in one click, next to the fourteen above.
+with its artwork, and applies in one click, next to the fifteen above.
 
 All ~60 actions are rebindable in Settings → Keyboard. The right-hand rail hides the tools
 you do not use. The interface ships in 21 languages.
