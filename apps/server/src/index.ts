@@ -50,6 +50,7 @@ import { gitDiffs, gitOverview, worktreeOverview } from "./git.js";
 import { pickFolder } from "./folderPicker.js";
 import { pickFiles } from "./filePicker.js";
 import { testProvider } from "./providerTest.js";
+import { cwdForPid as nativeCwdForPid } from "./processCwd.js";
 import { ptyEnvironment } from "./ptyEnvironment.js";
 import { generateTheme } from "./theme.js";
 import {
@@ -1598,22 +1599,9 @@ const wss = new WebSocketServer({ server: http });
 let connCount = 0;
 
 async function cwdForPid(pid: number): Promise<string | undefined> {
-  try {
-    if (os.platform() === "linux") return await fs.promises.realpath(`/proc/${pid}/cwd`);
-    if (os.platform() === "darwin") {
-      const { stdout } = await execFileAsync("lsof", ["-a", "-d", "cwd", "-p", String(pid), "-Fn"], {
-        timeout: 1000,
-        maxBuffer: 4096,
-      });
-      const line = stdout
-        .split("\n")
-        .find((value) => value.startsWith("n") && value.length > 1);
-      return line?.slice(1);
-    }
-  } catch {
-    return undefined;
-  }
-  return oscCwdByPid.get(pid);
+  // Windows has neither /proc nor lsof, so nativeCwdForPid declines and the
+  // PTY's own OSC 7 reports (see OSC7_PS_HOOK above) are all there is.
+  return (await nativeCwdForPid(pid)) ?? oscCwdByPid.get(pid);
 }
 
 /**
