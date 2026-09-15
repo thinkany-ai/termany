@@ -26,6 +26,8 @@ export default {
   "settings.agents": "智能体",
   "settings.keyboard": "快捷键",
   "settings.about": "关于",
+  "settings.bot.label": "启用 Bot",
+  "settings.bot.description": "显示 Bot 工作区和左侧导航栏。关闭后仅使用终端功能。",
   "settings.language.title": "语言",
   "settings.language.label": "界面语言",
   "settings.rail.title": "右侧工具栏",

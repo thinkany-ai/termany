@@ -33,6 +33,8 @@ export default {
   "settings.agents": "Aracılar",
   "settings.keyboard": "Klavye",
   "settings.about": "Hakkında",
+  "settings.bot.label": "Bot’u etkinleştir",
+  "settings.bot.description": "Bot çalışma alanını ve sol gezinme çubuğunu göster. Yalnızca terminali kullanmak için kapat.",
   "settings.language.title": "DİL",
   "settings.language.label": "Arayüz dili",
   "settings.rail.title": "SAĞ ARAÇ ÇUBUĞU",

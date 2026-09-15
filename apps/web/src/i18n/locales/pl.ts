@@ -34,6 +34,8 @@ export default {
   "settings.agents": "Agenci",
   "settings.keyboard": "Klawiatura",
   "settings.about": "O programie",
+  "settings.bot.label": "Włącz Bot",
+  "settings.bot.description": "Pokaż obszar Bot i lewy pasek nawigacji. Wyłącz, aby używać tylko terminala.",
   "settings.language.title": "JĘZYK",
   "settings.language.label": "Język interfejsu",
   "settings.rail.title": "PRAWY PASEK",

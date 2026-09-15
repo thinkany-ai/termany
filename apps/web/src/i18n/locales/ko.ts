@@ -33,6 +33,8 @@ export default {
   "settings.agents": "에이전트",
   "settings.keyboard": "키보드",
   "settings.about": "정보",
+  "settings.bot.label": "Bot 활성화",
+  "settings.bot.description": "Bot 작업 공간과 왼쪽 탐색 모음을 표시합니다. 끄면 터미널만 사용합니다.",
   "settings.language.title": "언어",
   "settings.language.label": "인터페이스 언어",
   "settings.rail.title": "오른쪽 도구 모음",

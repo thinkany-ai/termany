@@ -33,6 +33,8 @@ export default {
   "settings.agents": "Agenter",
   "settings.keyboard": "Tangentbord",
   "settings.about": "Om",
+  "settings.bot.label": "Aktivera Bot",
+  "settings.bot.description": "Visa Bot-arbetsytan och vänsternavigeringen. Stäng av för att bara använda terminalen.",
   "settings.language.title": "SPRÅK",
   "settings.language.label": "Gränssnittsspråk",
   "settings.rail.title": "HÖGER VERKTYGSFÄLT",

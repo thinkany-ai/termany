@@ -1,3 +1,5 @@
+import { toggleWorkspaceSwitcher } from "../workspaceSwitcherEvents";
+import { PageDragGesture } from "../pageDragGesture";
 import { textInputProps } from "../textInputProps";
 import { PointerEvent as ReactPointerEvent, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { beginDragCursor, createDragGhost, endDragCursor, type DragGhost } from "../dragGhost";
@@ -324,6 +326,7 @@ function TreeItem({
 export function TreeSidebar() {
   const { t } = useI18n();
   const ws = useStore(activeWorkspace);
+  const botEnabled = useStore((s) => s.botEnabled);
   const activePage = useStore(activePageId);
   const addRootNode = useStore((s) => s.addRootNode);
   const collapseAll = useStore((s) => s.collapseAll);
@@ -344,18 +347,9 @@ export function TreeSidebar() {
       ?.querySelector(`[data-tree-node-id="${CSS.escape(activePage)}"]`)
       ?.scrollIntoView({ block: "nearest" });
   }, [activePage, ws.roots]);
-  const dragRef = useRef<{
-    id: string;
-    title: string;
-    pointerId: number;
-    startX: number;
-    startY: number;
-    active: boolean;
-  } | null>(null);
-  // Cursor-following label, created once the drag passes the 4px threshold.
+  const gestureRef = useRef(new PageDragGesture<{ id: string; title: string }>());
   const ghostRef = useRef<DragGhost | null>(null);
   const dragUiRef = useRef<NodeDragUi | null>(null);
-  const suppressClickRef = useRef(false);
   const wsLeafIds = ws.roots.flatMap(subtreeLeafIds);
   useSyncExternalStore(
     subscribeAgentActivity,
@@ -381,38 +375,39 @@ export function TreeSidebar() {
     setNodeDrag(next);
   };
 
+  const clearDragFeedback = () => {
+    if (ghostRef.current) {
+      ghostRef.current.destroy();
+      ghostRef.current = null;
+      endDragCursor();
+    }
+    setDragUi(null);
+  };
+
   const startNodePointerDrag = (id: string, e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || !e.isPrimary) return;
+    // Also discard any stale gesture when a new physical press arrives.
+    gestureRef.current.cancel();
+    clearDragFeedback();
     const target = e.target instanceof Element ? e.target : null;
     if (target?.closest("button,input")) return;
-    // Resolve the title now, while the tree is in scope — the pointer handlers
-    // below live in an effect that only re-subscribes on moveNode.
     const title = target?.closest<HTMLElement>("[data-tree-node-id]")?.innerText.trim() || "page";
-    dragRef.current = {
-      id,
-      title: title.split("\n")[0],
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      active: false,
-    };
+    gestureRef.current.start(e.pointerId, e.clientX, e.clientY, { id, title: title.split("\n")[0] });
   };
 
-  const consumeSuppressedClick = () => {
-    if (!suppressClickRef.current) return false;
-    suppressClickRef.current = false;
-    return true;
-  };
+  const consumeSuppressedClick = () => gestureRef.current.consumeClick();
 
   useEffect(() => {
+    const cancelDrag = () => {
+      gestureRef.current.cancel();
+      clearDragFeedback();
+    };
     const onPointerMove = (e: PointerEvent) => {
-      const drag = dragRef.current;
-      if (!drag || e.pointerId !== drag.pointerId) return;
-      if (!drag.active) {
-        const dx = e.clientX - drag.startX;
-        const dy = e.clientY - drag.startY;
-        if (Math.hypot(dx, dy) < 4) return;
-        drag.active = true;
+      const action = gestureRef.current.move(e);
+      if (action === "cancel") { clearDragFeedback(); return; }
+      if (action === "ignore") return;
+      const drag = gestureRef.current.data!;
+      if (action === "start") {
         ghostRef.current = createDragGhost(drag.title);
         beginDragCursor();
       }
@@ -443,34 +438,48 @@ export function TreeSidebar() {
     };
 
     const onPointerUp = (e: PointerEvent) => {
-      const drag = dragRef.current;
-      if (!drag || e.pointerId !== drag.pointerId) return;
-      const wasActive = drag.active;
+      const drag = gestureRef.current.release(e.pointerId);
+      if (!drag) return;
       const ui = dragUiRef.current;
-      dragRef.current = null;
-      ghostRef.current?.destroy();
-      ghostRef.current = null;
-      endDragCursor();
-      setDragUi(null);
-      if (!wasActive) return;
-      suppressClickRef.current = true;
+      clearDragFeedback();
       if (!ui?.overTree) return;
       if (ui.targetId) moveNode(drag.id, ui.targetId, ui.pos ?? "into");
       else moveNode(drag.id, null);
     };
-
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    window.addEventListener("pointercancel", onPointerUp);
-    return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-      window.removeEventListener("pointercancel", onPointerUp);
+    const onPointerCancel = (e: PointerEvent) => {
+      if (gestureRef.current.cancel(e.pointerId)) clearDragFeedback();
     };
-  }, [moveNode]);
+    const onVisibilityChange = () => {
+      if (document.hidden) cancelDrag();
+    };
+
+    // Capture release/cancellation before nested controls can swallow them.
+    window.addEventListener("pointermove", onPointerMove, true);
+    window.addEventListener("pointerup", onPointerUp, true);
+    window.addEventListener("pointercancel", onPointerCancel, true);
+    window.addEventListener("blur", cancelDrag);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove, true);
+      window.removeEventListener("pointerup", onPointerUp, true);
+      window.removeEventListener("pointercancel", onPointerCancel, true);
+      window.removeEventListener("blur", cancelDrag);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      cancelDrag();
+    };
+  }, [moveNode, ws.id]);
 
   return (
     <div className="sidebar">
+      {!botEnabled && (
+        <button className="sidebar-workspace-switcher" title={ws.title} onClick={toggleWorkspaceSwitcher}>
+          <span className={`ws-avatar${ws.icon ? " emoji" : ""}`} aria-hidden="true">
+            {ws.icon ?? (ws.title.trim().charAt(0).toUpperCase() || "?")}
+          </span>
+          <span className="sidebar-workspace-name">{ws.title}</span>
+          <ChevronIcon dir="down" />
+        </button>
+      )}
       {/* Pages whose own panes are still inside an agent TUI, hoisted above the
           tree. Task state is independent and stays in the traffic-light counts. */}
       {activeEntries.length > 0 && (

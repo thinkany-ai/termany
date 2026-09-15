@@ -33,6 +33,8 @@ export default {
   "settings.agents": "エージェント",
   "settings.keyboard": "キーボード",
   "settings.about": "このアプリについて",
+  "settings.bot.label": "Bot を有効にする",
+  "settings.bot.description": "Bot ワークスペースと左側のナビゲーションを表示します。オフにするとターミナルのみを使用します。",
   "settings.language.title": "言語",
   "settings.language.label": "表示言語",
   "settings.rail.title": "右サイドツールバー",

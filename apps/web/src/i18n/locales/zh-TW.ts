@@ -26,6 +26,8 @@ export default {
   "settings.agents": "智慧代理",
   "settings.keyboard": "快速鍵",
   "settings.about": "關於",
+  "settings.bot.label": "啟用 Bot",
+  "settings.bot.description": "顯示 Bot 工作區和左側導覽列。關閉後僅使用終端機功能。",
   "settings.language.title": "語言",
   "settings.language.label": "介面語言",
   "settings.rail.title": "右側工具列",

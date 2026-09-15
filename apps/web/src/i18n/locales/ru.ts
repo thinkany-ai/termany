@@ -33,6 +33,8 @@ export default {
   "settings.agents": "Агенты",
   "settings.keyboard": "Клавиатура",
   "settings.about": "О программе",
+  "settings.bot.label": "Включить Bot",
+  "settings.bot.description": "Показывать рабочую область Bot и левую панель навигации. Отключите, чтобы использовать только терминал.",
   "settings.language.title": "ЯЗЫК",
   "settings.language.label": "Язык интерфейса",
   "settings.rail.title": "ПРАВАЯ ПАНЕЛЬ",

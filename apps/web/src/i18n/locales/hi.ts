@@ -34,6 +34,8 @@ export default {
   "settings.agents": "एजेंट",
   "settings.keyboard": "कीबोर्ड",
   "settings.about": "परिचय",
+  "settings.bot.label": "Bot सक्षम करें",
+  "settings.bot.description": "Bot कार्यक्षेत्र और बायाँ नेविगेशन बार दिखाएँ। केवल टर्मिनल का उपयोग करने के लिए बंद करें।",
   "settings.language.title": "भाषा",
   "settings.language.label": "इंटरफ़ेस की भाषा",
   "settings.rail.title": "दाईं टूलबार",

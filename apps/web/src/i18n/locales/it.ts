@@ -33,6 +33,8 @@ export default {
   "settings.agents": "Agenti",
   "settings.keyboard": "Tastiera",
   "settings.about": "Informazioni",
+  "settings.bot.label": "Abilita Bot",
+  "settings.bot.description": "Mostra lo spazio Bot e la navigazione a sinistra. Disattiva per usare solo il terminale.",
   "settings.language.title": "LINGUA",
   "settings.language.label": "Lingua dell'interfaccia",
   "settings.rail.title": "BARRA DESTRA",

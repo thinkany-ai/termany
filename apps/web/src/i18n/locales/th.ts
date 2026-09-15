@@ -34,6 +34,8 @@ export default {
   "settings.agents": "เอเจนต์",
   "settings.keyboard": "แป้นพิมพ์",
   "settings.about": "เกี่ยวกับ",
+  "settings.bot.label": "เปิดใช้งาน Bot",
+  "settings.bot.description": "แสดงพื้นที่ทำงาน Bot และแถบนำทางด้านซ้าย ปิดเพื่อใช้เฉพาะเทอร์มินัล",
   "settings.language.title": "ภาษา",
   "settings.language.label": "ภาษาของอินเทอร์เฟซ",
   "settings.rail.title": "แถบเครื่องมือด้านขวา",

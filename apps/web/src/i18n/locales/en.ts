@@ -26,6 +26,8 @@ export default {
   "settings.agents": "Agents",
   "settings.keyboard": "Keyboard",
   "settings.about": "About",
+  "settings.bot.label": "Enable Bot",
+  "settings.bot.description": "Show the Bot workspace and left navigation bar. Turn off to use only the terminal.",
   "settings.language.title": "LANGUAGE",
   "settings.language.label": "Interface language",
   "settings.rail.title": "RIGHT TOOLBAR",

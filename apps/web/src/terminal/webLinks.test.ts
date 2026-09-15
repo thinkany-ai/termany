@@ -37,6 +37,7 @@ function mockTerminal(lines: MockLine[], cols: number) {
   const cell = new MockCell();
   const terminal = {
     cols,
+    options: {},
     buffer: {
       active: {
         getLine: (y: number) => lines[y],
@@ -89,6 +90,37 @@ test("recognizes one URL split by a CLI hard wrap and opens it on Cmd+click", as
   await Promise.resolve();
   assert.equal(prevented, true);
   assert.equal(opened, url);
+});
+
+test("OSC 8 rich-text links use the external opener on Cmd+click", async () => {
+  const mock = mockTerminal([], 80);
+  const opened: string[] = [];
+  registerWebLinks(mock.terminal, async (url) => {
+    opened.push(url);
+    return null;
+  });
+  const handler = mock.terminal.options.linkHandler!;
+  assert.equal(handler.allowNonHttpProtocols, false);
+  const url = "https://github.com/maxgent-ai/fleet/pull/111";
+  const range = { start: { x: 1, y: 1 }, end: { x: 20, y: 1 } };
+  let prevented = 0;
+  const event = (metaKey: boolean) => ({
+    metaKey,
+    preventDefault() { prevented++; },
+  }) as MouseEvent;
+
+  handler.activate(event(false), url, range);
+  assert.deepEqual(opened, []);
+  handler.activate(event(true), url, range);
+  await Promise.resolve();
+  assert.deepEqual(opened, [url]);
+  assert.equal(prevented, 1);
+
+  for (const unsafe of ["javascript:alert(1)", "file:///tmp/example", "not a URL"]) {
+    handler.activate(event(true), unsafe, range);
+  }
+  assert.deepEqual(opened, [url]);
+  assert.equal(prevented, 1);
 });
 
 test("does not concatenate unrelated short physical lines", async () => {

@@ -33,6 +33,8 @@ export default {
   "settings.agents": "Agents",
   "settings.keyboard": "Toetsenbord",
   "settings.about": "Over",
+  "settings.bot.label": "Bot inschakelen",
+  "settings.bot.description": "Toon de Bot-werkruimte en linkernavigatie. Schakel uit om alleen de terminal te gebruiken.",
   "settings.language.title": "TAAL",
   "settings.language.label": "Taal van de interface",
   "settings.rail.title": "RECHTERWERKBALK",

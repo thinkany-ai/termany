@@ -34,6 +34,8 @@ export default {
   "settings.agents": "Агенти",
   "settings.keyboard": "Клавіатура",
   "settings.about": "Про програму",
+  "settings.bot.label": "Увімкнути Bot",
+  "settings.bot.description": "Показувати робочу область Bot і ліву панель навігації. Вимкніть, щоб використовувати лише термінал.",
   "settings.language.title": "МОВА",
   "settings.language.label": "Мова інтерфейсу",
   "settings.rail.title": "ПРАВА ПАНЕЛЬ",

@@ -34,6 +34,8 @@ export default {
   "settings.agents": "Agenti",
   "settings.keyboard": "Klávesnice",
   "settings.about": "O aplikaci",
+  "settings.bot.label": "Povolit Bot",
+  "settings.bot.description": "Zobrazit prostor Bot a levou navigaci. Vypnutím použijete pouze terminál.",
   "settings.language.title": "JAZYK",
   "settings.language.label": "Jazyk rozhraní",
   "settings.rail.title": "PRAVÝ PANEL NÁSTROJŮ",

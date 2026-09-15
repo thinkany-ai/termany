@@ -9,6 +9,14 @@ const MAX_WINDOW_LINES = 16;
 
 type OpenUrl = (url: string) => Promise<string | null>;
 
+function activateWebLink(event: MouseEvent, uri: string, openUrl: OpenUrl): void {
+  if (!event.metaKey || !isValidWebUrl(uri)) return;
+  event.preventDefault();
+  void openUrl(uri).then((error) => {
+    if (error) console.warn("[termany] failed to open URL:", error);
+  });
+}
+
 interface CellPosition {
   x: number;
   y: number;
@@ -132,11 +140,7 @@ export function computeWebLinks(
       },
       text,
       activate(event, uri) {
-        if (!event.metaKey) return;
-        event.preventDefault();
-        void openUrl(uri).then((error) => {
-          if (error) console.warn("[termany] failed to open URL:", error);
-        });
+        activateWebLink(event, uri, openUrl);
       },
     });
   }
@@ -146,6 +150,15 @@ export function computeWebLinks(
 /** Register web URLs before the local-file provider so URL path segments are
  * never mistaken for files. Cmd+click opens the system browser. */
 export function registerWebLinks(terminal: Terminal, openUrl: OpenUrl = openExternal): void {
+  // OSC 8 links (including labels that do not display a URL) take precedence
+  // over custom providers. Route them through the desktop opener too; xterm's
+  // default confirm/window.open flow cannot open the system browser in Tauri.
+  terminal.options.linkHandler = {
+    allowNonHttpProtocols: false,
+    activate(event, uri) {
+      activateWebLink(event, uri, openUrl);
+    },
+  };
   const provider: ILinkProvider = {
     provideLinks(bufferLineNumber, callback) {
       const links = computeWebLinks(bufferLineNumber, terminal, openUrl);

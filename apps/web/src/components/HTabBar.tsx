@@ -1,3 +1,4 @@
+import { toggleWorkspaceSwitcher } from "../workspaceSwitcherEvents";
 import { textInputProps } from "../textInputProps";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { beginDragCursor, createDragGhost, endDragCursor, type DragGhost } from "../dragGhost";
@@ -44,6 +45,8 @@ export function HTabBar() {
   const toggleRail = useStore((s) => s.toggleRail);
   const prevWorkspace = useStore((s) => s.prevWorkspace);
   const nextWorkspace = useStore((s) => s.nextWorkspace);
+  const botEnabled = useStore((s) => s.botEnabled);
+  const workspace = useStore((s) => s.workspaces.find((w) => w.id === s.activeWorkspace) ?? s.workspaces[0]);
   const solo = useStore((s) => s.workspaces.length < 2);
 
   const [editing, setEditing] = useState<string | null>(null);
@@ -71,6 +74,9 @@ export function HTabBar() {
 
   const controls = (
     <div className="htab-controls">
+      {!botEnabled && collapsed && <button className="bar-btn" aria-label={workspace.title} title={workspace.title} onClick={toggleWorkspaceSwitcher}>
+        {workspace.icon ?? (workspace.title.trim().charAt(0).toUpperCase() || "?")}
+      </button>}
       <button
         className="bar-btn"
         title={withShortcut(t(collapsed ? "sidebar.show" : "sidebar.hide"), "toggleSidebar")}

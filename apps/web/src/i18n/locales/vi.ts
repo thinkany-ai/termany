@@ -33,6 +33,8 @@ export default {
   "settings.agents": "Tác nhân",
   "settings.keyboard": "Bàn phím",
   "settings.about": "Giới thiệu",
+  "settings.bot.label": "Bật Bot",
+  "settings.bot.description": "Hiển thị không gian Bot và thanh điều hướng bên trái. Tắt để chỉ sử dụng terminal.",
   "settings.language.title": "NGÔN NGỮ",
   "settings.language.label": "Ngôn ngữ giao diện",
   "settings.rail.title": "THANH CÔNG CỤ BÊN PHẢI",

@@ -33,6 +33,8 @@ export default {
   "settings.agents": "Agen",
   "settings.keyboard": "Papan ketik",
   "settings.about": "Tentang",
+  "settings.bot.label": "Aktifkan Bot",
+  "settings.bot.description": "Tampilkan ruang kerja Bot dan navigasi kiri. Nonaktifkan untuk hanya menggunakan terminal.",
   "settings.language.title": "BAHASA",
   "settings.language.label": "Bahasa antarmuka",
   "settings.rail.title": "BILAH KANAN",

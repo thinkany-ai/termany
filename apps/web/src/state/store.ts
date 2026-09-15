@@ -364,6 +364,10 @@ interface State {
   railCollapsed: boolean;
   toggleRail: () => void;
 
+  /** Whether the Bot workspace and app navigation are enabled. Persisted locally. */
+  botEnabled: boolean;
+  setBotEnabled: (enabled: boolean) => void;
+
   /** Which quick actions appear in the right rail. Persisted locally. */
   railVisibility: RailVisibility;
   setRailItemVisible: (id: RailItemId, visible: boolean) => void;
@@ -1170,6 +1174,16 @@ export const useStore = create<State>((set, get) => ({
 
   railCollapsed: false,
   toggleRail: () => set((s) => ({ railCollapsed: !s.railCollapsed })),
+
+  botEnabled: (() => {
+    try { return localStorage.getItem("termany.bot-enabled") !== "false"; }
+    catch { return true; }
+  })(),
+  setBotEnabled: (botEnabled) => {
+    try { localStorage.setItem("termany.bot-enabled", String(botEnabled)); }
+    catch { /* The in-memory preference still works when storage is blocked. */ }
+    set({ botEnabled });
+  },
 
   railVisibility: loadRailVisibility(),
   setRailItemVisible: (id, visible) =>

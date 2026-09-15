@@ -128,6 +128,8 @@ export function Settings({
   const { language, setLanguage, t } = useI18n();
   const theme = useStore((s) => s.theme);
   const setTheme = useStore((s) => s.setTheme);
+  const botEnabled = useStore((s) => s.botEnabled);
+  const setBotEnabled = useStore((s) => s.setBotEnabled);
   const railVisibility = useStore((s) => s.railVisibility);
   const setRailItemVisible = useStore((s) => s.setRailItemVisible);
   const userProfile = useStore((s) => s.userProfile);
@@ -390,6 +392,24 @@ export function Settings({
                   width={200}
                   options={LANGUAGES.map((l) => ({ value: l.value, label: l.label }))}
                   onChange={(v) => setLanguage(v as Language)}
+                />
+              </div>
+
+              <div className="settings-section-title">Bot</div>
+              <div className="language-setting bot-setting">
+                <div>
+                  <label id="bot-setting-label" htmlFor="bot-enabled">{t("settings.bot.label")}</label>
+                  <p id="bot-setting-description">{t("settings.bot.description")}</p>
+                </div>
+                <button
+                  id="bot-enabled"
+                  type="button"
+                  role="switch"
+                  className="bot-setting-switch"
+                  aria-checked={botEnabled}
+                  aria-labelledby="bot-setting-label"
+                  aria-describedby="bot-setting-description"
+                  onClick={() => setBotEnabled(!botEnabled)}
                 />
               </div>
 

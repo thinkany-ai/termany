@@ -11,12 +11,12 @@ const initial = (t: string) => t.trim().charAt(0).toUpperCase() || "?";
 type DialogState = { mode: "new" } | { mode: "edit"; id: string; title: string; icon?: string };
 
 /**
- * Application-level workspace menu host. The only visible trigger is the
- * avatar at the bottom of the app rail; keeping the menu here makes it work
- * identically whether Pages or Agents is active and whether a sidebar exists.
+ * Shared workspace menu for the app rail, Pages sidebar, and collapsed header.
  */
 export function WorkspaceSwitcher({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { t } = useI18n();
+  const botEnabled = useStore((s) => s.botEnabled);
+  const sidebarCollapsed = useStore((s) => s.sidebarCollapsed);
   const workspaces = useStore((s) => s.workspaces);
   const activeId = useStore((s) => s.activeWorkspace);
   const setActiveWorkspace = useStore((s) => s.setActiveWorkspace);
@@ -47,7 +47,7 @@ export function WorkspaceSwitcher({ onOpenSettings }: { onOpenSettings: () => vo
     );
 
   return (
-    <div className="workspace-menu-host">
+    <div className={`workspace-menu-host${botEnabled ? "" : " terminal-workspace-menu"}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
       {menuOpen && (
         <>
           <div className="ws-backdrop" onClick={() => setMenuOpen(false)} />
