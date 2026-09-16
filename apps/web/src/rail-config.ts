@@ -7,6 +7,7 @@ export const RAIL_ITEM_IDS = [
   "web",
   "monitor",
   "agents",
+  "providers",
   "history",
   "usage",
 ] as const;
@@ -24,6 +25,7 @@ export const DEFAULT_RAIL_VISIBILITY: RailVisibility = {
   web: true,
   monitor: true,
   agents: true,
+  providers: true,
   history: true,
   usage: true,
 };

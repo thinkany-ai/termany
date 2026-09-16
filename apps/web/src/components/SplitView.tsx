@@ -27,6 +27,7 @@ import {
 import { openExternal } from "../openExternal";
 import { AgentHistory } from "./AgentHistory";
 import { AgentUsage } from "./AgentUsage";
+import { ProviderPane } from "./ProviderPane";
 import { FileTree } from "./FileTree";
 import { GitDiffView } from "./GitDiffView";
 import {
@@ -41,6 +42,7 @@ import {
   GitBranchIcon,
   HistoryIcon,
   MaximizeIcon,
+  ProviderIcon,
   RestoreIcon,
   SpinnerIcon,
   TerminalIcon,
@@ -91,6 +93,7 @@ const PANE_VIEWS = [
   { view: "agent", labelKey: "pane.view.agent", Icon: ChatIcon },
   { view: "web", labelKey: "pane.view.web", Icon: WebIcon },
   { view: "monitor", labelKey: "pane.view.monitor", Icon: ActivityIcon },
+  { view: "providers", labelKey: "pane.view.providers", Icon: ProviderIcon },
   { view: "history", labelKey: "pane.view.history", Icon: HistoryIcon },
   { view: "usage", labelKey: "pane.view.usage", Icon: ChartIcon },
 ] as const;
@@ -484,6 +487,8 @@ function PaneSlot({
           <AgentHistory autoFocus={focused} />
         ) : leaf.view === "usage" ? (
           <AgentUsage />
+        ) : leaf.view === "providers" ? (
+          <ProviderPane />
         ) : leaf.view === "web" ? (
           <WebBrowserPane
             id={leaf.id}

@@ -46,6 +46,7 @@ import {
   GearIcon,
   GroupChatIcon,
   MarkAllReadIcon,
+  MinusIcon,
   MoreIcon,
   PinIcon,
   PinOffIcon,
@@ -79,7 +80,7 @@ function displayTitle(conversation: AgentConversation, t: ReturnType<typeof useI
     : conversation.title;
 }
 
-type AgentDialogStage = "picker" | "create" | "group" | "groupFromSingle" | "members";
+type AgentDialogStage = "picker" | "create" | "group" | "groupFromSingle" | "members" | "removeMembers";
 type InspectorView = "overview" | "settings";
 type AgentInboxFilter = "all" | "direct" | "groups" | "unread";
 type AgentContextMenu = { id: string; x: number; y: number };
@@ -1702,6 +1703,16 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
                     <span className="agent-group-member-add"><PlusIcon /></span>
                     <span>{t("agentGroup.addMembers")}</span>
                   </button>
+                  {active.agentGroup && (
+                    <button type="button" className="agent-group-member-tile remove"
+                      title={t(active.agentGroup.memberIds.length <= 2
+                        ? "agentGroup.keepMembers" : "agentGroup.removeMembersTitle")}
+                      disabled={isConversationStreaming(active.id) || active.agentGroup.memberIds.length <= 2}
+                      onClick={() => setDialogStage("removeMembers")}>
+                      <span className="agent-group-member-remove"><MinusIcon /></span>
+                      <span>{t("agentGroup.removeMembers")}</span>
+                    </button>
+                  )}
                 </div>
               </section>
 
@@ -1941,20 +1952,22 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
               }}
               onClose={closeDialog}
             />
-          ) : dialogStage === "group" || dialogStage === "groupFromSingle" || dialogStage === "members" ? (
+          ) : dialogStage === "group" || dialogStage === "groupFromSingle" || dialogStage === "members"
+            || dialogStage === "removeMembers" ? (
             <AgentGroupDialog
-              key={dialogStage === "members" || dialogStage === "groupFromSingle" ? `${dialogStage}:${active?.id}` : "new-group"}
+              key={dialogStage === "group" ? "new-group" : `${dialogStage}:${active?.id}`}
               bots={botRecipients}
-              editing={dialogStage === "members"}
+              mode={dialogStage === "members" ? "edit" : dialogStage === "removeMembers" ? "remove" : "create"}
               initialName={dialogStage === "members" && active ? displayTitle(active, t) : ""}
-              initialMembers={dialogStage === "members"
+              initialMembers={dialogStage === "members" || dialogStage === "removeMembers"
                 ? active?.agentGroup?.memberIds
                 : dialogStage === "groupFromSingle" && active ? [active.id] : []}
-              onBack={() => setDialogStage(dialogStage === "members" || dialogStage === "groupFromSingle" ? null : "picker")}
+              leadMemberId={dialogStage === "removeMembers" ? active?.agentGroup?.leadMemberId : undefined}
+              onBack={() => setDialogStage(dialogStage === "group" ? "picker" : null)}
               onClose={closeDialog}
               onNewBot={openCreateDialog}
               onSave={(name, memberIds) => {
-                if (dialogStage === "members" && active) {
+                if ((dialogStage === "members" || dialogStage === "removeMembers") && active) {
                   setGroupMembers(active.id, memberIds);
                   closeDialog();
                 } else {

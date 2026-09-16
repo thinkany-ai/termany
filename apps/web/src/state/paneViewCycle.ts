@@ -9,6 +9,7 @@ export const CYCLABLE_PANE_VIEWS = [
   "agent",
   "web",
   "monitor",
+  "providers",
   "history",
   "usage",
 ] as const satisfies readonly PaneView[];

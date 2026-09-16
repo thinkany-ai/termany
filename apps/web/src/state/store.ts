@@ -51,7 +51,8 @@ export type PaneView =
   | "web"
   | "monitor"
   | "history"
-  | "usage";
+  | "usage"
+  | "providers";
 
 /** One slice of a reply, in arrival order: prose or a tool invocation.
  *  `status` is the ACP tool-call status: pending | in_progress | completed | failed.

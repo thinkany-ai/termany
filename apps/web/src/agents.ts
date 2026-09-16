@@ -266,6 +266,8 @@ export function saveAgentConfigs(agents: AgentConfig[]) {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ agents: stored }),
+  }).then((response) => {
+    if (response.ok) window.dispatchEvent(new Event("termany:agents-saved"));
   }).catch(() => undefined);
 }
 

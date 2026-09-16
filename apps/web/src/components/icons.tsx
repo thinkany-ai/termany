@@ -29,6 +29,7 @@ import {
   Bot,
   BookOpen,
   Cable,
+  Router,
   ChartColumn,
   Check,
   Copy,
@@ -41,6 +42,7 @@ import {
   Ellipsis,
   Maximize2,
   Minimize2,
+  Minus,
   PanelLeft,
   PanelLeftClose,
   PanelRight,
@@ -105,6 +107,11 @@ export function CloseIcon() {
 
 export function PlusIcon() {
   return <Plus {...base} />;
+}
+
+/** Dash — the counterpart to PlusIcon, used to drop group members. */
+export function MinusIcon() {
+  return <Minus {...base} />;
 }
 
 export function AttachmentIcon() {
@@ -293,6 +300,11 @@ export function FlaskIcon() {
 /** Spinning loader for in-flight actions. */
 export function SpinnerIcon() {
   return <Loader2 {...base} className="spin" />;
+}
+
+/** Router glyph — the model gateway for local agents. */
+export function ProviderIcon() {
+  return <Router {...base} />;
 }
 
 /** Branch glyph — the git diff viewer. */

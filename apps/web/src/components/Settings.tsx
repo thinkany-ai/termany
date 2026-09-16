@@ -44,6 +44,7 @@ import {
   GearIcon,
   GitBranchIcon,
   HistoryIcon,
+  ProviderIcon,
   RevealFolderIcon,
   TerminalIcon,
   WebIcon,
@@ -86,6 +87,7 @@ const RAIL_SETTINGS: Array<{ id: RailItemId; labelKey: string; icon: ReactNode }
   { id: "web", labelKey: "pane.view.web", icon: <WebIcon /> },
   { id: "monitor", labelKey: "pane.view.monitor", icon: <ActivityIcon /> },
   { id: "agents", labelKey: "settings.rail.agents", icon: <AgentIcon /> },
+  { id: "providers", labelKey: "pane.view.providers", icon: <ProviderIcon /> },
   { id: "history", labelKey: "pane.view.history", icon: <HistoryIcon /> },
   { id: "usage", labelKey: "pane.view.usage", icon: <ChartIcon /> },
 ];

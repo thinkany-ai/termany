@@ -34,6 +34,19 @@ import { listSshConnections, listSshProfiles, saveSshProfileFromTarget, saveSshP
 import { SshPortForwarding } from "./sshPortForwarding.js";
 import { WebSocketServer, type WebSocket } from "ws";
 import { listConfig, saveConfig } from "./config.js";
+import { gatewayState, saveGatewayRoute, connectGatewayRoute, disconnectGatewayRoute, gatewayConnection, proxyGatewayRequest } from "./modelGateway.js";
+import {
+  APP_IDS,
+  applyProvider,
+  backups,
+  importCcSwitch,
+  previewCcSwitchImport,
+  providerState,
+  removeProvider,
+  rollback,
+  upsertProvider,
+  type AppId,
+} from "./agentProviders/index.js";
 import {
   forgetSessions,
   getAllScreens,
@@ -639,6 +652,30 @@ const http = createServer((req, res) => {
   };
   const reqUrl = new URL(req.url ?? "/", "http://localhost");
 
+  if (reqUrl.pathname.startsWith("/gateway/")) {
+    void proxyGatewayRequest(req, res).catch(fail);
+    return;
+  }
+  if (req.method === "GET" && reqUrl.pathname === "/api/model-gateway") {
+    try { json(200, gatewayState(PORT)); } catch (error) { fail(error); }
+    return;
+  }
+  if (req.method === "POST" && reqUrl.pathname.startsWith("/api/model-gateway/")) {
+    readJson(req).then((body) => {
+      const id = String(body?.id ?? "");
+      switch (reqUrl.pathname) {
+        case "/api/model-gateway/routes": saveGatewayRoute(body); break;
+        case "/api/model-gateway/connect": connectGatewayRoute(id, PORT); break;
+        case "/api/model-gateway/disconnect": disconnectGatewayRoute(id); break;
+        case "/api/model-gateway/delete": disconnectGatewayRoute(id, true); break;
+        case "/api/model-gateway/connection": json(200, gatewayConnection(id, PORT)); return;
+        default: json(404, { error: "Unknown gateway operation" }); return;
+      }
+      json(200, gatewayState(PORT));
+    }).catch((error) => json(400, { error: error instanceof Error ? error.message : String(error) }));
+    return;
+  }
+
   // Agent activity is server-owned so every app window reads the same state.
   // SSE pushes complete snapshots, making reconnects self-healing instead of
   // relying on a fragile sequence of individual transitions.
@@ -775,6 +812,85 @@ const http = createServer((req, res) => {
           providerId: body?.providerId ? String(body.providerId) : undefined,
         }))
       )
+      .catch(fail);
+    return;
+  }
+
+  // Providers for the agent CLIs installed on this machine. Unlike /api/models
+  // (which Termany itself calls), these write into the apps' own configuration
+  // files, so a CLI or desktop app started outside Termany picks them up too.
+  // Keys stay server-side and are masked on read, as in config.ts.
+  if (req.method === "GET" && reqUrl.pathname === "/api/agent-providers") {
+    json(200, providerState());
+    return;
+  }
+  if (req.method === "POST" && reqUrl.pathname === "/api/agent-providers") {
+    readJson(req)
+      .then((body) => {
+        upsertProvider(body);
+        json(200, providerState());
+      })
+      .catch(fail);
+    return;
+  }
+  if (req.method === "POST" && reqUrl.pathname === "/api/agent-providers/delete") {
+    readJson(req)
+      .then((body) => {
+        removeProvider(String(body?.id ?? ""));
+        json(200, providerState());
+      })
+      .catch(fail);
+    return;
+  }
+  // Writes the selection into the app's own config. A null providerId clears
+  // Termany's keys and leaves the app on whatever login it already had.
+  if (req.method === "POST" && reqUrl.pathname === "/api/agent-providers/switch") {
+    readJson(req)
+      .then((body) => {
+        const appId = String(body?.appId ?? "") as AppId;
+        if (!APP_IDS.includes(appId)) throw new Error(`unknown app ${appId}`);
+        const result = applyProvider(appId, body?.providerId ? String(body.providerId) : null);
+        json(200, { ...result, ...providerState() });
+      })
+      .catch(fail);
+    return;
+  }
+  // Preview first: the import is shown as a list before anything is stored.
+  if (req.method === "GET" && reqUrl.pathname === "/api/agent-providers/import") {
+    try {
+      json(200, previewCcSwitchImport());
+    } catch (e) {
+      json(200, { providers: [], error: e instanceof Error ? e.message : String(e) });
+    }
+    return;
+  }
+  if (req.method === "POST" && reqUrl.pathname === "/api/agent-providers/import") {
+    readJson(req)
+      .then((body) => {
+        const ids = Array.isArray(body?.ids) ? body.ids.map(String) : undefined;
+        const result = importCcSwitch(ids);
+        json(200, { ...result, ...providerState() });
+      })
+      .catch(fail);
+    return;
+  }
+  if (req.method === "GET" && reqUrl.pathname === "/api/agent-providers/backups") {
+    const appId = String(reqUrl.searchParams.get("appId") ?? "") as AppId;
+    if (!APP_IDS.includes(appId)) {
+      json(400, { error: `unknown app ${appId}` });
+      return;
+    }
+    json(200, { backups: backups(appId) });
+    return;
+  }
+  if (req.method === "POST" && reqUrl.pathname === "/api/agent-providers/rollback") {
+    readJson(req)
+      .then((body) => {
+        const appId = String(body?.appId ?? "") as AppId;
+        if (!APP_IDS.includes(appId)) throw new Error(`unknown app ${appId}`);
+        const result = rollback(appId, String(body?.id ?? ""));
+        json(200, { ...result, ...providerState() });
+      })
       .catch(fail);
     return;
   }

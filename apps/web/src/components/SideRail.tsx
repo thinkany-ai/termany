@@ -14,6 +14,7 @@ import {
   GearIcon,
   GitBranchIcon,
   HistoryIcon,
+  ProviderIcon,
   TerminalIcon,
   WebIcon,
 } from "./icons";
@@ -35,6 +36,7 @@ const RAIL_ITEMS: Array<{ view: PaneView; icon: () => JSX.Element }> = [
 const DASHBOARD_RAIL_ITEMS: Array<{ view: PaneView; icon: () => JSX.Element }> = [
   { view: "history", icon: HistoryIcon },
   { view: "usage", icon: ChartIcon },
+  { view: "providers", icon: ProviderIcon },
 ];
 
 /**
@@ -78,6 +80,7 @@ export function SideRail({
   useEffect(() => {
     if (!railVisibility.agents && agentsOpen) onAgentsOpenChange(false);
   }, [agentsOpen, onAgentsOpenChange, railVisibility.agents]);
+
 
   // Only blanks the web/office preview pane(s) this dropdown actually
   // overlaps, not every native webview in the workspace (see nativeViewOcclusion).

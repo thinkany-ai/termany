@@ -274,6 +274,7 @@ export function ModelSettings() {
       );
       setDefaultModel(cfg.defaultModel);
       setStatus(t("models.saved"));
+      window.dispatchEvent(new Event("termany:models-changed"));
       return true;
     } catch (e) {
       setStatus(t("models.saveFailed", { error: e instanceof Error ? e.message : String(e) }));
