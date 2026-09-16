@@ -6,17 +6,21 @@ import { isTauri } from "../env";
 import { useI18n } from "../i18n";
 import { useImeGuard } from "../imeGuard";
 import { withShortcut } from "../keybindings";
+import { closeBlockers } from "../closeGuard";
 import { useStore, activeNode, type Pane } from "../state/store";
 import { titleBarBackground, useTitleBarGesture } from "../titleBar";
 import {
   acknowledgeAgentActivities,
   agentActivitySummary,
+  agentActivitySummaryForSessions,
+  ownedSessionIds,
   agentActivitySnapshot,
   agentActivityTitle,
   subscribeAgentActivity,
   type AgentActivityStatus,
 } from "../terminal/manager";
 import { ChevronIcon, CloseIcon, PanelIcon, PanelRightIcon, PlusIcon } from "./icons";
+import { CloseConfirm } from "./CloseConfirm";
 
 /**
  * Top tab strip. Notion-style, the workspace controls sit at the very left,
@@ -50,6 +54,12 @@ export function HTabBar() {
   const solo = useStore((s) => s.workspaces.length < 2);
 
   const [editing, setEditing] = useState<string | null>(null);
+  const [pendingClose, setPendingClose] = useState<{
+    id: string;
+    title: string;
+    working: number;
+    error: number;
+  } | null>(null);
   const suppressClickRef = useRef(false);
   const stripRef = useRef<HTMLDivElement>(null);
   const titleBar = useTitleBarGesture();
@@ -245,7 +255,11 @@ export function HTabBar() {
                     title={withShortcut(t("common.close"), "closePane")}
                     onClick={(e) => {
                       e.stopPropagation();
-                      closeHTab(h.id);
+                      const blockers = closeBlockers(
+                        agentActivitySummaryForSessions(ownedSessionIds(ids)),
+                      );
+                      if (blockers) setPendingClose({ id: h.id, title: h.title, ...blockers });
+                      else closeHTab(h.id);
                     }}
                   >
                     <CloseIcon />
@@ -274,6 +288,19 @@ export function HTabBar() {
       >
         <PanelRightIcon />
       </button>
+      {pendingClose && (
+        <CloseConfirm
+          kind="tab"
+          name={pendingClose.title}
+          working={pendingClose.working}
+          error={pendingClose.error}
+          onConfirm={() => {
+            closeHTab(pendingClose.id);
+            setPendingClose(null);
+          }}
+          onClose={() => setPendingClose(null)}
+        />
+      )}
     </div>
   );
 }
