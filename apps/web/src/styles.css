@@ -3447,6 +3447,19 @@ html.tauri #root {
   font-size: 14px;
   color: var(--fg);
 }
+/* Close-tab/page/pane confirm: why it's asking, with the blocking counts. */
+.close-confirm-reason {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--fg-dim);
+}
+.close-confirm-counts {
+  display: inline-flex;
+  gap: 4px;
+  margin-right: 8px;
+  vertical-align: 1px;
+}
 .ws-dialog-btn {
   height: 32px;
   padding: 0 14px;

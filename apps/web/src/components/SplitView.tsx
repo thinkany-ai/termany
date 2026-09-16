@@ -6,11 +6,13 @@ import { useI18n } from "../i18n";
 import { useImeGuard } from "../imeGuard";
 import { registerOccluder, unregisterOccluder } from "../nativeViewOcclusion";
 import { withShortcut } from "../keybindings";
+import { closeBlockers } from "../closeGuard";
 import { activeHtab, paneCount, useStore, type DropEdge, type HTab, type Pane } from "../state/store";
 import {
   acknowledgeAgentActivities,
   aggregateAgentActivity,
   agentActivitySnapshot,
+  agentActivitySummary,
   agentActivityTitle,
   reconcileTerminalFocus,
   subscribeAgentActivity,
@@ -25,6 +27,7 @@ import {
   type ServedUrl,
 } from "../terminal/servedUrls";
 import { openExternal } from "../openExternal";
+import { CloseConfirm } from "./CloseConfirm";
 import { AgentHistory } from "./AgentHistory";
 import { AgentUsage } from "./AgentUsage";
 import { ProviderPane } from "./ProviderPane";
@@ -318,6 +321,7 @@ function PaneHeader({
   const closePane = useStore((s) => s.closePane);
   const toggleMaximize = useStore((s) => s.toggleMaximize);
   const [editing, setEditing] = useState(false);
+  const [pendingClose, setPendingClose] = useState<{ working: number; error: number } | null>(null);
   const ime = useImeGuard();
   const renameWidth = `${Math.max(8, leaf.title.length + 1)}ch`;
   useSyncExternalStore(
@@ -406,12 +410,29 @@ function PaneHeader({
               e.preventDefault();
               e.stopPropagation();
             }}
-            onClick={() => closePane(leaf.id)}
+            onClick={() => {
+              const blockers = closeBlockers(agentActivitySummary([leaf.id]));
+              if (blockers) setPendingClose(blockers);
+              else closePane(leaf.id);
+            }}
           >
             <CloseIcon />
           </button>
         )}
       </div>
+      {pendingClose && (
+        <CloseConfirm
+          kind="pane"
+          name={leaf.title}
+          working={pendingClose.working}
+          error={pendingClose.error}
+          onConfirm={() => {
+            closePane(leaf.id);
+            setPendingClose(null);
+          }}
+          onClose={() => setPendingClose(null)}
+        />
+      )}
     </div>
   );
 }

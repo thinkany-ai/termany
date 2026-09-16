@@ -6,6 +6,7 @@ import { beginDragCursor, createDragGhost, endDragCursor, type DragGhost } from 
 import { useI18n } from "../i18n";
 import { useImeGuard } from "../imeGuard";
 import { withShortcut } from "../keybindings";
+import { closeBlockers } from "../closeGuard";
 import { activePageId, activeWorkspace, HTAB_DRAG_MIME, useStore, type TreeNode } from "../state/store";
 import {
   acknowledgeAgentActivities,
@@ -17,6 +18,7 @@ import {
   type AgentActivityStatus,
 } from "../terminal/manager";
 import { ChevronIcon, CloseIcon, CollapseAllIcon, PageIcon, PlusIcon } from "./icons";
+import { CloseConfirm } from "./CloseConfirm";
 
 const DRAG_MIME = "application/x-termany-node";
 const ACTIVITY_STATUSES = ["working", "done", "error"] as const;
@@ -150,6 +152,7 @@ function TreeItem({
   const moveNode = useStore((s) => s.moveNode);
   const moveHTab = useStore((s) => s.moveHTab);
   const [editing, setEditing] = useState(false);
+  const [pendingClose, setPendingClose] = useState<{ working: number; error: number } | null>(null);
   const ime = useImeGuard();
   // Where a drag over this row would land: nest into it, or reorder as a
   // sibling before/after it (top/bottom quarter of the row).
@@ -292,7 +295,9 @@ function TreeItem({
             title={t("sidebar.deletePageTree")}
             onClick={(e) => {
               e.stopPropagation();
-              deleteNode(node.id);
+              const blockers = closeBlockers(agentActivitySummary(subtreeLeafIds(node)));
+              if (blockers) setPendingClose(blockers);
+              else deleteNode(node.id);
             }}
           >
             <CloseIcon />
@@ -318,6 +323,19 @@ function TreeItem({
             consumeSuppressedClick={consumeSuppressedClick}
           />
         ))}
+      {pendingClose && (
+        <CloseConfirm
+          kind="page"
+          name={node.title}
+          working={pendingClose.working}
+          error={pendingClose.error}
+          onConfirm={() => {
+            deleteNode(node.id);
+            setPendingClose(null);
+          }}
+          onClose={() => setPendingClose(null)}
+        />
+      )}
     </>
   );
 }
