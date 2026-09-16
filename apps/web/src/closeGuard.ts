@@ -23,3 +23,24 @@ export function closeBlockers(
   const { working, error } = summary;
   return working > 0 || error > 0 ? { working, error } : null;
 }
+
+/**
+ * How many close-confirm dialogs are currently mounted. The dialog owns this
+ * counter (bump on mount, drop on unmount); the global close shortcut reads
+ * it and stands down while one is open, so Cmd+W can't stack a second dialog
+ * on top of the first. Pointer can't pierce the modal — the backdrop eats
+ * every click — so the keyboard path is the only one that needs this.
+ */
+let openConfirmCount = 0;
+
+export function trackCloseConfirmOpened(): void {
+  openConfirmCount++;
+}
+
+export function trackCloseConfirmClosed(): void {
+  openConfirmCount--;
+}
+
+export function isCloseConfirmOpen(): boolean {
+  return openConfirmCount > 0;
+}

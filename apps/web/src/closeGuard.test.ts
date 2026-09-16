@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { closeBlockers } from "./closeGuard";
+import {
+  closeBlockers,
+  isCloseConfirmOpen,
+  trackCloseConfirmClosed,
+  trackCloseConfirmOpened,
+} from "./closeGuard";
 
 test("a tab or page with only idle panes closes without confirmation", () => {
   assert.equal(closeBlockers({ working: 0, done: 0, error: 0 }), null);
@@ -21,4 +26,30 @@ test("an errored (red) pane blocks closing and reports its count", () => {
 
 test("working and errored panes are reported together", () => {
   assert.deepEqual(closeBlockers({ working: 1, done: 0, error: 2 }), { working: 1, error: 2 });
+});
+
+test("no dialog is open before any mount", () => {
+  assert.equal(isCloseConfirmOpen(), false);
+});
+
+test("an opened dialog reads open until it closes", () => {
+  trackCloseConfirmOpened();
+  try {
+    assert.equal(isCloseConfirmOpen(), true);
+  } finally {
+    trackCloseConfirmClosed();
+  }
+  assert.equal(isCloseConfirmOpen(), false);
+});
+
+test("two stacked dialogs need two closes to read closed", () => {
+  trackCloseConfirmOpened();
+  trackCloseConfirmOpened();
+  try {
+    trackCloseConfirmClosed();
+    assert.equal(isCloseConfirmOpen(), true);
+  } finally {
+    trackCloseConfirmClosed();
+  }
+  assert.equal(isCloseConfirmOpen(), false);
 });

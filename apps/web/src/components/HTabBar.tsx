@@ -12,6 +12,7 @@ import { titleBarBackground, useTitleBarGesture } from "../titleBar";
 import {
   acknowledgeAgentActivities,
   agentActivitySummary,
+  ownedSessionIds,
   agentActivitySnapshot,
   agentActivityTitle,
   subscribeAgentActivity,
@@ -253,7 +254,9 @@ export function HTabBar() {
                     title={withShortcut(t("common.close"), "closePane")}
                     onClick={(e) => {
                       e.stopPropagation();
-                      const blockers = closeBlockers(activity);
+                      const blockers = closeBlockers(
+                        agentActivitySummary(ownedSessionIds(ids)),
+                      );
                       if (blockers) setPendingClose({ id: h.id, title: h.title, ...blockers });
                       else closeHTab(h.id);
                     }}

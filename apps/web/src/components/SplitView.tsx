@@ -14,6 +14,7 @@ import {
   agentActivitySnapshot,
   agentActivitySummary,
   agentActivityTitle,
+  ownedSessionIds,
   reconcileTerminalFocus,
   subscribeAgentActivity,
   terminalSessionId,
@@ -411,7 +412,9 @@ function PaneHeader({
               e.stopPropagation();
             }}
             onClick={() => {
-              const blockers = closeBlockers(agentActivitySummary([leaf.id]));
+              const blockers = closeBlockers(
+                agentActivitySummary(ownedSessionIds([leaf.id])),
+              );
               if (blockers) setPendingClose(blockers);
               else closePane(leaf.id);
             }}

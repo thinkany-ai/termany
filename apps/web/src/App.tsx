@@ -17,12 +17,13 @@ import { WindowControls } from "./components/WindowControls";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { isTauri } from "./env";
 import { ACTIONS, matchChord } from "./keybindings";
-import { closeBlockers } from "./closeGuard";
+import { closeBlockers, isCloseConfirmOpen } from "./closeGuard";
 import { activeHtab, activeNode, findLeaf, focusedCwdSession, leafIds, useStore } from "./state/store";
 import { openNewWindow } from "./state/windows";
 import {
   adjustTerminalFontSize,
   agentActivitySummary,
+  ownedSessionIds,
   clearSession,
   queueCommandWhenShellReady,
   repeatFind,
@@ -229,9 +230,14 @@ export function App() {
     const map: Record<string, (s: ReturnType<typeof useStore.getState>) => void> = {
       newTab: (s) => s.addHTab(),
       closePane: (s) => {
+        // A confirm is already waiting for its verdict — firing another close
+        // behind it would stack a second dialog on top of the first.
+        if (isCloseConfirmOpen()) return;
         const h = activeHtab(s);
         if (!h) return;
-        const blockers = closeBlockers(agentActivitySummary([h.focused]));
+        const blockers = closeBlockers(
+          agentActivitySummary(ownedSessionIds([h.focused])),
+        );
         if (blockers) {
           setPendingPaneClose({
             id: h.focused,

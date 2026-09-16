@@ -1,14 +1,19 @@
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
+import { createPortal } from "react-dom";
 import { useI18n } from "../i18n";
 import { useNativeOccluder } from "../nativeViewOcclusion";
 import { agentActivityTitle } from "../terminal/manager";
-import type { CloseTargetKind } from "../closeGuard";
+import { trackCloseConfirmClosed, trackCloseConfirmOpened, type CloseTargetKind } from "../closeGuard";
 
 /**
  * Confirms closing a tab, page, or pane that still holds working (yellow) or
  * errored (red) agent panes. Same shell as the workspace/agent delete
  * confirms: backdrop click or Escape cancels, the destructive button stays
  * focused so Enter confirms.
+ *
+ * Portaled to document.body: three of the four call sites sit inside drag or
+ * stacking contexts (pane header, tab strip, tree row) that would otherwise
+ * trap the backdrop or steal its pointer events for a drag.
  */
 export function CloseConfirm({
   kind,
@@ -26,7 +31,15 @@ export function CloseConfirm({
   onClose: () => void;
 }) {
   const { t } = useI18n();
-  const backdropRef = useNativeOccluder<HTMLDivElement>("close-confirm");
+  // One occluder registration per mounted dialog — a shared id would let one
+  // dialog's unmount unregister another's while it is still open.
+  const occluderId = `close-confirm-${useId()}`;
+  const backdropRef = useNativeOccluder<HTMLDivElement>(occluderId);
+
+  useEffect(() => {
+    trackCloseConfirmOpened();
+    return () => trackCloseConfirmClosed();
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -36,7 +49,7 @@ export function CloseConfirm({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div className="ws-dialog-backdrop" ref={backdropRef} onClick={onClose}>
       <div
         className="ws-dialog agent-delete-dialog"
@@ -77,6 +90,7 @@ export function CloseConfirm({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -14,6 +14,7 @@ import {
   agentActivitySnapshot,
   agentActivityTitle,
   hasActiveAgentSession,
+  ownedSessionIds,
   subscribeAgentActivity,
   type AgentActivityStatus,
 } from "../terminal/manager";
@@ -295,7 +296,9 @@ function TreeItem({
             title={t("sidebar.deletePageTree")}
             onClick={(e) => {
               e.stopPropagation();
-              const blockers = closeBlockers(agentActivitySummary(subtreeLeafIds(node)));
+              const blockers = closeBlockers(
+                agentActivitySummary(ownedSessionIds(subtreeLeafIds(node))),
+              );
               if (blockers) setPendingClose(blockers);
               else deleteNode(node.id);
             }}

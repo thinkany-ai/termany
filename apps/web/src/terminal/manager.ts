@@ -923,6 +923,27 @@ export function agentActivitySummary(ids: string[]): AgentActivitySummary {
   return summary;
 }
 
+/**
+ * Every runtime session id owned by these panes — the mounted one plus any
+ * backgrounded SSH shells a switch left alive. Close guards must summarize
+ * THESE, not the pane ids: `agentActivitySummary` resolves each pane to its
+ * active session only, while closing the pane disposes everything it owns
+ * (see disposePaneSessions), so a working background session would otherwise
+ * close without confirmation. Badges keep the active-session view.
+ */
+export function ownedSessionIds(paneIds: string[]): string[] {
+  const out = new Set<string>();
+  for (const paneId of paneIds) {
+    const owned = sessionIdsByPane.get(paneId);
+    if (owned?.size) {
+      for (const id of owned) out.add(id);
+    } else {
+      out.add(activeSessionId(paneId));
+    }
+  }
+  return [...out];
+}
+
 export function acknowledgeAgentActivities(ids: string[]) {
   const items = [...new Set(ids.map(activeSessionId))].flatMap((id) => {
     // A finished turn inside a still-open agent TUI is session state, not a
