@@ -12,7 +12,7 @@ import {
   acknowledgeAgentActivities,
   aggregateAgentActivity,
   agentActivitySnapshot,
-  agentActivitySummary,
+  agentActivitySummaryForSessions,
   agentActivityTitle,
   ownedSessionIds,
   reconcileTerminalFocus,
@@ -413,7 +413,7 @@ function PaneHeader({
             }}
             onClick={() => {
               const blockers = closeBlockers(
-                agentActivitySummary(ownedSessionIds([leaf.id])),
+                agentActivitySummaryForSessions(ownedSessionIds([leaf.id])),
               );
               if (blockers) setPendingClose(blockers);
               else closePane(leaf.id);

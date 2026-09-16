@@ -22,7 +22,7 @@ import { activeHtab, activeNode, findLeaf, focusedCwdSession, leafIds, useStore 
 import { openNewWindow } from "./state/windows";
 import {
   adjustTerminalFontSize,
-  agentActivitySummary,
+  agentActivitySummaryForSessions,
   ownedSessionIds,
   clearSession,
   queueCommandWhenShellReady,
@@ -236,7 +236,7 @@ export function App() {
         const h = activeHtab(s);
         if (!h) return;
         const blockers = closeBlockers(
-          agentActivitySummary(ownedSessionIds([h.focused])),
+          agentActivitySummaryForSessions(ownedSessionIds([h.focused])),
         );
         if (blockers) {
           setPendingPaneClose({

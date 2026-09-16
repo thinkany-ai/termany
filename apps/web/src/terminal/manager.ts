@@ -924,12 +924,29 @@ export function agentActivitySummary(ids: string[]): AgentActivitySummary {
 }
 
 /**
+ * Like agentActivitySummary, but the ids are already-resolved runtime session
+ * ids (see ownedSessionIds) and must NOT be remapped: a local session's
+ * runtime id equals its pane id, so running it through activeSessionId would
+ * resolve it to whatever SSH session is currently active instead — double-
+ * counting the active session and dropping the background local one.
+ */
+export function agentActivitySummaryForSessions(sessionIds: string[]): AgentActivitySummary {
+  const summary: AgentActivitySummary = { working: 0, done: 0, error: 0 };
+  for (const id of new Set(sessionIds)) {
+    const activity = agentActivities.get(id);
+    if (activity) summary[activity.status]++;
+  }
+  return summary;
+}
+
+/**
  * Every runtime session id owned by these panes — the mounted one plus any
  * backgrounded SSH shells a switch left alive. Close guards must summarize
- * THESE, not the pane ids: `agentActivitySummary` resolves each pane to its
- * active session only, while closing the pane disposes everything it owns
- * (see disposePaneSessions), so a working background session would otherwise
- * close without confirmation. Badges keep the active-session view.
+ * THESE via agentActivitySummaryForSessions, not the pane ids: the plain
+ * agentActivitySummary resolves each pane to its active session only, while
+ * closing the pane disposes everything it owns (see disposePaneSessions), so
+ * a working background session would otherwise close without confirmation.
+ * Badges keep the active-session view.
  */
 export function ownedSessionIds(paneIds: string[]): string[] {
   const out = new Set<string>();

@@ -11,6 +11,7 @@ import { activePageId, activeWorkspace, HTAB_DRAG_MIME, useStore, type TreeNode 
 import {
   acknowledgeAgentActivities,
   agentActivitySummary,
+  agentActivitySummaryForSessions,
   agentActivitySnapshot,
   agentActivityTitle,
   hasActiveAgentSession,
@@ -297,7 +298,7 @@ function TreeItem({
             onClick={(e) => {
               e.stopPropagation();
               const blockers = closeBlockers(
-                agentActivitySummary(ownedSessionIds(subtreeLeafIds(node))),
+                agentActivitySummaryForSessions(ownedSessionIds(subtreeLeafIds(node))),
               );
               if (blockers) setPendingClose(blockers);
               else deleteNode(node.id);
