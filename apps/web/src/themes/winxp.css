@@ -1,0 +1,485 @@
+/* Luna Blue. Scoped to the theme so switching back restores the normal UI.
+   Keep real controls and readable fonts; only the window chrome is nostalgic. */
+html[data-theme="winxp"] {
+  --xp-face: #ece9d8;
+  --xp-frame: #0054e3;
+  --xp-selection: #316ac5;
+  --xp-caption: linear-gradient(
+    #3689ff 0%, #0866f5 8%, #0055e5 45%, #075ee9 85%, #0046c4 100%
+  );
+  --xp-inactive-caption: linear-gradient(#a8c2e9, #7a9cd3 12%, #7897c5 85%, #6685b5);
+  --xp-button: linear-gradient(#ffffff, #f4f3ee 55%, #dedbcb);
+  --xp-button-edge: inset 1px 1px 0 #fff, inset -1px -1px 0 #d6d0bb;
+  --xp-caption-button: linear-gradient(135deg, #91baff, #397aef 45%, #1253ca);
+  --xp-close-button: linear-gradient(135deg, #f5b6a0, #e46b4a 45%, #bf351c);
+}
+
+html[data-theme="winxp"] body,
+html[data-theme="winxp"] #root {
+  font-family: Tahoma, "Microsoft Sans Serif", Verdana, "PingFang SC",
+    "Hiragino Sans", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+}
+
+/* Session tabs take their cue from Luna's taskbar: raised blue task buttons,
+   with the foreground session pressed into the strip. */
+html[data-theme="winxp"] :is(.htabbar, .ws-switcher, .win-controls) {
+  height: 36px;
+}
+html[data-theme="winxp"] .htabbar {
+  gap: 5px;
+  padding: 0 6px;
+  box-shadow: inset 0 1px 0 #6ba5ff, inset 0 -1px 0 #123d99;
+}
+html[data-theme="winxp"] .htab-strip {
+  align-items: center;
+  gap: 4px;
+}
+html[data-theme="winxp"] .htab {
+  align-self: center;
+  flex: 0 0 auto;
+  min-width: 104px;
+  max-width: 220px;
+  height: 28px;
+  margin: 0;
+  padding: 0 6px 0 10px;
+  border: 1px solid #1753bf;
+  border-radius: 3px;
+  background: linear-gradient(#5b9df9, #3984ed 15%, #3379e5 85%, #2663cb);
+  color: #fff;
+  text-shadow: 1px 1px 0 #2455a2;
+  box-shadow: inset 1px 1px 0 #83b3ff, inset -1px -1px 0 #225dc3;
+}
+html[data-theme="winxp"] .htab:hover {
+  background: linear-gradient(#80b5ff, #4d95fb 18%, #408af4 85%, #2b6ddb);
+  color: #fff;
+  box-shadow: inset 1px 1px 0 #b2d1ff, inset -1px -1px 0 #2868cf;
+}
+html[data-theme="winxp"] .htab.active,
+html[data-theme="winxp"] .htab.active:hover {
+  background: linear-gradient(#1747a6, #1d55bb);
+  border-color: #123d8d;
+  color: #fff;
+  font-weight: bold;
+  box-shadow: inset 1px 2px 3px #103981, inset -1px -1px 0 #4f8bf0;
+}
+html[data-theme="winxp"] .htab-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html[data-theme="winxp"] .htab-close {
+  flex-shrink: 0;
+  color: #fff;
+}
+html[data-theme="winxp"] .htab-close:hover {
+  background: var(--xp-close-button);
+  box-shadow: inset 0 0 0 1px #ffd1be;
+  color: #fff;
+}
+html[data-theme="winxp"] .htabbar :is(.bar-btn, .htab-add) {
+  color: #fff;
+}
+/* The workspace switcher is the taskbar's green entry point. Keep its real
+   workspace name and behavior, rather than adding a decorative Start button. */
+html[data-theme="winxp"] .ws-switcher {
+  background: linear-gradient(#73b96b, #439c3a 10%, #368d2d 48%, #2e7e27 85%, #1b561a);
+  border-radius: 0 12px 12px 0;
+  border-right: 1px solid #155219;
+  box-shadow: inset 0 2px 0 #a0d397, inset 0 -2px 2px #205a20;
+}
+html[data-theme="winxp"] .ws-name-btn {
+  color: #fff;
+  font-size: 15px;
+  font-weight: bold;
+  font-style: italic;
+  text-shadow: 1px 2px 1px #245124;
+}
+html[data-theme="winxp"] .ws-switcher :is(.ws-name-btn, .ws-icon-btn):hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  box-shadow: none;
+}
+html[data-theme="winxp"] .sidebar {
+  background: linear-gradient(#7ba2e7, #637dd6);
+  box-shadow: inset -1px 0 0 #9ab9f0;
+}
+html[data-theme="winxp"] .side-rail {
+  padding-top: calc(36px + var(--pane-gap));
+  box-shadow: inset 1px 0 0 #fff;
+}
+/* Explorer's common-task groups: white-to-blue heading, pale blue contents,
+   and visible blue desktop between the groups. Lists retain their overflow. */
+html[data-theme="winxp"] .sidebar .section-head {
+  flex-shrink: 0;
+  min-height: 29px;
+  margin: 12px 12px 0;
+  padding: 3px 5px 3px 8px;
+  border: 1px solid #fff;
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(90deg, #fff, #c6d6f6);
+  color: #215dc6;
+}
+html[data-theme="winxp"] .sidebar :is(.section-toggle, .section-title, .section-badge) {
+  color: #215dc6;
+}
+html[data-theme="winxp"] .sidebar .section-toggle {
+  gap: 5px;
+}
+html[data-theme="winxp"] .sidebar .section-badge {
+  background: #d6e3fa;
+}
+html[data-theme="winxp"] .sidebar .section-actions {
+  opacity: 1;
+}
+html[data-theme="winxp"] .active-section {
+  margin: 12px 12px 0;
+}
+html[data-theme="winxp"] .active-section .section-head {
+  margin: 0;
+}
+html[data-theme="winxp"] .active-list {
+  padding: 6px 4px 8px;
+  background: #d6dff7;
+  border: 1px solid #fff;
+  border-top: 0;
+}
+html[data-theme="winxp"] .tree {
+  flex: 0 1 auto;
+  margin: 0 12px 12px;
+  padding: 6px 4px 10px;
+  background: #d6dff7;
+  border: 1px solid #fff;
+  border-top: 0;
+}
+html[data-theme="winxp"] .sidebar .tree-row {
+  color: #214d8c;
+}
+html[data-theme="winxp"] .sidebar .tree-row:hover {
+  background: #eef3ff;
+  color: #163b72;
+}
+html[data-theme="winxp"] .sidebar .tree-row.active,
+html[data-theme="winxp"] .sidebar .tree-row.active:hover {
+  background: var(--xp-selection);
+  color: #fff;
+}
+html[data-theme="winxp"] .sidebar .tree-row.active .tree-act {
+  color: #fff;
+}
+html[data-theme="winxp"] :is(.section-title, .settings-section-title, .kb-group-title) {
+  color: #215dc6;
+  font-weight: bold;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+/* Each split is an XP window. A lone pane has no .focused class, so it stays
+   active unless a focused sibling exists. Zen uses its own active caption. */
+html[data-theme="winxp"] :is(.pane-slot, .zen-pane) {
+  border: 3px solid var(--xp-frame);
+  border-top-width: 1px;
+  border-radius: 7px 7px 0 0;
+  background: var(--xp-face);
+}
+/* The zoom container already contains a framed .pane-slot. */
+html[data-theme="winxp"] .zen-pane {
+  border: 0;
+}
+html[data-theme="winxp"] .pane-slot-ghost {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+html[data-theme="winxp"] .pane-head {
+  height: 28px;
+  padding: 0 3px 0 5px;
+  border-bottom: 1px solid #003ca6;
+  background: var(--xp-caption);
+  color: #fff;
+  box-shadow: inset 0 1px 0 #74a7ff;
+}
+html[data-theme="winxp"] .pane-card:has(.pane-slot.focused) .pane-slot:not(.focused) {
+  border-color: #7a96c2;
+}
+html[data-theme="winxp"] .pane-card:has(.pane-slot.focused) .pane-slot:not(.focused) .pane-head {
+  background: var(--xp-inactive-caption);
+  border-bottom-color: #6b85af;
+  box-shadow: inset 0 1px 0 #c0d2ee;
+}
+html[data-theme="winxp"] .pane-head :is(.pane-head-title, .pane-connection-trigger, .pane-connection-trigger > svg, .pop-trigger) {
+  color: #fff;
+  font-weight: bold;
+  text-shadow: 1px 1px 0 #164595;
+}
+html[data-theme="winxp"] .pane-head :is(.pane-connection-trigger, .pop-trigger):hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+html[data-theme="winxp"] .pane-head .pane-btn,
+html[data-theme="winxp"] :is(.settings-close, .ssh-manager-close) {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #fff;
+  border-radius: 3px;
+  background: var(--xp-caption-button);
+  color: #fff;
+  box-shadow: inset 1px 1px 0 #bbd4ff, inset -1px -1px 0 #1851b1;
+}
+html[data-theme="winxp"] .pane-head :is(.pane-view-btn, .pane-url-btn) {
+  width: auto;
+}
+html[data-theme="winxp"] .pane-head .pane-btn:hover,
+html[data-theme="winxp"] :is(.settings-close, .ssh-manager-close):hover {
+  filter: brightness(1.15);
+}
+html[data-theme="winxp"] .pane-head .pane-btn:active,
+html[data-theme="winxp"] :is(.settings-close, .ssh-manager-close):active {
+  filter: brightness(0.9);
+  box-shadow: inset 1px 1px 2px #123b7d;
+}
+html[data-theme="winxp"] :is(.pane-close-btn, .settings-close, .ssh-manager-close) {
+  background: var(--xp-close-button);
+  box-shadow: inset 1px 1px 0 #ffd4c5, inset -1px -1px 0 #a32f1a;
+}
+html[data-theme="winxp"] .pane-head .pane-close-btn {
+  background: var(--xp-close-button);
+  box-shadow: inset 1px 1px 0 #ffd4c5, inset -1px -1px 0 #a32f1a;
+}
+html[data-theme="winxp"] .pane-card:has(.pane-slot.focused) .pane-slot:not(.focused) .pane-head .pane-btn {
+  filter: saturate(0.45);
+}
+html[data-theme="winxp"] .term-pane {
+  background: #000;
+}
+html[data-theme="winxp"] .pane-body {
+  background: #fff;
+}
+html[data-theme="winxp"] :is(.web-toolbar, .file-tree-head, .agent-tools-header, .find-bar) {
+  background: var(--xp-face);
+  box-shadow: inset 0 1px 0 #fff;
+}
+
+/* Warm command buttons, blue default-button outline, amber hover edge. */
+html[data-theme="winxp"] :is(
+  .ws-dialog-btn, .ssh-manager-add, .ssh-manager-actions button,
+  .ssh-auth-switch button, .agent-enable-toggle button, .ms-btn,
+  .font-size-btn, .agent-send, .web-status-action, .usage-select-btn
+) {
+  border: 1px solid #003c74;
+  border-radius: 3px;
+  background: var(--xp-button);
+  color: #222;
+  box-shadow: var(--xp-button-edge);
+}
+html[data-theme="winxp"] :is(.ws-dialog-btn.primary, .ssh-manager-actions button.primary) {
+  box-shadow: inset 0 0 0 2px #9bbce8;
+}
+html[data-theme="winxp"] :is(
+  .ws-dialog-btn, .ssh-manager-add, .ssh-manager-actions button,
+  .ssh-auth-switch button, .agent-enable-toggle button, .ms-btn,
+  .font-size-btn, .agent-send, .web-status-action, .usage-select-btn
+):hover:not(:disabled) {
+  background: var(--xp-button);
+  color: #222;
+  box-shadow: inset 0 0 0 2px #f5ca73;
+  transform: none;
+}
+html[data-theme="winxp"] :is(
+  .ws-dialog-btn, .ssh-manager-add, .ssh-manager-actions button,
+  .ssh-auth-switch button, .agent-enable-toggle button, .ms-btn,
+  .font-size-btn, .agent-send, .web-status-action, .usage-select-btn
+):active:not(:disabled),
+html[data-theme="winxp"] :is(.ssh-auth-switch button.active, .agent-enable-toggle button.active) {
+  background: #e3e0d1;
+  box-shadow: inset 1px 1px 2px #aaa594;
+}
+html[data-theme="winxp"] .ws-dialog-btn.danger {
+  color: #a12613;
+}
+html[data-theme="winxp"] :is(
+  .bar-btn, .mini, .htab-add, .side-rail-btn, .ws-icon-btn, .tree-act,
+  .find-bar-btn, .web-nav-btn, .file-tree-head .pane-btn
+):hover:not(:disabled),
+html[data-theme="winxp"] .side-rail-btn.active {
+  background: #fff0c9;
+  color: #222;
+  box-shadow: inset 0 0 0 1px #e4a24a;
+}
+html[data-theme="winxp"] button:focus-visible {
+  outline: 1px dotted currentColor;
+  outline-offset: -4px;
+}
+html[data-theme="winxp"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+html[data-theme="winxp"] textarea,
+html[data-theme="winxp"] select {
+  border: 1px solid #7f9db9;
+  border-radius: 0;
+  background: #fff;
+  color: #222;
+  box-shadow: inset 1px 1px 1px #e2e2dc;
+}
+html[data-theme="winxp"] :is(input, textarea, select):focus-visible {
+  outline: 1px solid #245edb;
+  outline-offset: 1px;
+}
+html[data-theme="winxp"] input:is([type="checkbox"], [type="radio"]) {
+  accent-color: #21852c;
+}
+html[data-theme="winxp"] .rail-icon-option input,
+html[data-theme="winxp"] .rail-icon-option input:checked {
+  border: 1px solid #1c5180;
+  border-radius: 0;
+  background: linear-gradient(135deg, #dcdad1, #fff 65%);
+}
+html[data-theme="winxp"] .rail-icon-option input:checked::before {
+  border-color: #21852c;
+}
+html[data-theme="winxp"] .rail-icon-option input:hover {
+  box-shadow: inset 0 0 0 1px #f5ca73;
+}
+/* xterm's hidden input is an input method surface, not a visible form field. */
+html[data-theme="winxp"] .xterm .xterm-helper-textarea {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+  background: transparent;
+  color: transparent;
+}
+html[data-theme="winxp"] .agent-composer {
+  border: 1px solid #7f9db9;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: inset 1px 1px 1px #e2e2dc;
+}
+html[data-theme="winxp"] .agent-composer textarea {
+  border: 0;
+  box-shadow: none;
+}
+
+/* List selections are white on Explorer blue. Menu hover uses XP's pale blue. */
+html[data-theme="winxp"] :is(.tree-row, .file-tree-row, .search-row, .settings-nav-item) {
+  border-radius: 0;
+}
+html[data-theme="winxp"] :is(.tree-row.active, .file-tree-row.selected, .settings-nav-item.active),
+html[data-theme="winxp"] :is(.tree-row.active, .file-tree-row.selected, .settings-nav-item.active):hover {
+  background: var(--xp-selection);
+  color: #fff;
+}
+html[data-theme="winxp"] :is(.tree-row.active .tree-crumb, .tree-row.active .tree-count, .file-tree-row.selected .file-tree-twisty, .settings-nav-item.active .settings-nav-icon) {
+  color: #fff;
+}
+html[data-theme="winxp"] :is(.ws-menu, .pop-panel, .pop-sub, .emoji-pop, .agent-menu, .usage-select-menu, .find-bar) {
+  border: 1px solid #aca899;
+  border-radius: 0;
+  background: #fff;
+  color: #222;
+  box-shadow: 2px 2px 3px rgba(0, 0, 0, 0.22);
+}
+html[data-theme="winxp"] :is(.pop-item, .ws-menu-row, .usage-select-item, .agent-menu-item):hover,
+html[data-theme="winxp"] :is(.pop-item.active, .usage-select-item.active, .search-row.active) {
+  border-radius: 0;
+  background: #c1d2ee;
+  color: #163b72;
+  box-shadow: inset 0 0 0 1px #316ac5;
+}
+
+/* Reuse the localized settings heading as the caption; no extra markup or
+   hard-coded English. The title sits above both navigation and content. */
+html[data-theme="winxp"] :is(.settings-window, .ssh-manager-dialog, .ws-dialog, .ms-form, .search-palette) {
+  border: 3px solid var(--xp-frame);
+  border-radius: 7px 7px 0 0;
+  background: var(--xp-face);
+  box-shadow: 3px 4px 8px rgba(0, 0, 0, 0.25);
+}
+html[data-theme="winxp"] .settings-window {
+  padding: 28px 0 0;
+}
+html[data-theme="winxp"] .settings-window::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 28px;
+  background: var(--xp-caption);
+  box-shadow: inset 0 1px 0 #74a7ff;
+}
+html[data-theme="winxp"] .settings-nav-title {
+  position: absolute;
+  top: 0;
+  left: 7px;
+  right: 35px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  color: #fff;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: normal;
+  text-transform: none;
+  text-shadow: 1px 1px 0 #164595;
+  line-height: 28px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+html[data-theme="winxp"] .settings-close {
+  top: 3px;
+  right: 3px;
+}
+html[data-theme="winxp"] .settings-nav {
+  padding: 10px 5px;
+  background: linear-gradient(#f5f4ed, #ece9d8);
+}
+html[data-theme="winxp"] .settings-body {
+  background: #fcfcfe;
+}
+html[data-theme="winxp"] .ssh-manager-header {
+  min-height: 28px;
+  padding: 3px 4px 3px 7px;
+  margin-bottom: 12px;
+  background: var(--xp-caption);
+}
+html[data-theme="winxp"] .ssh-manager-header h2 {
+  color: #fff;
+  font-size: 13px;
+  font-weight: bold;
+  text-shadow: 1px 1px 0 #164595;
+}
+html[data-theme="winxp"] :is(.settings-backdrop, .ws-dialog-backdrop, .ssh-manager-backdrop) {
+  background: transparent;
+  backdrop-filter: none;
+}
+html[data-theme="winxp"] .zen-scrim {
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: none;
+}
+html[data-theme="winxp"] :is(.settings-window, .settings-backdrop, .zen-pane, .zen-scrim) {
+  animation: none;
+}
+
+/* Small green blocks echo the XP progress control without animating decoration. */
+html[data-theme="winxp"] .update-progress-track {
+  border: 1px solid #7f9db9;
+  border-radius: 3px;
+  background: #fff;
+  padding: 2px;
+}
+html[data-theme="winxp"] .update-progress-fill {
+  border-radius: 0;
+  background: repeating-linear-gradient(90deg, #3da943 0 7px, transparent 7px 9px);
+}
+html[data-theme="winxp"] ::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+html[data-theme="winxp"] ::-webkit-scrollbar-track {
+  background: #f1f0e8;
+}
+html[data-theme="winxp"] ::-webkit-scrollbar-thumb {
+  border: 1px solid #fff;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #e0e9f8, #b9cef1);
+  box-shadow: inset 0 0 0 1px #8ba8d3;
+}
