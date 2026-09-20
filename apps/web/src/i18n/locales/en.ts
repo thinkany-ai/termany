@@ -324,6 +324,11 @@ export default {
   "activity.done": "{agent} finished",
   "activity.working": "{agent} is working",
 
+  "notification.done.title": "{agent} finished",
+  "notification.done.body": "The task is done — switch back to review it.",
+  "notification.error.title": "{agent} needs attention",
+  "notification.error.body": "The task stopped and is waiting on you.",
+
   "agentChat.title": "What can I do for you?",
   "agentChat.placeholder": "Assign a task or ask anything",
   "agentChat.noModel": "Add a model in Settings to start a conversation",

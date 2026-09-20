@@ -325,6 +325,11 @@ export default {
   "activity.done": "{agent} 已完成",
   "activity.working": "{agent} 正在執行",
 
+  "notification.done.title": "{agent} 已經完成",
+  "notification.done.body": "任務已完成，切回查看結果。",
+  "notification.error.title": "{agent} 需要你處理",
+  "notification.error.body": "任務已中斷，正在等你處理。",
+
   "agentChat.title": "有什麼可以幫你的？",
   "agentChat.placeholder": "交派任務，或問我任何問題",
   "agentChat.noModel": "請先在設定中新增模型，才能開始對話",

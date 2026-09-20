@@ -328,6 +328,11 @@ export default {
   "activity.done": "{agent}이(가) 완료했습니다",
   "activity.working": "{agent}이(가) 작업 중입니다",
 
+  "notification.done.title": "{agent}이(가) 완료했습니다",
+  "notification.done.body": "작업이 끝났습니다. 돌아와서 확인하세요.",
+  "notification.error.title": "{agent}에 확인이 필요합니다",
+  "notification.error.body": "작업이 중단되어 기다리고 있습니다.",
+
   "agentChat.title": "무엇을 도와드릴까요?",
   "agentChat.placeholder": "작업을 맡기거나 무엇이든 물어보세요",
   "agentChat.noModel": "설정에서 모델을 추가하면 대화를 시작할 수 있습니다",
