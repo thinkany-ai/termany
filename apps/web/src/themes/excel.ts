@@ -20,8 +20,8 @@ export const excel: Theme = {
     accentSoft: "rgba(33, 115, 70, 0.13)",
   },
   radius: {
-    sm: "0px",
-    md: "0px",
+    sm: "2px",
+    md: "2px",
     lg: "1px",
   },
   sidebar: {
@@ -32,7 +32,7 @@ export const excel: Theme = {
     topBar: "#217346",
     topBarBorder: "#185c37",
     activeTab: "#ffffff",
-    activeRow: "#dceee1",
+    activeRow: "#d5ebdd",
     paneGap: "4px",
     paneRadius: "0px",
     paneBorder: "#c8cdca",
@@ -62,6 +62,11 @@ export const excel: Theme = {
     brightWhite: "#777777",
   },
   vars: {
+    // Fixed 64px text positions keep headings centered independently of the
+    // platform's monospace font metrics. This is decoration, not terminal text.
+    "--sheet-column-labels": `url("data:image/svg+xml,${encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="3328" height="20"><g fill="#425448" font-family="Arial,sans-serif" font-size="11" text-anchor="middle">${Array.from({ length: 52 }, (_, i) => `<text x="${i * 64 + 32}" y="14">${i < 26 ? "" : "A"}${String.fromCharCode(65 + i % 26)}</text>`).join("")}</g></svg>`,
+    )}")`,
     "--pane-area-bg": "#e7e9e8",
     "--pane-focus-ring": "#217346",
     "--split-gutter-hover": "#217346",

@@ -1,5 +1,5 @@
 /* Panther/Tiger: fine pinstripes, silver chrome and glossy blue gel. All
-   decoration stays on real controls; no imitation window buttons or logos. */
+   window actions remain real controls; the unlit yellow light is decorative. */
 html[data-theme="aqua"] {
   --aqua-metal: repeating-linear-gradient(0deg, #ffffff18 0 1px, #6975800a 1px 2px), linear-gradient(#f5f6f7, #c7ccd1 48%, #e3e6e9);
   --aqua-stripes: repeating-linear-gradient(#f2f5f8 0 1px, #e3e9ef 1px 3px);
@@ -53,7 +53,8 @@ html[data-theme="aqua"] :is(.tree-row.active, .tree-row.active:hover, .file-tree
   background: linear-gradient(#61a6f0, #1f6bd0);
   color: #fff;
   box-shadow: inset 0 1px #badcff, inset 0 -1px #1453a4;
-  text-shadow: 0 1px #2863a4;
+  text-shadow: 0 1px #174a88;
+  font-weight: 700;
 }
 html[data-theme="aqua"] :is(.tree-row.active .tree-crumb, .tree-row.active .tree-count, .file-tree-row.selected .file-tree-twisty, .settings-nav-item.active .settings-nav-icon) { color: #fff; }
 html[data-theme="aqua"] :is(.agent-composer, .agent-tool-detail) {
@@ -134,14 +135,82 @@ html[data-theme="aqua"] .agent-composer textarea {
   background: transparent; border: 0; box-shadow: none;
 }
 html[data-theme="aqua"] :is(button, [role="button"], input, select, textarea:not(.xterm-helper-textarea)):focus-visible {
-  outline: 2px solid #459df5; outline-offset: 2px;
+  outline: none; box-shadow: 0 0 0 3px rgba(96, 152, 240, .6);
 }
 html[data-theme="aqua"] .agent-composer:focus-within {
-  border-color: #459df5; box-shadow: 0 0 0 3px #64b5ff55;
+  border-color: #459df5; box-shadow: 0 0 0 3px rgba(96, 152, 240, .6);
 }
-html[data-theme="aqua"] :is(input, select, textarea:not(.xterm-helper-textarea)):focus-visible {
-  box-shadow: 0 0 0 3px #64b5ff55;
-}
+/* The composer already glows as one control; avoid a second ring inside it. */
+html[data-theme="aqua"] .agent-composer textarea:focus-visible { outline: none; box-shadow: none; }
 html[data-theme="aqua"] :is(button, input, select, textarea):disabled {
   opacity: .5; cursor: default; filter: none;
+}
+
+/* The live Close and Zoom controls form the left traffic-light cluster.
+   Leave the view/URL menus accessible after the lights. Zen has only Zoom. */
+html[data-theme="aqua"] .pane-head { background: var(--aqua-stripes); padding-inline: 8px; gap: 6px; }
+html[data-theme="aqua"] .pane-head-actions { order: -2; gap: 6px; flex: 0 0 auto; }
+html[data-theme="aqua"] .pane-head-name { position: absolute; left: 50%; transform: translateX(-50%); max-width: calc(100% - 260px); justify-content: center; }
+html[data-theme="aqua"] .pane-head > .agent-dot { margin-left: auto; }
+html[data-theme="aqua"] .pane-head-spacer { flex: 0; }
+html[data-theme="aqua"] .pane-head-actions > .pane-btn,
+html[data-theme="aqua"] .pane-head-actions::before {
+  width: 15px; height: 15px; flex: 0 0 15px;
+  border-radius: 50%; border: 1px solid #839083;
+  box-shadow: inset 0 1px 2px #fff9, 0 1px 1px #0003;
+}
+html[data-theme="aqua"] .pane-head-actions > .pane-btn {
+  order: -1;
+  background: radial-gradient(circle at 40% 20%, #edffcf, #80d564 45%, #39a62b 60%, #b4ef8b);
+  color: #23581c;
+}
+html[data-theme="aqua"] .pane-slot:not(.zen-pane .pane-slot) .pane-head-actions > .pane-btn:last-child {
+  order: -3;
+  background: radial-gradient(circle at 40% 20%, #ffe2d8, #ff8c77 45%, #df4636 60%, #ffa599);
+  border-color: #ac554c;
+  color: #742319;
+}
+html[data-theme="aqua"] .pane-slot:not(.zen-pane .pane-slot) .pane-head-actions::before {
+  content: "";
+  order: -2;
+  background: radial-gradient(circle at 40% 20%, #fff7d5, #e6d49c 55%, #c7b47f);
+  border-color: #b8a87d;
+  pointer-events: none;
+}
+html[data-theme="aqua"] .pane-head-actions > .pane-btn svg { width: 10px; height: 10px; opacity: 0; }
+html[data-theme="aqua"] .pane-head-actions:hover > .pane-btn svg,
+html[data-theme="aqua"] .pane-head-actions:focus-within > .pane-btn svg { opacity: 1; }
+html[data-theme="aqua"] .pane-card:has(.pane-slot.focused) .pane-slot:not(.focused) .pane-head { background: var(--aqua-stripes); color: #72777d; }
+html[data-theme="aqua"] .pane-card:has(.pane-slot.focused) .pane-slot:not(.focused) .pane-head-actions > .pane-btn,
+html[data-theme="aqua"] .pane-card:has(.pane-slot.focused) .pane-slot:not(.focused) .pane-head-actions::before {
+  background: var(--aqua-silver); border-color: #a4aeb9; color: #56616b;
+}
+html[data-theme="aqua"] .htab-strip { gap: 0; padding-inline: 2px; }
+html[data-theme="aqua"] .htab { border-radius: 0; margin-left: -1px; }
+html[data-theme="aqua"] .htab:first-child { border-radius: 14px 0 0 14px; margin-left: 0; }
+html[data-theme="aqua"] .htab:not(:has(~ .htab)) { border-radius: 0 14px 14px 0; }
+html[data-theme="aqua"] .htab:first-child:not(:has(~ .htab)) { border-radius: 14px; }
+html[data-theme="aqua"] .settings-window { padding-top: 30px; }
+html[data-theme="aqua"] .settings-window::before {
+  content: ""; position: absolute; inset: 0 0 auto; height: 30px;
+  background: var(--aqua-stripes); border-bottom: 1px solid #9ba4ae;
+  pointer-events: none;
+}
+html[data-theme="aqua"] .settings-nav-title {
+  position: absolute; top: 0; left: 42px; right: 42px;
+  margin: 0; padding: 0; line-height: 29px; text-align: center;
+  color: #202b36; text-shadow: 0 1px #fff; font-size: 12px;
+  text-transform: none; letter-spacing: normal; pointer-events: none;
+}
+html[data-theme="aqua"] .settings-close { top: 7px; left: 9px; right: auto; width: 15px; height: 15px; }
+html[data-theme="aqua"] .settings-close svg { width: 10px; height: 10px; opacity: 0; }
+html[data-theme="aqua"] .settings-close:is(:hover, :focus-visible) svg { opacity: 1; }
+html[data-theme="aqua"] .settings-nav { background: #dce5ee; padding: 16px 0; }
+html[data-theme="aqua"] .settings-nav-item { border-radius: 0; padding-inline: 18px; }
+
+/* Narrow splits trade perfect centering for a readable, nonoverlapping title. */
+html[data-theme="aqua"] .pane-slot { container-type: inline-size; }
+@container (max-width: 380px) {
+  html[data-theme="aqua"] .pane-head-name { position: static; transform: none; max-width: none; flex: 1; }
+  html[data-theme="aqua"] .pane-head > .agent-dot { margin-left: 0; }
 }

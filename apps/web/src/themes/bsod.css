@@ -25,7 +25,8 @@ html[data-theme="bsod"] :is(.htabbar, .pane-head, .pane-body, .term-pane, .agent
 html[data-theme="bsod"] :is(.htab.active, .htab.active:hover) {
   background: #0078d7;
   color: #fff;
-  box-shadow: inset 0 -2px #fff;
+  box-shadow: none;
+  border-bottom: 2px solid #fff;
 }
 html[data-theme="bsod"] :is(.tree-row.active, .tree-row.active:hover, .file-tree-row.selected, .file-tree-row.selected:hover, .settings-nav-item.active) {
   background: #0078d7;
@@ -41,9 +42,9 @@ html[data-theme="bsod"] :is(.agent-message-error, .agent-attachment-error, .pop-
 html[data-theme="bsod"] :is(.settings-backdrop, .search-backdrop, .ws-dialog-backdrop, .ms-form-backdrop, .ssh-manager-backdrop, .zen-scrim) { background: #0078d780; backdrop-filter: none; }
 html[data-theme="bsod"] :is(.settings-window, .settings-backdrop, .zen-pane, .zen-scrim) { animation: none; }
 html[data-theme="bsod"] .theme-card.selected .theme-card-name { color: #fff; text-decoration: underline; text-underline-offset: 4px; }
-html[data-theme="bsod"] .theme-card.selected .theme-preview { outline: 2px solid #fff; outline-offset: 2px; }
+html[data-theme="bsod"] .theme-card.selected .theme-preview { outline: 2px solid #fff; outline-offset: 2px; box-shadow: none; }
 html[data-theme="bsod"] ::selection { background: #00579c; color: #fff; }
-html[data-theme="bsod"] * { scrollbar-width: thin; scrollbar-color: #fff #0078d7; }
+html[data-theme="bsod"] * { scrollbar-width: auto; scrollbar-color: auto; }
 html[data-theme="bsod"] .htab-strip { scrollbar-width: none; }
 html[data-theme="bsod"] ::-webkit-scrollbar { width: 8px; height: 8px; }
 html[data-theme="bsod"] ::-webkit-scrollbar-track,
@@ -66,10 +67,10 @@ html[data-theme="bsod"] :is(.ws-dialog-btn.primary, .ms-btn.primary, .ssh-manage
   background: #0078d7; color: #fff; border: 1px solid #fff;
 }
 html[data-theme="bsod"] :is(.ws-dialog-btn.primary, .ms-btn.primary, .ssh-manager-actions button.primary, .agent-permission-actions button.allow, .agent-send, .agent-enable-toggle button.active, .ssh-auth-switch button.active):hover:not(:disabled) {
-  background: #0078d7; color: #fff; filter: brightness(1.06); transform: none;
+  background: #0078d7; color: #fff; filter: none; transform: none;
 }
 html[data-theme="bsod"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button, .agent-send):active:not(:disabled) {
-  background: #005ca5; color: #fff; box-shadow: none;
+  background: #0078d7; color: #fff; box-shadow: none; outline: 1px solid #fff; outline-offset: -2px;
 }
 html[data-theme="bsod"] :is(.ws-menu-item:hover, .ws-menu-row:hover, .pop-item:hover, .pop-item.active, .search-row.active, .usage-select-item:hover, .usage-select-item.active, .ssh-connection-row:hover, .agent-composer-menu-item:hover, .agent-message-menu-panel button:hover) {
   background: #0078d7; color: #fff; outline: 1px solid #fff; outline-offset: -1px;
@@ -108,3 +109,30 @@ html[data-theme="bsod"] :is(.agent-composer-add, .app-tab-button, .app-tab-icon,
 }
 html[data-theme="bsod"] :is(.agent-message-menu-panel, .agent-composer-menu, .settings-window, .ws-menu, .pop-panel) { background-image: none; }
 html[data-theme="bsod"] :is(.agent-pane-controls-error, .agent-group-notice, .agent-group-selection-count.warn, .ws-dialog-error, .ssh-manager-error, .ms-form-error) { color: #fff; }
+
+/* Hard-coded modern controls also need the flat blue/white contract.
+   Theme swatches retain the palettes they represent. */
+html[data-theme="bsod"] :is(button:not(.theme-preview), input, select, textarea, .agent-composer, .agent-composer-input, .agent-composer-add, .agent-composer-file, .agent-model-picker, .ssh-connection-menu, .settings-nav-item) {
+  border-radius: 0;
+  box-shadow: none;
+  text-shadow: none;
+}
+html[data-theme="bsod"] :is(.bot-setting-switch, .bot-setting-switch[aria-checked="true"], .rail-icon-option input, .rail-icon-option input:checked) {
+  background: #0078d7;
+  border: 1px solid #fff;
+}
+html[data-theme="bsod"] .bot-setting-switch::before { background: #fff; border-radius: 0; box-shadow: none; }
+html[data-theme="bsod"] .rail-icon-option input::before { border-color: #fff; }
+html[data-theme="bsod"] .theme-card.selected .theme-preview-wrap::after {
+  background: #0078d7;
+  color: #fff;
+  border: 1px solid #fff;
+  border-radius: 0;
+  box-shadow: none;
+}
+html[data-theme="bsod"] :is(.agent-composer-add, .agent-composer-add:hover, .agent-composer-controls, .agent-model-picker, .ssh-connection-menu) {
+  background: #0078d7; color: #fff; border-color: #85bde9;
+}
+html[data-theme="bsod"] :is(.agent-dot, .tree-dot) { background: #fff; box-shadow: none; }
+html[data-theme="bsod"] :is(button, input, select, textarea)[aria-disabled="true"] { opacity: .5; }
+html[data-theme="bsod"] input { accent-color: #fff; }

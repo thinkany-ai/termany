@@ -135,6 +135,13 @@ function card(t) {
   const activeRowFg = readable(activeRow, c.fg, c.bg);
   const prompt = `<span style="color:${term.green}">→</span>  <span style="color:${term.cyan}">termany</span> <span style="color:${term.blue}">git:(</span><span style="color:${term.red}">main</span><span style="color:${term.blue}">)</span> <span style="color:${term.yellow}">✗</span>`;
 
+  // New window themes need the same action group as SplitView so caption
+  // buttons, traffic-light order and the formula Name Box appear in the card.
+  const windowChrome = ["winxp", "aqua", "bsod", "excel"].includes(t.id);
+  const paneTitle = windowChrome
+    ? `<span class="pane-head-name"><span class="pane-head-title">${t.name}</span></span><span class="pane-head-spacer"></span><div class="pane-head-actions"><button class="pane-btn" aria-label="Maximize"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor"><path d="M2 5V2h3M7 2h3v3M10 7v3H7M5 10H2V7"/></svg></button><button class="pane-btn" aria-label="Close pane"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor"><path d="m3 3 6 6m0-6-6 6"/></svg></button></div>`
+    : `<span class="pane-head-title">${t.name}</span><span>${t.appearance}</span>`;
+
   return `<!doctype html>
 <html data-theme="${t.id}">
 <meta charset="utf-8">
@@ -190,11 +197,15 @@ function card(t) {
     padding: 0 12px; font-size: 11px; background: ${c.bg2}; color: ${c.fgDim};
     border-bottom: 1px solid ${c.border};
   }
+  .pane-head-name { display: inline-flex; min-width: 0; align-items: center; }
+  .pane-head-spacer { flex: 1; }
+  .pane-head-actions { display: flex; align-items: center; gap: 2px; }
+  .pane-btn { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: transparent; color: inherit; border: 0; }
   .pane-head-title { color: ${c.fg}; font-weight: 600; }
   .pane-body { position: relative; flex: 1; min-height: 0; display: flex; }
   .term-pane { flex: 1; min-width: 0; background: ${term.background}; overflow: hidden; }
   pre {
-    padding: 11px 13px; color: ${term.foreground}; white-space: pre;
+    padding: ${t.id === "excel" ? "0" : "11px 13px"}; color: ${term.foreground}; white-space: pre;
     font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   .cur { background: ${term.cursor}; color: ${term.background}; }
@@ -219,7 +230,7 @@ function card(t) {
     </div>
     <div class="pane-card">
       <div class="pane-slot focused">
-        <div class="pane-head"><span class="pane-head-title">${t.name}</span><span>${t.appearance}</span></div>
+        <div class="pane-head">${paneTitle}</div>
         <div class="pane-body">
           <div class="term-pane">
 <pre>${prompt} ls

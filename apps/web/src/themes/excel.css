@@ -20,7 +20,7 @@ html[data-theme="excel"] .sidebar .tree { background: #fff; margin: 0 7px 8px; b
 html[data-theme="excel"] .tree-row { border-radius: 0; border-bottom: 1px solid #edf0ee; }
 html[data-theme="excel"] :is(.tree-row:hover, .file-tree-row:hover) { background: #edf4ef; }
 html[data-theme="excel"] :is(.tree-row.active, .tree-row.active:hover, .file-tree-row.selected, .file-tree-row.selected:hover, .settings-nav-item.active) {
-  background: #e0efe5;
+  background: #d5ebdd;
   color: #185c37;
   box-shadow: inset 3px 0 #217346;
 }
@@ -28,7 +28,9 @@ html[data-theme="excel"] :is(.tree-row.active, .tree-row.active:hover, .file-tre
    existing pane actions remain in their own flex group. */
 html[data-theme="excel"] .pane-head { height: 33px; background: #f3f3f3; border-bottom: 1px solid #c8cdca; gap: 6px; }
 html[data-theme="excel"] .pane-head::before {
-  content: "ƒx";
+  content: "fx";
+  order: -1;
+  border-right: 1px solid #c8c6c4;
   flex: 0 0 28px;
   text-align: center;
   color: #58635b;
@@ -37,35 +39,36 @@ html[data-theme="excel"] .pane-head::before {
 }
 html[data-theme="excel"] .pane-head-name,
 html[data-theme="excel"] .pane-head > .pane-head-title {
+  order: -2;
+  flex: 0 1 120px;
   background: #fff;
-  border: 1px solid #c8cdca;
+  border: 1px solid #c8c6c4;
   padding: 2px 7px;
   min-width: 0;
 }
 html[data-theme="excel"] :is(.pane-head-title, .pane-slot.focused .pane-head-title) { color: #202522; }
-html[data-theme="excel"] .pane-btn { border-radius: 0; color: #465b4e; }
+html[data-theme="excel"] .pane-btn { border: 1px solid #c8c6c4; border-radius: 2px; background: #fff; color: #465b4e; }
 html[data-theme="excel"] .pane-btn:hover { background: #dceee1; color: #185c37; }
 html[data-theme="excel"] .pane-btn:active { background: #c1dfcc; }
 /* Only terminal panes get worksheet gutters; file trees and chat remain real
    documents, without fake line numbers beside wrapped messages. The labels
    describe the decorative grid, not terminal scrollback line numbers. */
-html[data-theme="excel"] .pane-body:has(.term-pane) { padding: 21px 0 0 29px; background: #fff; }
+html[data-theme="excel"] .pane-body:has(.term-pane) {
+  padding: 21px 0 0 29px;
+  /* Top-left corner cell, bounded by the same hairlines as both headers. */
+  background: linear-gradient(#c8cdca, #c8cdca) 28px 0 / 1px 21px no-repeat,
+    linear-gradient(#c8cdca, #c8cdca) 0 20px / 29px 1px no-repeat,
+    linear-gradient(#f0f2f1, #f0f2f1) 0 0 / 29px 21px no-repeat, #fff;
+}
 html[data-theme="excel"] .pane-body:has(.term-pane)::before {
-  content: "A         B         C         D         E         F         G         H         I         J         K         L         M         N         O         P";
+  content: "";
   position: absolute;
   top: 0;
   left: 29px;
   right: 0;
   height: 21px;
-  padding-left: 28px;
-  overflow: hidden;
-  white-space: pre;
-  font: 12px/20px monospace;
-  /* The labels use ten ch per 64px column, independent of terminal fonts. */
-  font-size: 10.6667px;
-  letter-spacing: 0;
-  background: repeating-linear-gradient(90deg, transparent 0 63px, #c8cdca 63px 64px), #f0f2f1;
-  color: #425448;
+  background: var(--sheet-column-labels) left top / 3328px 20px no-repeat,
+    repeating-linear-gradient(90deg, transparent 0 63px, #c8cdca 63px 64px), #f0f2f1;
   border-bottom: 1px solid #c8cdca;
   pointer-events: none;
 }
@@ -87,6 +90,7 @@ html[data-theme="excel"] .pane-body:has(.term-pane)::after {
 }
 html[data-theme="excel"] .term-pane {
   inset: 21px 0 0 29px;
+  padding: 2px 0 0 2px;
   background-color: #fff;
   background-image: var(--sheet-grid);
   background-position: 0 0;
@@ -117,7 +121,7 @@ html[data-theme="excel"] :is(.ws-menu, .pop-panel, .pop-sub, .emoji-pop, .agent-
   background: #fff; color: #202522; border: 1px solid #c8cdca; box-shadow: none;
 }
 html[data-theme="excel"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button) {
-  background: #f5f6f5; color: #202522; border: 1px solid #c8cdca; border-radius: var(--radius-sm); box-shadow: none;
+  background: #fff; color: #202522; border: 1px solid #c8c6c4; border-radius: var(--radius-sm); box-shadow: none;
 }
 html[data-theme="excel"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button):hover:not(:disabled) {
   border-color: #217346; filter: brightness(1.04);
@@ -132,7 +136,7 @@ html[data-theme="excel"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset,
   background: #c1dfcc; color: #202522; box-shadow: none;
 }
 html[data-theme="excel"] :is(.ws-menu-item:hover, .ws-menu-row:hover, .pop-item:hover, .pop-item.active, .search-row.active, .usage-select-item:hover, .usage-select-item.active, .ssh-connection-row:hover, .agent-composer-menu-item:hover, .agent-message-menu-panel button:hover) {
-  background: #e0efe5; color: #185c37;
+  background: #d5ebdd; color: #185c37;
 }
 html[data-theme="excel"] :is(.pop-item:hover, .ws-menu-row:hover, .usage-select-item.active) svg {
   color: inherit;
@@ -164,3 +168,8 @@ html[data-theme="excel"] :is(button, input, select, textarea):disabled {
 
 /* Restore the green caption edge after the general dialog frame. */
 html[data-theme="excel"] .settings-window { border-top: 5px solid #217346; }
+
+html[data-theme="excel"] :is(input:not([type="checkbox"]):not([type="range"]), select, textarea:not(.xterm-helper-textarea)):focus {
+  border-color: #217346; outline: none; box-shadow: none;
+}
+html[data-theme="excel"] :is(.ws-menu-row:hover, .pop-item:hover, .pop-item.active, .search-row.active, .usage-select-item.active) { box-shadow: inset 3px 0 #217346; }

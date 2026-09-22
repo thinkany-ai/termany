@@ -87,9 +87,8 @@ html[data-theme="winxp"] .pane-btn {
   color: #fff;
   box-shadow: inset 1px 1px 0 #b4d4ff;
 }
-/* The close title is a stable, nonlocalized label in SplitView. Do not use
-   :last-child: in zen mode that would turn Restore into a red close button. */
-html[data-theme="winxp"] .pane-btn[title^="Close pane"],
+/* Zen omits Close, so its last action must remain a blue Restore button. */
+html[data-theme="winxp"] .pane-slot:not(.zen-pane .pane-slot) .pane-head-actions > .pane-btn:last-child,
 html[data-theme="winxp"] :is(.settings-close, .ssh-manager-close) {
   color: #fff;
   border: 1px solid #fff;
@@ -154,12 +153,12 @@ html[data-theme="winxp"] .theme-card.selected .theme-card-name { color: #235d13;
 html[data-theme="winxp"] .theme-card.selected .theme-preview { outline: 2px solid #438e26; outline-offset: 2px; }
 html[data-theme="winxp"] * { scrollbar-width: auto; scrollbar-color: auto; }
 html[data-theme="winxp"] .htab-strip { scrollbar-width: none; }
-html[data-theme="winxp"] ::-webkit-scrollbar { width: 14px; height: 14px; }
+html[data-theme="winxp"] ::-webkit-scrollbar { width: 17px; height: 17px; }
 html[data-theme="winxp"] ::-webkit-scrollbar-track,
 html[data-theme="winxp"] ::-webkit-scrollbar-corner { background: #f0efe7; }
 html[data-theme="winxp"] ::-webkit-scrollbar-thumb {
   border: 1px solid #779acf;
-  border-radius: 3px;
+  border-radius: 5px;
   background: linear-gradient(90deg, #e7f0ff, #b3cef5);
 }
 html[data-theme="winxp"] ::-webkit-scrollbar-thumb:hover { background: #b1d0ff; }
@@ -171,10 +170,10 @@ html[data-theme="winxp"] :is(.ws-menu, .pop-panel, .pop-sub, .emoji-pop, .agent-
   background: #ece9d8; color: #172b4d; border: 1px solid #7f9db9; box-shadow: 0 3px 10px #18355e44, inset 0 1px #fff;
 }
 html[data-theme="winxp"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button) {
-  background: var(--xp-button); color: #172b4d; border: 1px solid #7f9db9; border-radius: var(--radius-sm); box-shadow: inset 0 1px #fff;
+  background: var(--xp-button); color: #172b4d; border: 1px solid #003c74; border-radius: var(--radius-sm); box-shadow: inset 0 1px #fff;
 }
 html[data-theme="winxp"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button):hover:not(:disabled) {
-  border-color: #174fa6; filter: brightness(1.04);
+  border-color: #003c74; box-shadow: inset 0 0 0 2px #f4b765;
 }
 html[data-theme="winxp"] :is(.ws-dialog-btn.primary, .ms-btn.primary, .ssh-manager-actions button.primary, .agent-permission-actions button.allow, .agent-send, .agent-enable-toggle button.active, .ssh-auth-switch button.active) {
   background: var(--xp-green); color: #fff; border: 1px solid #174fa6;
@@ -232,3 +231,52 @@ html[data-theme="winxp"] :is(.htabbar .bar-btn, .htab-add, .pane-head .pane-conn
   color: #fff;
 }
 html[data-theme="winxp"] :is(.settings-close, .ssh-manager-close):hover { filter: brightness(1.1); }
+
+/* Background windows fade as a whole; a lone, unmarked pane stays active. */
+html[data-theme="winxp"] .pane-card:has(.pane-slot.focused) .pane-slot:not(.focused) {
+  border-color: #7b9dca;
+  box-shadow: 0 1px 3px #60799f;
+}
+html[data-theme="winxp"] .pane-card:has(.pane-slot.focused) .pane-slot:not(.focused) .pane-head { border-color: #7b9dca; }
+html[data-theme="winxp"] :is(.ws-dialog, .ssh-manager-dialog, .ms-form) {
+  border: 2px solid #0758d8;
+  border-radius: 8px 8px 3px 3px;
+  background: #ece9d8;
+}
+html[data-theme="winxp"] .ws-dialog { padding-top: 45px; }
+html[data-theme="winxp"] .ws-dialog::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 29px;
+  background: var(--xp-caption);
+  border-radius: 5px 5px 0 0;
+  pointer-events: none;
+}
+html[data-theme="winxp"] .ssh-manager-header {
+  min-height: 31px;
+  padding: 3px 4px 3px 9px;
+  background: var(--xp-caption);
+}
+html[data-theme="winxp"] .ssh-manager-header h2 { color: #fff; font-size: 13px; font-weight: 700; text-shadow: 1px 1px #16408c; }
+html[data-theme="winxp"] .ssh-manager-close { width: 24px; height: 24px; }
+html[data-theme="winxp"] .ms-form-title {
+  margin: -18px -18px 16px;
+  padding: 7px 9px;
+  background: var(--xp-caption);
+  color: #fff;
+  font-size: 13px;
+  text-shadow: 1px 1px #16408c;
+}
+html[data-theme="winxp"] :is(.ssh-manager-list, .ms-model-list, .kb-list) { background: #fff; border: 1px solid #7f9db9; }
+html[data-theme="winxp"] .sidebar-workspace-switcher {
+  background: var(--xp-green);
+  color: #fff;
+  border: 1px solid #367b21;
+  border-radius: 5px 12px 12px 5px;
+  box-shadow: inset 0 1px #dbffc5;
+  font-weight: 700;
+  text-shadow: 0 1px #316b22;
+}
+html[data-theme="winxp"] .sidebar-workspace-switcher > svg { color: #fff; }
+html[data-theme="winxp"] .sidebar-workspace-switcher:hover { background: var(--xp-green); filter: brightness(1.1); }

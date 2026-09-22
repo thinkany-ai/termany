@@ -54,7 +54,7 @@ export const winxp: Theme = {
   <path fill="#4f9824" d="M0 770Q400 490 950 760T1600 680V1000H0z"/>
   <path fill="url(#hill)" d="M0 730Q400 880 1000 670T1600 720V1000H0z"/>
 </svg>`)}`,
-    opacity: 1,
+    opacity: 0,
   },
   term: {
     background: "#080808",
@@ -82,6 +82,8 @@ export const winxp: Theme = {
   vars: {
     "--pane-area-bg": "transparent",
     "--agent-surface-bg": "#ffffff",
+    "--sidebar-bg": "#729ee2",
+    "--top-bar": "linear-gradient(#69a6ff 0%, #0965ec 12%, #0054dc 55%, #2080f5 94%, #003cb4)",
     "--pane-focus-ring": "#67b637",
     "--split-gutter-hover": "#9de462",
   },
