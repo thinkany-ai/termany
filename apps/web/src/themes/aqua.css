@@ -1,0 +1,147 @@
+/* Panther/Tiger: fine pinstripes, silver chrome and glossy blue gel. All
+   decoration stays on real controls; no imitation window buttons or logos. */
+html[data-theme="aqua"] {
+  --aqua-metal: repeating-linear-gradient(0deg, #ffffff18 0 1px, #6975800a 1px 2px), linear-gradient(#f5f6f7, #c7ccd1 48%, #e3e6e9);
+  --aqua-stripes: repeating-linear-gradient(#f2f5f8 0 1px, #e3e9ef 1px 3px);
+  --aqua-gel: linear-gradient(#d7efff, #74b8fa 45%, #247bdc 49%, #4ca0f4 85%, #a3d6ff);
+  --aqua-silver: linear-gradient(#fff, #e6e9ed 45%, #c6cdd5 50%, #e4e8ed);
+}
+html[data-theme="aqua"] :is(body, #root) {
+  font-family: "Lucida Grande", "Lucida Sans Unicode", Geneva, "Helvetica Neue", "PingFang SC", "Hiragino Sans", sans-serif;
+}
+html[data-theme="aqua"] ::selection { background: #b8d8ff; color: #111; }
+html[data-theme="aqua"] :is(.htabbar, .pane-head, .side-rail, .file-tree-head, .web-toolbar, .agent-tools-header) {
+  background: var(--aqua-metal);
+  border-color: #9ba4ae;
+  box-shadow: inset 0 1px #fff;
+}
+html[data-theme="aqua"] :is(.sidebar, .settings-nav) { background: var(--aqua-stripes); }
+html[data-theme="aqua"] :is(.section-title, .section-toggle) { color: #465566; letter-spacing: normal; text-transform: none; }
+html[data-theme="aqua"] .htab {
+  border: 1px solid #919ca9;
+  border-radius: 14px;
+  background: var(--aqua-silver);
+  color: #222;
+  box-shadow: inset 0 1px #fff, 0 1px 1px #0002;
+}
+html[data-theme="aqua"] .htab:hover { background: linear-gradient(#fff, #d5e9ff); }
+html[data-theme="aqua"] .htab.active,
+html[data-theme="aqua"] .htab.active:hover {
+  border-color: #397fb9;
+  background: var(--aqua-gel);
+  color: #092d52;
+  box-shadow: inset 0 1px #fff, 0 0 3px #59afff;
+}
+html[data-theme="aqua"] .pane-head { height: 30px; color: #222; }
+html[data-theme="aqua"] :is(.pane-head-title, .pane-slot.focused .pane-head-title, .pane-connection-trigger) { color: #202b36; text-shadow: 0 1px #fff; }
+html[data-theme="aqua"] .pane-card:has(.pane-slot.focused) .pane-slot:not(.focused) .pane-head { background: #e6e9ec; }
+html[data-theme="aqua"] .pane-btn {
+  color: #384859;
+  border: 1px solid #a4aeb9;
+  border-radius: 5px;
+  background: var(--aqua-silver);
+  box-shadow: inset 0 1px #fff;
+}
+html[data-theme="aqua"] .pane-btn:hover { background: var(--aqua-gel); color: #102b48; }
+html[data-theme="aqua"] .pane-btn:active { box-shadow: inset 0 1px 3px #395470; }
+html[data-theme="aqua"] :is(.pane-body, .term-pane, .agent-pane) { background: #fff; }
+/* xterm owns its font metrics and follows the user's terminal preference.
+   Document/code previews use Monaco, with the same readable monospace fallback. */
+html[data-theme="aqua"] .term-pane pre { font-family: Monaco, Menlo, monospace; }
+html[data-theme="aqua"] :is(.tree-row:hover, .file-tree-row:hover) { background: #d3e4f6; }
+html[data-theme="aqua"] :is(.tree-row.active, .tree-row.active:hover, .file-tree-row.selected, .file-tree-row.selected:hover, .settings-nav-item.active) {
+  background: linear-gradient(#61a6f0, #1f6bd0);
+  color: #fff;
+  box-shadow: inset 0 1px #badcff, inset 0 -1px #1453a4;
+  text-shadow: 0 1px #2863a4;
+}
+html[data-theme="aqua"] :is(.tree-row.active .tree-crumb, .tree-row.active .tree-count, .file-tree-row.selected .file-tree-twisty, .settings-nav-item.active .settings-nav-icon) { color: #fff; }
+html[data-theme="aqua"] :is(.agent-composer, .agent-tool-detail) {
+  border: 1px solid #9ca9b5;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: inset 0 1px 3px #0002;
+}
+html[data-theme="aqua"] :is(.agent-permission, .agent-message-user .agent-message-content) {
+  background: #e8f2ff;
+  color: #162d47;
+  border: 1px solid #b5cee8;
+  border-radius: 10px;
+}
+html[data-theme="aqua"] .settings-window { background: var(--aqua-metal); }
+html[data-theme="aqua"] .settings-close {
+  background: radial-gradient(circle at 40% 25%, #fff4, transparent 50%), linear-gradient(#ffb5aa, #e54737 55%, #fa8475);
+  color: #742319;
+  border: 1px solid #a24c44;
+  border-radius: 50%;
+  box-shadow: inset 0 1px #fff9, 0 1px 1px #0003;
+}
+html[data-theme="aqua"] .settings-close:hover { filter: brightness(1.1); }
+html[data-theme="aqua"] :is(.language-setting, .rail-icons-setting, .ms-card, .usage-card) { background: var(--aqua-stripes); border: 1px solid #afb7bf; }
+html[data-theme="aqua"] .theme-card.selected .theme-card-name { color: #075cca; font-weight: 700; }
+html[data-theme="aqua"] .theme-card.selected .theme-preview { outline: 2px solid #59a6f5; outline-offset: 2px; }
+/* Chromium needs both standard scrollbar properties reset to render gel thumbs. */
+html[data-theme="aqua"] * { scrollbar-width: auto; scrollbar-color: auto; }
+html[data-theme="aqua"] .htab-strip { scrollbar-width: none; }
+html[data-theme="aqua"] ::-webkit-scrollbar { width: 13px; height: 13px; }
+html[data-theme="aqua"] ::-webkit-scrollbar-track { background: linear-gradient(90deg, #d4dce4, #fafcff 50%, #ccd5dd); }
+html[data-theme="aqua"] ::-webkit-scrollbar-corner { background: #e6ebef; }
+html[data-theme="aqua"] ::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #62acfa, #d0efff 35%, #62b0ff 50%, #1980ec 80%, #84c7ff);
+  border: 1px solid #267bd0;
+  border-radius: 10px;
+  min-height: 24px;
+}
+html[data-theme="aqua"] ::-webkit-scrollbar-thumb:hover { background: linear-gradient(90deg, #3796f9, #a6deff 35%, #469eec 65%, #1475d9); }
+html[data-theme="aqua"] ::-webkit-scrollbar-thumb:active { background: #388ddc; }
+
+/* Shared control coverage, kept in this scoped sheet so the theme is standalone.
+   Portal menus and dialogs need opaque surfaces even when artwork is enabled. */
+html[data-theme="aqua"] :is(.ws-menu, .pop-panel, .pop-sub, .emoji-pop, .agent-menu, .agent-composer-menu, .agent-message-menu-panel, .usage-select-menu, .ws-dialog, .search-palette, .settings-window, .ms-form, .ssh-manager-dialog, .find-bar, .drag-ghost) {
+  background: var(--aqua-metal); color: #202b36; border: 1px solid #9ba4ae; box-shadow: 0 4px 14px #23395040, inset 0 1px #fff;
+}
+html[data-theme="aqua"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button) {
+  background: var(--aqua-silver); color: #202b36; border: 1px solid #9ba4ae; border-radius: var(--radius-sm); box-shadow: inset 0 1px #fff;
+}
+html[data-theme="aqua"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button):hover:not(:disabled) {
+  border-color: #459df5; filter: brightness(1.04);
+}
+html[data-theme="aqua"] :is(.ws-dialog-btn.primary, .ms-btn.primary, .ssh-manager-actions button.primary, .agent-permission-actions button.allow, .agent-send, .agent-enable-toggle button.active, .ssh-auth-switch button.active) {
+  background: var(--aqua-gel); color: #092d52; border: 1px solid #459df5;
+}
+html[data-theme="aqua"] :is(.ws-dialog-btn.primary, .ms-btn.primary, .ssh-manager-actions button.primary, .agent-permission-actions button.allow, .agent-send, .agent-enable-toggle button.active, .ssh-auth-switch button.active):hover:not(:disabled) {
+  background: var(--aqua-gel); color: #092d52; filter: brightness(1.06); transform: none;
+}
+html[data-theme="aqua"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button, .agent-send):active:not(:disabled) {
+  background: #b6cee9; color: #202b36; box-shadow: inset 0 1px 3px #0004;
+}
+html[data-theme="aqua"] :is(.ws-menu-item:hover, .ws-menu-row:hover, .pop-item:hover, .pop-item.active, .search-row.active, .usage-select-item:hover, .usage-select-item.active, .ssh-connection-row:hover, .agent-composer-menu-item:hover, .agent-message-menu-panel button:hover) {
+  background: linear-gradient(#66adf7, #216dd1); color: #fff;
+}
+html[data-theme="aqua"] :is(.pop-item:hover, .ws-menu-row:hover, .usage-select-item.active) svg {
+  color: inherit;
+}
+html[data-theme="aqua"] :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), textarea:not(.xterm-helper-textarea), select) {
+  background: #fff; color: #202b36; border: 1px solid #9ba4ae; border-radius: var(--radius-sm);
+}
+html[data-theme="aqua"] :is(input, textarea)::placeholder {
+  color: #5c6b79; opacity: 1;
+}
+html[data-theme="aqua"] :is(input, select) {
+  accent-color: #459df5;
+}
+html[data-theme="aqua"] .agent-composer textarea {
+  background: transparent; border: 0; box-shadow: none;
+}
+html[data-theme="aqua"] :is(button, [role="button"], input, select, textarea:not(.xterm-helper-textarea)):focus-visible {
+  outline: 2px solid #459df5; outline-offset: 2px;
+}
+html[data-theme="aqua"] .agent-composer:focus-within {
+  border-color: #459df5; box-shadow: 0 0 0 3px #64b5ff55;
+}
+html[data-theme="aqua"] :is(input, select, textarea:not(.xterm-helper-textarea)):focus-visible {
+  box-shadow: 0 0 0 3px #64b5ff55;
+}
+html[data-theme="aqua"] :is(button, input, select, textarea):disabled {
+  opacity: .5; cursor: default; filter: none;
+}

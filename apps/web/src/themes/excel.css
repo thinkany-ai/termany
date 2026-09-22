@@ -1,0 +1,166 @@
+/* Spreadsheet camouflage. The grid is decorative, never an overlay on top of
+   xterm: selecting, clicking links and mouse-reporting TUIs still work. */
+html[data-theme="excel"] {
+  --sheet-grid: repeating-linear-gradient(90deg, transparent 0 63px, #e3e7e4 63px 64px), repeating-linear-gradient(180deg, transparent 0 19px, #e3e7e4 19px 20px);
+}
+html[data-theme="excel"] :is(body, #root) {
+  font-family: Calibri, Carlito, "Segoe UI", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+html[data-theme="excel"] ::selection { background: #c1dfcc; color: #15281b; }
+html[data-theme="excel"] .htabbar { background: #217346; border-bottom: 1px solid #185c37; }
+html[data-theme="excel"] :is(.htabbar .bar-btn, .htab-add, .htabbar .ws-switcher) { color: #fff; }
+/* Ribbon tabs keep real page names, not invented File/Home actions. */
+html[data-theme="excel"] .htab { align-self: flex-end; height: 29px; border-radius: 0; color: #fff; }
+html[data-theme="excel"] .htab:hover { background: #185c37; color: #fff; }
+html[data-theme="excel"] .htab.active,
+html[data-theme="excel"] .htab.active:hover { background: #fff; color: #185c37; box-shadow: inset 0 -3px #217346; }
+html[data-theme="excel"] :is(.sidebar, .side-rail, .settings-nav) { background: #f3f3f3; }
+html[data-theme="excel"] :is(.section-title, .section-toggle) { color: #354b3e; text-transform: none; letter-spacing: normal; }
+html[data-theme="excel"] .sidebar .tree { background: #fff; margin: 0 7px 8px; border: 1px solid #c8cdca; }
+html[data-theme="excel"] .tree-row { border-radius: 0; border-bottom: 1px solid #edf0ee; }
+html[data-theme="excel"] :is(.tree-row:hover, .file-tree-row:hover) { background: #edf4ef; }
+html[data-theme="excel"] :is(.tree-row.active, .tree-row.active:hover, .file-tree-row.selected, .file-tree-row.selected:hover, .settings-nav-item.active) {
+  background: #e0efe5;
+  color: #185c37;
+  box-shadow: inset 3px 0 #217346;
+}
+/* The header becomes a formula bar. Its real title remains editable and all
+   existing pane actions remain in their own flex group. */
+html[data-theme="excel"] .pane-head { height: 33px; background: #f3f3f3; border-bottom: 1px solid #c8cdca; gap: 6px; }
+html[data-theme="excel"] .pane-head::before {
+  content: "ƒx";
+  flex: 0 0 28px;
+  text-align: center;
+  color: #58635b;
+  font: italic 16px Georgia, serif;
+  pointer-events: none;
+}
+html[data-theme="excel"] .pane-head-name,
+html[data-theme="excel"] .pane-head > .pane-head-title {
+  background: #fff;
+  border: 1px solid #c8cdca;
+  padding: 2px 7px;
+  min-width: 0;
+}
+html[data-theme="excel"] :is(.pane-head-title, .pane-slot.focused .pane-head-title) { color: #202522; }
+html[data-theme="excel"] .pane-btn { border-radius: 0; color: #465b4e; }
+html[data-theme="excel"] .pane-btn:hover { background: #dceee1; color: #185c37; }
+html[data-theme="excel"] .pane-btn:active { background: #c1dfcc; }
+/* Only terminal panes get worksheet gutters; file trees and chat remain real
+   documents, without fake line numbers beside wrapped messages. The labels
+   describe the decorative grid, not terminal scrollback line numbers. */
+html[data-theme="excel"] .pane-body:has(.term-pane) { padding: 21px 0 0 29px; background: #fff; }
+html[data-theme="excel"] .pane-body:has(.term-pane)::before {
+  content: "A         B         C         D         E         F         G         H         I         J         K         L         M         N         O         P";
+  position: absolute;
+  top: 0;
+  left: 29px;
+  right: 0;
+  height: 21px;
+  padding-left: 28px;
+  overflow: hidden;
+  white-space: pre;
+  font: 12px/20px monospace;
+  /* The labels use ten ch per 64px column, independent of terminal fonts. */
+  font-size: 10.6667px;
+  letter-spacing: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 63px, #c8cdca 63px 64px), #f0f2f1;
+  color: #425448;
+  border-bottom: 1px solid #c8cdca;
+  pointer-events: none;
+}
+html[data-theme="excel"] .pane-body:has(.term-pane)::after {
+  content: "1\a 2\a 3\a 4\a 5\a 6\a 7\a 8\a 9\a 10\a 11\a 12\a 13\a 14\a 15\a 16\a 17\a 18\a 19\a 20\a 21\a 22\a 23\a 24\a 25\a 26\a 27\a 28\a 29\a 30\a 31\a 32\a 33\a 34\a 35\a 36\a 37\a 38\a 39\a 40\a 41\a 42\a 43\a 44\a 45\a 46\a 47\a 48\a 49\a 50";
+  position: absolute;
+  top: 21px;
+  left: 0;
+  bottom: 0;
+  width: 29px;
+  overflow: hidden;
+  white-space: pre;
+  text-align: center;
+  font: 12px/20px Calibri, sans-serif;
+  background: repeating-linear-gradient(180deg, transparent 0 19px, #d9dedb 19px 20px), #f0f2f1;
+  color: #425448;
+  border-right: 1px solid #c8cdca;
+  pointer-events: none;
+}
+html[data-theme="excel"] .term-pane {
+  inset: 21px 0 0 29px;
+  background-color: #fff;
+  background-image: var(--sheet-grid);
+  background-position: 0 0;
+}
+html[data-theme="excel"] :is(.file-tree-head, .web-toolbar, .agent-tools-header) { background: #f3f3f3; border-bottom: 1px solid #c8cdca; }
+html[data-theme="excel"] .agent-pane { background: #fff; }
+html[data-theme="excel"] :is(.agent-composer, .agent-tool-detail) { background: #fff; border: 1px solid #a8b7ad; border-radius: 0; box-shadow: none; }
+html[data-theme="excel"] :is(.agent-permission, .agent-message-user .agent-message-content) { background: #edf4ef; color: #202522; border: 1px solid #c8d9ce; border-radius: 0; }
+/* History tabs take the familiar sheet-tab treatment; the main tab bar above
+   remains a ribbon so both affordances fit the actual app's hierarchy. */
+html[data-theme="excel"] .history-tab { border-radius: 0; background: #f3f3f3; border-right: 1px solid #c8cdca; }
+html[data-theme="excel"] .history-tab.active { background: #fff; color: #185c37; box-shadow: inset 0 -3px #217346; }
+html[data-theme="excel"] .settings-window { border-top: 5px solid #217346; }
+html[data-theme="excel"] :is(.language-setting, .rail-icons-setting, .ms-card, .usage-card) { background: #fff; border: 1px solid #c8cdca; box-shadow: none; }
+html[data-theme="excel"] .theme-card.selected .theme-card-name { color: #185c37; font-weight: 700; }
+html[data-theme="excel"] .theme-card.selected .theme-preview { outline: 2px solid #217346; outline-offset: 2px; }
+html[data-theme="excel"] * { scrollbar-width: thin; scrollbar-color: #a4afa8 #f3f3f3; }
+html[data-theme="excel"] .htab-strip { scrollbar-width: none; }
+html[data-theme="excel"] ::-webkit-scrollbar { width: 12px; height: 12px; }
+html[data-theme="excel"] ::-webkit-scrollbar-track,
+html[data-theme="excel"] ::-webkit-scrollbar-corner { background: #f3f3f3; }
+html[data-theme="excel"] ::-webkit-scrollbar-thumb { background: #a4afa8; border-radius: 0; }
+html[data-theme="excel"] ::-webkit-scrollbar-thumb:hover { background: #6b8273; }
+
+/* Shared control coverage, kept in this scoped sheet so the theme is standalone.
+   Portal menus and dialogs need opaque surfaces even when artwork is enabled. */
+html[data-theme="excel"] :is(.ws-menu, .pop-panel, .pop-sub, .emoji-pop, .agent-menu, .agent-composer-menu, .agent-message-menu-panel, .usage-select-menu, .ws-dialog, .search-palette, .settings-window, .ms-form, .ssh-manager-dialog, .find-bar, .drag-ghost) {
+  background: #fff; color: #202522; border: 1px solid #c8cdca; box-shadow: none;
+}
+html[data-theme="excel"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button) {
+  background: #f5f6f5; color: #202522; border: 1px solid #c8cdca; border-radius: var(--radius-sm); box-shadow: none;
+}
+html[data-theme="excel"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button):hover:not(:disabled) {
+  border-color: #217346; filter: brightness(1.04);
+}
+html[data-theme="excel"] :is(.ws-dialog-btn.primary, .ms-btn.primary, .ssh-manager-actions button.primary, .agent-permission-actions button.allow, .agent-send, .agent-enable-toggle button.active, .ssh-auth-switch button.active) {
+  background: #217346; color: #fff; border: 1px solid #217346;
+}
+html[data-theme="excel"] :is(.ws-dialog-btn.primary, .ms-btn.primary, .ssh-manager-actions button.primary, .agent-permission-actions button.allow, .agent-send, .agent-enable-toggle button.active, .ssh-auth-switch button.active):hover:not(:disabled) {
+  background: #217346; color: #fff; filter: brightness(1.06); transform: none;
+}
+html[data-theme="excel"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button, .agent-send):active:not(:disabled) {
+  background: #c1dfcc; color: #202522; box-shadow: none;
+}
+html[data-theme="excel"] :is(.ws-menu-item:hover, .ws-menu-row:hover, .pop-item:hover, .pop-item.active, .search-row.active, .usage-select-item:hover, .usage-select-item.active, .ssh-connection-row:hover, .agent-composer-menu-item:hover, .agent-message-menu-panel button:hover) {
+  background: #e0efe5; color: #185c37;
+}
+html[data-theme="excel"] :is(.pop-item:hover, .ws-menu-row:hover, .usage-select-item.active) svg {
+  color: inherit;
+}
+html[data-theme="excel"] :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), textarea:not(.xterm-helper-textarea), select) {
+  background: #fff; color: #202522; border: 1px solid #c8cdca; border-radius: var(--radius-sm);
+}
+html[data-theme="excel"] :is(input, textarea)::placeholder {
+  color: #5c6b79; opacity: 1;
+}
+html[data-theme="excel"] :is(input, select) {
+  accent-color: #217346;
+}
+html[data-theme="excel"] .agent-composer textarea {
+  background: transparent; border: 0; box-shadow: none;
+}
+html[data-theme="excel"] :is(button, [role="button"], input, select, textarea:not(.xterm-helper-textarea)):focus-visible {
+  outline: 2px solid #217346; outline-offset: 2px;
+}
+html[data-theme="excel"] .agent-composer:focus-within {
+  border-color: #217346; box-shadow: none;
+}
+html[data-theme="excel"] .htabbar button:focus-visible {
+  outline-color: #fff;
+}
+html[data-theme="excel"] :is(button, input, select, textarea):disabled {
+  opacity: .5; cursor: default; filter: none;
+}
+
+/* Restore the green caption edge after the general dialog frame. */
+html[data-theme="excel"] .settings-window { border-top: 5px solid #217346; }

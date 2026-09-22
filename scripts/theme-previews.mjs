@@ -121,6 +121,15 @@ function card(t) {
   const paneShadow = t.chrome?.paneShadow ?? "0 2px 10px rgba(0,0,0,0.18)";
   // The surface a pane floats on. A theme can repaint it through vars.
   const paneArea = t.vars?.["--pane-area-bg"] ?? t.vars?.["pane-area-bg"] ?? c.bg;
+  // The live app paints artwork behind pane gaps and publishes these tokens.
+  // Keep the miniature compatible with scoped CSS that reads the same vars.
+  const cssVars = {
+    "--bg": c.bg, "--bg-2": c.bg2, "--bg-3": c.bg3,
+    "--fg": c.fg, "--fg-dim": c.fgDim, "--accent": c.accent,
+    "--border": c.border, "--radius-sm": t.radius.sm,
+    "--radius-md": t.radius.md, "--radius-lg": t.radius.lg,
+    ...t.vars,
+  };
   // An active row can be a solid accent (win98's navy), so its label has to
   // take whichever side of the theme stays legible on it.
   const activeRowFg = readable(activeRow, c.fg, c.bg);
@@ -130,10 +139,12 @@ function card(t) {
 <html data-theme="${t.id}">
 <meta charset="utf-8">
 <style>
+  :root { ${Object.entries(cssVars).map(([k, v]) => `${k.startsWith("--") ? k : `--${k}`}:${v}`).join(";")} }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: ${W}px; height: ${H}px; }
   body {
     background: ${c.bg}; color: ${c.fg}; overflow: hidden;
+    ${t.background?.image ? `background-image: url("${t.background.image}"); background-size: cover; background-position: center;` : ""}
     font: 13px/1.4 -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
   }
   .app { height: 100%; display: flex; flex-direction: column; }
@@ -180,7 +191,7 @@ function card(t) {
     border-bottom: 1px solid ${c.border};
   }
   .pane-head-title { color: ${c.fg}; font-weight: 600; }
-  .pane-body { flex: 1; min-height: 0; display: flex; }
+  .pane-body { position: relative; flex: 1; min-height: 0; display: flex; }
   .term-pane { flex: 1; min-width: 0; background: ${term.background}; overflow: hidden; }
   pre {
     padding: 11px 13px; color: ${term.foreground}; white-space: pre;
