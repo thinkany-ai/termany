@@ -1,7 +1,9 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Czech — Čeština (counts use a "noun: N" form to sidestep the three Czech
 // plural stems)
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} přiřazuje zprávu ({attempt}/{total})…",
   "agentGroup.routingTimeout": "Předchozímu agentovi vypršel čas. {name} přebírá úkol ({attempt}/{total})…",
   "agentGroup.routingFallback": "Předchozí agent selhal. {name} přebírá úkol ({attempt}/{total})…",

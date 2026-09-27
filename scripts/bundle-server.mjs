@@ -23,7 +23,7 @@
 // TERMANY_NODE_DIST_URL overrides the download base URL (e.g. a mirror).
 
 import { execSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -61,15 +61,17 @@ mkdirSync(path.join(out, "node_modules"), { recursive: true });
 // 1. Bundle the server to a single CJS file. node-pty is native, so it stays
 //    external and is shipped separately; everything else (ws, the Anthropic
 //    SDK, @termany/core) is inlined.
-//    The app version is baked in so the server can answer /api/version: the
-//    desktop app refuses to reuse a server from a different build, which is how
-//    an upgrade avoids leaving the new UI talking to the previous release's
-//    server (see existing_server_matches in src-tauri/src/lib.rs).
+//    The app version and per-bundle ID are baked in so the desktop app can
+//    reject a long-lived server from a previous build even when local builds
+//    deliberately retain the same package version.
 const VERSION = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")).version;
+const BUILD_ID = process.env.TERMANY_BUILD_ID?.trim() || `${VERSION}-${Date.now().toString(36)}`;
+writeFileSync(path.join(out, "build-id"), `${BUILD_ID}\n`, { mode: 0o644 });
 run(
   `npx --no-install esbuild apps/server/src/index.ts --bundle --platform=node ` +
     `--format=cjs --target=node22 --external:node-pty ` +
     `--define:__TERMANY_VERSION__='${JSON.stringify(VERSION)}' ` +
+    `--define:__TERMANY_BUILD_ID__='${JSON.stringify(BUILD_ID)}' ` +
     `--outfile="${path.join(out, "server.cjs")}"`
 );
 

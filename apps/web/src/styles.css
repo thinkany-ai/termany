@@ -43,6 +43,7 @@
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
+  --window-radius: 10px;
   --sidebar-bg: #151a21;
   --sidebar-border: 1px solid #232b35;
   --top-bar: #151a21;
@@ -145,7 +146,14 @@ html.tauri #root {
   background: transparent;
 }
 .app.tauri {
-  border-radius: 10px;
+  border-radius: var(--window-radius);
+}
+/* Bot dialogs portal to body, and the skill picker uses the browser top layer.
+   Neither backdrop is clipped by .app's rounded, transparent window corners. */
+html.tauri:not([data-theme="win98"]) .agent-dialog-backdrop,
+html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
+  /* Older WebKit versions do not inherit custom properties into ::backdrop. */
+  clip-path: inset(0 round var(--window-radius, 10px));
 }
 
 /* WeChat-like top-level navigation: stable click targets around matching icon
@@ -1770,33 +1778,71 @@ html.tauri #root {
   font-size: 13px;
   font-weight: 650;
 }
-.agent-inspector-agent-identity {
-  min-width: 0;
-  display: flex;
+.agent-inspector-runtime-picker {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) 16px;
   align-items: center;
   gap: 10px;
-  width: fit-content;
-  max-width: 100%;
-  margin: 3px 0 0 -6px;
-  padding: 5px 6px;
+  min-height: 42px;
+  margin-top: 9px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-2);
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.agent-inspector-runtime-picker:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 68%, var(--border));
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.agent-inspector-runtime-picker:has(select:hover:not(:disabled)) {
+  border-color: color-mix(in srgb, var(--border) 58%, var(--fg-dim));
+  background: var(--active-row);
+}
+.agent-inspector-runtime-picker select {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0;
   border: 0;
-  border-radius: 8px;
+  outline: 0;
+  appearance: none;
   background: transparent;
   color: var(--fg);
   font: inherit;
   font-size: 14px;
-  font-weight: 450;
-  text-align: left;
   cursor: pointer;
 }
-.agent-inspector-agent-identity:hover {
-  background: var(--bg-2);
+.agent-inspector-runtime-picker select:disabled {
+  color: var(--fg-dim);
+  cursor: default;
 }
-.agent-inspector-agent-identity > span:last-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.agent-inspector-runtime-picker > svg {
+  width: 15px;
+  height: 15px;
+  color: var(--fg-dim);
+  pointer-events: none;
+}
+.agent-inspector-agent-manage {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.agent-inspector-agent-manage svg {
+  width: 13px;
+  height: 13px;
+}
+.agent-inspector-agent-manage:hover {
+  color: var(--fg);
 }
 .agent-inspector-model-slot {
   margin-top: 22px;

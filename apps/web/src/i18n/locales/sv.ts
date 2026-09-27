@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Swedish — Svenska
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} fördelar ditt meddelande ({attempt}/{total})…",
   "agentGroup.routingTimeout": "Den föregående agentens tidsgräns överskreds. {name} tar över ({attempt}/{total})…",
   "agentGroup.routingFallback": "Den föregående agenten misslyckades. {name} tar över ({attempt}/{total})…",

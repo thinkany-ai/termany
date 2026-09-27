@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Russian — Русский
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} распределяет сообщение ({attempt}/{total})…",
   "agentGroup.routingTimeout": "Время ожидания предыдущего агента истекло. {name} принимает задачу ({attempt}/{total})…",
   "agentGroup.routingFallback": "Предыдущий агент завершился с ошибкой. {name} принимает задачу ({attempt}/{total})…",

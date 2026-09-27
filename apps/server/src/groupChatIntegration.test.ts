@@ -33,8 +33,8 @@ test("group sessions isolate members and track each Bot's updated model without 
   const changed = await turn("group:one:bot:bot-one", "model-b");
   assert.equal(changed.pid, first.pid);
   assert.equal(changed.model, "model-b");
-  assert.match(changed.prompt[0].text, /Research bot/);
-  assert.match(changed.prompt[0].text, /Help research/);
+  assert.match(changed.prompt[0].text, /configuration reminder/);
+  assert.match(changed.prompt[0].text, /Read current Bot configuration at .*runtime-profiles/);
   assert.equal((await turn("bot-one", "model-a")).model, "model-a");
   assert.equal((await turn("group:one:bot:bot-two", "model-b")).pid, second.pid);
 });

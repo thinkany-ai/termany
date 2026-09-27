@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Japanese — 日本語
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} がメッセージを振り分けています（{attempt}/{total}）…",
   "agentGroup.routingTimeout": "前のエージェントがタイムアウトしました。{name} が引き継ぎます（{attempt}/{total}）…",
   "agentGroup.routingFallback": "前のエージェントでエラーが発生しました。{name} が引き継ぎます（{attempt}/{total}）…",

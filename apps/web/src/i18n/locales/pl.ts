@@ -1,7 +1,9 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Polish — Polski (counts use a "noun: N" form where Polish would otherwise
 // need three plural stems)
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} przydziela wiadomość ({attempt}/{total})…",
   "agentGroup.routingTimeout": "Poprzedni agent przekroczył limit czasu. {name} przejmuje zadanie ({attempt}/{total})…",
   "agentGroup.routingFallback": "Poprzedni agent zakończył się błędem. {name} przejmuje zadanie ({attempt}/{total})…",

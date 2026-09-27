@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Italian — Italiano
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} sta assegnando il messaggio ({attempt}/{total})…",
   "agentGroup.routingTimeout": "Tempo scaduto per l’agente precedente. {name} subentra ({attempt}/{total})…",
   "agentGroup.routingFallback": "L’agente precedente ha riscontrato un errore. {name} subentra ({attempt}/{total})…",

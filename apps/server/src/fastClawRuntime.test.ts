@@ -48,16 +48,19 @@ test("FastClaw runtime discovers agents, streams text, and preserves sessions", 
   assert.deepEqual(runtime.config[0]?.type === "select" ? runtime.config[0].options.map((option) => "group" in option ? "" : option.name) : [], [
     "main_agent", "reviewer",
   ]);
-  const run = async () => {
+  const run = async (instructions?: string) => {
     const events: AcpRuntimeEvent[] = [];
-    await runtime.prompt("hello", (event) => events.push(event), new AbortController().signal);
+    await runtime.prompt("hello", (event) => events.push(event), new AbortController().signal,
+      instructions === undefined ? undefined : { name: "Advisor", instructions, skills: [] });
     assert.deepEqual(events.map((event) => event.type), ["delta", "done"]);
     assert.equal(events[0]?.type === "delta" ? events[0].text : "", "hello");
   };
-  await run();
+  await run("Prefer concise answers");
   await run();
   assert.equal(requests[0]?.session_id, requests[1]?.session_id);
   assert.equal(requests[0]?.agent_name, "main");
+  assert.match(requests[0].input[0].parts[0].content, /Prefer concise answers/);
+  assert.doesNotMatch(requests[1].input[0].parts[0].content, /Prefer concise answers/);
 
   await runtime.setConfigOption("agent", "reviewer");
   await run();

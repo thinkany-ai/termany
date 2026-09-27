@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Turkish — Türkçe
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} mesajınızı yönlendiriyor ({attempt}/{total})…",
   "agentGroup.routingTimeout": "Önceki ajan zaman aşımına uğradı. {name} devralıyor ({attempt}/{total})…",
   "agentGroup.routingFallback": "Önceki ajan başarısız oldu. {name} devralıyor ({attempt}/{total})…",

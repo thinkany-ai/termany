@@ -22,7 +22,7 @@ import { overriddenCredentials, subscriptionEnvironment } from "./agentCredentia
 import { getMeta, setMeta } from "./db.js";
 import { resolveExecutable, spawnEnvironment } from "./shellPath.js";
 import { agentEnvironment } from "./agentEnvironment.js";
-import { botAcpPrompt } from "./botIdentity.js";
+import { BotSessionProfile } from "./botSessionProfile.js";
 import { splitAgentRuntimeNotices } from "@termany/core";
 import { AcpConfigCompatibility } from "./acpConfigCompatibility.js";
 import { checkNativeAcpSupport } from "./nativeAcp.js";
@@ -140,6 +140,7 @@ function formatToolOutput(content: unknown, rawOutput: unknown): string | undefi
 
 class Runtime {
   private emit: Emit | null = null;
+  private readonly profile = new BotSessionProfile();
   private prompting = false;
   private hasPrompted = false;
   private promptSignal: AbortSignal | null = null;
@@ -173,6 +174,7 @@ class Runtime {
     });
     child.once("exit", (code, signal) => {
       stopAgentProcess(child);
+      void this.profile.close();
       const detail = this.stderr.trim();
       this.connection.close(new Error(`Agent runtime exited (${signal ?? code ?? "unknown"})${detail ? `: ${detail}` : ""}`));
       this.cancelPermissions();
@@ -257,7 +259,8 @@ class Runtime {
         });
         session = connection.agent.attachSession({ ...response, sessionId: saved.sessionId });
       } else {
-        session = await connection.agent.buildSession(cwd).start();
+        const builder = connection.agent.buildSession(cwd);
+        session = await builder.start();
       }
       runtime = new Runtime(paneId, agent, cwd, child, connection, session, compatibility,
         initialization.agentCapabilities?.promptCapabilities?.image === true,
@@ -293,7 +296,8 @@ class Runtime {
     };
     signal.addEventListener("abort", cancel, { once: true });
     try {
-      const base = botAcpPrompt(text, botIdentity);
+      const base = await this.profile.prepare(text, botIdentity);
+      signal.throwIfAborted();
       let prompt: string | ContentBlock[] = base;
       if (images.length) {
         const blocks: ContentBlock[] = typeof base === "string" ? [{ type: "text", text: base }] : base;
@@ -303,7 +307,8 @@ class Runtime {
             }))]
           : [...blocks, { type: "text", text: `Attached local image files:\n${images.map((image) => image.path).join("\n")}` }];
       }
-      void this.session.prompt(prompt).catch(() => undefined);
+      const delivery = this.session.prompt(prompt);
+      void delivery.catch(() => undefined);
       const emittedImageIds = new Set<string>();
       const unfinishedToolIds = new Set<string>();
       let streamedText = "";
@@ -366,7 +371,13 @@ class Runtime {
       // this point the tool is no longer running, so clear any stale spinner
       // before telling the web client that the reply is done.
       for (const id of unfinishedToolIds) emit({ type: "tool", id, status: "completed" });
+      await delivery;
+      if (signal.aborted) { this.profile.invalidate(); return; }
+      this.profile.commit(text);
       emit({ type: "done", sessionId: this.session.sessionId });
+    } catch (error) {
+      this.profile.invalidate();
+      throw error;
     } finally {
       if (forceClose) clearTimeout(forceClose);
       signal.removeEventListener("abort", cancel);
@@ -499,6 +510,7 @@ class Runtime {
   }
 
   close(): void {
+    void this.profile.close();
     if (runtimes.get(this.paneId) === this) runtimes.delete(this.paneId);
     this.cancelPermissions();
     this.session.dispose();
