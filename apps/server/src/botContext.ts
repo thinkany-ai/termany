@@ -60,6 +60,7 @@ export function normalizeBotIdentity(raw: unknown): BotIdentity | undefined {
 const APPLICATION_RULES = [
   "This is the current user-configured Bot profile, not the current task. It replaces older Bot instructions and Skill bindings, including when description or bindings are empty.",
   "Before your first task, activate the bound Skills by reading their full SKILL.md entries. Do not wait for the user to name them. Reuse guidance only while it remains available in context and unchanged; after compaction or missing context read it again. Read supporting resources only as needed.",
+  "Use only the Skill-reading capability provided by your runtime. File-capable agent runtimes read the absolute entry paths below. Termany Chat's bound-Skill reader takes a Skill ID: omit its optional relative path to read SKILL.md first; provide only a package-relative supporting file path afterwards. It cannot read arbitrary local files.",
   "Within this profile, explicit description requirements take precedence over bound Skills; earlier bindings take precedence over later bindings. Global Skills remain available as supplements.",
   "The user's current message defines this turn's task. These preferences do not override system rules, runtime constraints or tool permissions.",
 ].join("\n");
@@ -88,7 +89,7 @@ export async function compileBotContext(raw: unknown, reader?: BotSkillReader): 
   const sections = ["[BEGIN TERMANY BOT CONFIG]", botIdentityPrompt(identity), APPLICATION_RULES,
     `Current Bot configuration fingerprint: ${fingerprint}`,
     entries.length ? `Bound Skills (metadata only):\n${JSON.stringify(entries, null, 2)}` : "Bound Skills: none.",
-    !entries.length ? "" : "Read each absolute entry path using your file tools. Resolve relative resources against its containing directory.",
+    !entries.length ? "" : "File-capable agent runtimes: read each absolute entry path using file tools. Termany Chat: use only its bound-Skill reader and the Skill IDs above; package-relative paths are for supporting resources after SKILL.md.",
     "[END TERMANY BOT CONFIG]"];
   const text = sections.join("\n\n");
   const bytes = checkBudget(sections);

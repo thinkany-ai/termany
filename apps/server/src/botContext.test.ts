@@ -42,7 +42,8 @@ test("bindings provide absolute paths and resource preferences without loading t
   assert.match(result.text, /references\/cost.md/);
   assert.match(result.text, /Answer briefly/);
   assert.match(result.text, /\/skills\/musk\/.*\/SKILL\.md/);
-  assert.match(result.text, /Read each absolute entry path using your file tools/);
+  assert.match(result.text, /File-capable agent runtimes: read each absolute entry path/);
+  assert.match(result.text, /omit its optional relative path to read SKILL\.md first/);
   assert.equal(result.warnings.length, 0);
   assert.match(result.text, /description requirements take precedence/i);
 });
