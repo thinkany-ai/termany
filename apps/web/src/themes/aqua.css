@@ -2,7 +2,11 @@
    window actions remain real controls; the unlit yellow light is decorative. */
 html[data-theme="aqua"] {
   --aqua-metal: repeating-linear-gradient(0deg, #ffffff18 0 1px, #6975800a 1px 2px), linear-gradient(#f5f6f7, #c7ccd1 48%, #e3e6e9);
-  --aqua-stripes: repeating-linear-gradient(#f2f5f8 0 1px, #e3e9ef 1px 3px);
+  --aqua-stripes: repeating-linear-gradient(#f6f7f8 0 1px, #e9edf1 1px 3px);
+  --aqua-source: #e3eaf2;
+  --aqua-paper: #f5f6f7;
+  --aqua-window-shadow: 0 2px 5px #23395024, 0 8px 18px #23395014;
+  --aqua-muted: #66717e;
   --aqua-gel: linear-gradient(#d7efff, #74b8fa 45%, #247bdc 49%, #4ca0f4 85%, #a3d6ff);
   --aqua-silver: linear-gradient(#fff, #e6e9ed 45%, #c6cdd5 50%, #e4e8ed);
 }
@@ -15,7 +19,7 @@ html[data-theme="aqua"] :is(.htabbar, .pane-head, .side-rail, .file-tree-head, .
   border-color: #9ba4ae;
   box-shadow: inset 0 1px #fff;
 }
-html[data-theme="aqua"] :is(.sidebar, .settings-nav) { background: var(--aqua-stripes); }
+html[data-theme="aqua"] :is(.sidebar, .settings-nav) { background: var(--aqua-source); }
 html[data-theme="aqua"] :is(.section-title, .section-toggle) { color: #465566; letter-spacing: normal; text-transform: none; }
 html[data-theme="aqua"] .htab {
   border: 1px solid #919ca9;
@@ -150,12 +154,12 @@ html[data-theme="aqua"] :is(button, input, select, textarea):disabled {
    Leave the view/URL menus accessible after the lights. Zen has only Zoom. */
 html[data-theme="aqua"] .pane-head { background: var(--aqua-stripes); padding-inline: 8px; gap: 6px; }
 html[data-theme="aqua"] .pane-head-actions { order: -2; gap: 6px; flex: 0 0 auto; }
-html[data-theme="aqua"] .pane-head-name { position: absolute; left: 50%; transform: translateX(-50%); max-width: calc(100% - 260px); justify-content: center; }
+html[data-theme="aqua"] .pane-head-name { position: absolute; left: 50%; transform: translateX(-50%); max-width: calc(100% - 290px); justify-content: center; }
 html[data-theme="aqua"] .pane-head > .agent-dot { margin-left: auto; }
 html[data-theme="aqua"] .pane-head-spacer { flex: 0; }
 html[data-theme="aqua"] .pane-head-actions > .pane-btn,
 html[data-theme="aqua"] .pane-head-actions::before {
-  width: 15px; height: 15px; flex: 0 0 15px;
+  width: 18px; height: 18px; flex: 0 0 18px;
   border-radius: 50%; border: 1px solid #839083;
   box-shadow: inset 0 1px 2px #fff9, 0 1px 1px #0003;
 }
@@ -164,13 +168,13 @@ html[data-theme="aqua"] .pane-head-actions > .pane-btn {
   background: radial-gradient(circle at 40% 20%, #edffcf, #80d564 45%, #39a62b 60%, #b4ef8b);
   color: #23581c;
 }
-html[data-theme="aqua"] .pane-slot:not(.zen-pane .pane-slot) .pane-head-actions > .pane-btn:last-child {
+html[data-theme="aqua"] .pane-head-actions > [data-pane-action="close"] {
   order: -3;
   background: radial-gradient(circle at 40% 20%, #ffe2d8, #ff8c77 45%, #df4636 60%, #ffa599);
   border-color: #ac554c;
   color: #742319;
 }
-html[data-theme="aqua"] .pane-slot:not(.zen-pane .pane-slot) .pane-head-actions::before {
+html[data-theme="aqua"] .pane-head-actions:has([data-pane-action="close"])::before {
   content: "";
   order: -2;
   background: radial-gradient(circle at 40% 20%, #fff7d5, #e6d49c 55%, #c7b47f);
@@ -210,7 +214,34 @@ html[data-theme="aqua"] .settings-nav-item { border-radius: 0; padding-inline: 1
 
 /* Narrow splits trade perfect centering for a readable, nonoverlapping title. */
 html[data-theme="aqua"] .pane-slot { container-type: inline-size; }
-@container (max-width: 380px) {
+@container (max-width: 480px) {
   html[data-theme="aqua"] .pane-head-name { position: static; transform: none; max-width: none; flex: 1; }
   html[data-theme="aqua"] .pane-head > .agent-dot { margin-left: 0; }
+}
+
+/* Source-list rows stay quiet; texture belongs to the window frame. */
+html[data-theme="aqua"] .tree-row { border-radius: 3px; }
+html[data-theme="aqua"] .pane-slot.focused { box-shadow: var(--aqua-window-shadow); }
+html[data-theme="aqua"] .pane-card:has(.pane-slot.focused) .pane-slot:not(.focused) :is(.pane-head-title, .pane-connection-trigger) {
+  color: var(--aqua-muted); text-shadow: none;
+}
+html[data-theme="aqua"] .app-tab-rail { background: var(--aqua-metal); }
+html[data-theme="aqua"] .app-tab-icon { background: var(--aqua-silver); border-radius: 6px; }
+html[data-theme="aqua"] .app-tab-button.active .app-tab-icon { background: var(--aqua-gel); }
+html[data-theme="aqua"] .pane-head-actions > .pane-btn { cursor: pointer; }
+html[data-theme="aqua"] .pane-head-actions > .pane-btn:active { filter: brightness(.85); }
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="aqua"] :is(.pane-slot, .settings-window, .app-tab-icon) { animation: none; transition: none; }
+}
+
+html[data-theme="aqua"] .settings-body { background: var(--aqua-paper); }
+html[data-theme="aqua"] .bot-setting-switch { background: var(--aqua-silver); border: 1px solid var(--border); }
+html[data-theme="aqua"] .bot-setting-switch[aria-checked="true"] { background: var(--aqua-gel); border-color: var(--accent); }
+/* At a narrow split, give the title space before decorative chrome. */
+@container (max-width: 300px) {
+  html[data-theme="aqua"] .pane-head { gap: 4px; padding-inline: 5px; }
+  html[data-theme="aqua"] .pane-head-actions { gap: 4px; }
+  html[data-theme="aqua"] .pane-head-actions:has([data-pane-action="close"])::before { display: none; }
+  html[data-theme="aqua"] .pane-connection-trigger > svg:first-child { display: none; }
+  html[data-theme="aqua"] .pane-head-name { justify-content: flex-start; }
 }

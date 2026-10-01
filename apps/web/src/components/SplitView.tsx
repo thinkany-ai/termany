@@ -388,6 +388,7 @@ function PaneHeader({
         <PaneViewMenu leaf={leaf} />
         <button
           className="pane-btn"
+          data-pane-action="zoom"
           title={withShortcut(solo ? "Restore" : "Maximize", "toggleMaximize")}
           onClick={() => toggleMaximize(leaf.id)}
         >
@@ -398,6 +399,7 @@ function PaneHeader({
         {!zen && (
           <button
             className="pane-btn"
+            data-pane-action="close"
             title={withShortcut("Close pane", "closePane")}
             // Don't let the slot's mousedown focus a pane we're about to close:
             // it would make closing ANY pane look like closing the focused one,

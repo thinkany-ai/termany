@@ -146,7 +146,7 @@ bars back. Step through them with ⌥⌘. and ⌥⌘, or open the picker with �
     <td align="center"><img src="docs/themes/winxp.png" alt="The Windows XP theme: glossy blue Luna chrome, green selection, and a black console over an original hill landscape"><br><b>Windows XP</b><br><sub>Light</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/themes/aqua.png" alt="The Aqua theme: brushed silver chrome, pinstriped sidebar, blue gel tabs, and a white terminal"><br><b>Aqua</b><br><sub>Light</sub></td>
+    <td align="center"><img src="docs/themes/aqua.png" alt="The Aqua theme: brushed silver chrome, a quiet source list, pinstriped captions, blue gel tabs, and a white terminal"><br><b>Aqua</b><br><sub>Light</sub></td>
     <td align="center"><img src="docs/themes/bsod.png" alt="The Blue Screen theme: flat blue surfaces, white text, and a large sad face"><br><b>Blue Screen</b><br><sub>Dark</sub></td>
     <td align="center"><img src="docs/themes/excel.png" alt="The Spreadsheet theme: green ribbon tabs, a formula bar, and black terminal text on a white cell grid"><br><b>Spreadsheet</b><br><sub>Light</sub></td>
   </tr>

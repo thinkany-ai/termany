@@ -136,3 +136,21 @@ html[data-theme="bsod"] :is(.agent-composer-add, .agent-composer-add:hover, .age
 html[data-theme="bsod"] :is(.agent-dot, .tree-dot) { background: #fff; box-shadow: none; }
 html[data-theme="bsod"] :is(button, input, select, textarea)[aria-disabled="true"] { opacity: .5; }
 html[data-theme="bsod"] input { accent-color: #fff; }
+
+/* A selected tool or menu remains identifiable without relying on hue. */
+html[data-theme="bsod"] :is(.app-tab-button.active .app-tab-icon, .side-rail-btn.active) {
+  outline: 1px solid var(--fg); outline-offset: 2px;
+}
+html[data-theme="bsod"] :is(.htab.active, .tree-row.active, .settings-nav-item.active) { font-weight: 700; }
+html[data-theme="bsod"] .pane-slot.focused .pane-head { border-bottom-color: var(--fg); }
+html[data-theme="bsod"] .pane-slot:not(.focused) .pane-head { border-bottom-style: dashed; }
+html[data-theme="bsod"] :is(.ws-menu, .pop-panel, .pop-sub, .search-palette, .settings-window, .ws-dialog, .ssh-manager-dialog) {
+  border-color: var(--fg);
+}
+html[data-theme="bsod"] .sidebar::before { padding-bottom: 12px; font-size: clamp(56px, 10vh, 96px); }
+@media (max-height: 600px) {
+  html[data-theme="bsod"] .sidebar::before { font-size: 48px; padding-block: 4px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="bsod"] :is(.pane-slot, .app-tab-icon) { animation: none; transition: none; }
+}

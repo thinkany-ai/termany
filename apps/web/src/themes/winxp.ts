@@ -30,7 +30,7 @@ export const winxp: Theme = {
   chrome: {
     topBar: "linear-gradient(#69a6ff 0%, #0965ec 12%, #0054dc 55%, #2080f5 94%, #003cb4)",
     topBarBorder: "#003caa",
-    activeTab: "#69b83e",
+    activeTab: "#2365c9",
     activeRow: "#c1d6fa",
     paneGap: "9px",
     paneRadius: "10px",
