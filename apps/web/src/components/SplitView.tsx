@@ -1,10 +1,11 @@
 import { textInputProps } from "../textInputProps";
-import { Fragment, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { beginDragCursor, createDragGhost, endDragCursor } from "../dragGhost";
 import { useI18n } from "../i18n";
 import { useImeGuard } from "../imeGuard";
 import { registerOccluder, unregisterOccluder } from "../nativeViewOcclusion";
+import { HEADER_POPOVER_STYLE, usePaneHeadPopover } from "./usePaneHeadPopover";
 import { withShortcut } from "../keybindings";
 import { activeHtab, paneCount, useStore, type DropEdge, type HTab, type Pane } from "../state/store";
 import {
@@ -98,41 +99,6 @@ const PANE_VIEWS = [
   { view: "usage", labelKey: "pane.view.usage", Icon: ChartIcon },
 ] as const;
 
-/** Dismiss-on-outside-click/Escape plus native-view occlusion, shared by the
- *  header's dropdowns. */
-function usePaneHeadPopover(open: boolean, close: () => void) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const occluderId = useId();
-
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) close();
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.stopPropagation();
-      close();
-    };
-    window.addEventListener("click", onClick);
-    window.addEventListener("keydown", onKey, true);
-    return () => {
-      window.removeEventListener("click", onClick);
-      window.removeEventListener("keydown", onKey, true);
-    };
-  }, [open, close]);
-
-  // Native previews paint above the DOM; blank the ones this panel covers.
-  useEffect(() => {
-    if (!open || !panelRef.current) return;
-    registerOccluder(occluderId, panelRef.current.getBoundingClientRect());
-    return () => unregisterOccluder(occluderId);
-  }, [open, occluderId]);
-
-  return { rootRef, panelRef };
-}
-
 /**
  * "Open what this pane is serving" — local listeners come from the pane's
  * process tree; SSH listeners come from its authenticated remote. One
@@ -205,8 +171,12 @@ function PaneServedUrls({ leaf }: { leaf: Leaf }) {
         </span>
         {hasMenu && <ChevronIcon dir="down" />}
       </button>
-      {open && (hasMenu || error) && (
-        <div className="pop-panel pane-view-panel pane-url-panel" role="menu" ref={panelRef}>
+      {open && (hasMenu || error) && createPortal(
+        <div className="pop-panel pane-view-panel pane-url-panel" role="menu" ref={panelRef}
+          style={HEADER_POPOVER_STYLE}
+          onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
           {urls.map((entry) => (
             <div className="pane-port-row" key={entry.port}>
               <button
@@ -246,7 +216,7 @@ function PaneServedUrls({ leaf }: { leaf: Leaf }) {
             </div>
           ))}
           {error && <div className="pane-port-error">{error}</div>}
-        </div>
+        </div>, document.body
       )}
     </div>
   );
@@ -278,8 +248,12 @@ function PaneViewMenu({ leaf }: { leaf: Leaf }) {
         <CurrentIcon />
         <ChevronIcon dir="down" />
       </button>
-      {open && (
-        <div className="pop-panel pane-view-panel" role="menu" ref={panelRef}>
+      {open && createPortal(
+        <div className="pop-panel pane-view-panel" role="menu" ref={panelRef}
+          style={HEADER_POPOVER_STYLE}
+          onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
           {availableViews.map(({ view, labelKey, Icon }) => (
             <button
               key={view}
@@ -296,7 +270,7 @@ function PaneViewMenu({ leaf }: { leaf: Leaf }) {
               {view === current && <CheckIcon />}
             </button>
           ))}
-        </div>
+        </div>, document.body
       )}
     </div>
   );
