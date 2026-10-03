@@ -271,6 +271,8 @@ export default {
   "ssh.passwordHint": "Du skriver lösenordet säkert i terminalen när du ansluter. Det sparas aldrig.",
   "ssh.identityHint": "Använd bara den valda privata nyckelfilen för den här anslutningen.",
   "ssh.identityFile": "Sökväg till nyckelfilen",
+  "ssh.remoteDir": "Fjärrkatalog (valfritt)",
+  "ssh.remoteDirPlaceholder": "Hemkatalog",
   "ssh.editConnection": "Redigera anslutning",
   "ssh.deleteConnection": "Radera anslutning",
   "ssh.sessionEnded": "SSH-sessionen avslutades — tryck på Enter för att ansluta igen",

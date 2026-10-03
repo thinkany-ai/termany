@@ -272,6 +272,8 @@ export default {
   "ssh.passwordHint": "Heslo bezpečně zadáte v terminálu při připojování. Nikdy se neukládá.",
   "ssh.identityHint": "Pro toto připojení použít pouze vybraný soubor se soukromým klíčem.",
   "ssh.identityFile": "Cesta k souboru s klíčem",
+  "ssh.remoteDir": "Vzdálená složka (volitelné)",
+  "ssh.remoteDirPlaceholder": "Domovská složka",
   "ssh.editConnection": "Upravit připojení",
   "ssh.deleteConnection": "Smazat připojení",
   "ssh.sessionEnded": "Relace SSH skončila — stisknutím Enter se připojíte znovu",

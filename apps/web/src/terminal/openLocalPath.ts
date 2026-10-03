@@ -1,6 +1,12 @@
 import { apiUrl } from "../api";
-import { activeHtab, useStore } from "../state/store";
-import { pasteIntoSession, sendCommand, sessionLooksLikeAgentInput } from "./manager";
+import { activeHtab, findLeaf, useStore } from "../state/store";
+import {
+  pasteIntoSession,
+  sendCommand,
+  sessionLooksLikeAgentInput,
+  terminalSessionId,
+  uploadFilesToSession,
+} from "./manager";
 
 function quoteForPaste(path: string): string {
   return `'${path.replace(/'/g, "'\\''")}'`;
@@ -45,7 +51,15 @@ export async function openLocalPathsInSession(sessionId: string, paths: string[]
 }
 
 export function openLocalPathsInFocusedSession(paths: string[]) {
-  const sessionId = activeHtab(useStore.getState())?.focused;
+  const htab = activeHtab(useStore.getState());
+  const sessionId = htab?.focused;
   if (!sessionId) return;
+  // Local paths mean nothing to an SSH pane's shell or its (remote) file
+  // tree — send the files over, the same as dropping them onto it.
+  const sshTarget = findLeaf(htab.layout, sessionId)?.sshTarget;
+  if (sshTarget) {
+    uploadFilesToSession(terminalSessionId(sessionId, sshTarget), paths);
+    return;
+  }
   void openLocalPathsInSession(sessionId, paths);
 }

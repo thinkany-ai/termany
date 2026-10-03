@@ -271,6 +271,8 @@ export default {
   "ssh.passwordHint": "Kata sandi akan Anda ketik dengan aman di terminal saat menyambung. Kata sandi tidak pernah disimpan.",
   "ssh.identityHint": "Gunakan hanya berkas kunci privat yang dipilih untuk koneksi ini.",
   "ssh.identityFile": "Jalur berkas kunci",
+  "ssh.remoteDir": "Direktori jarak jauh (opsional)",
+  "ssh.remoteDirPlaceholder": "Direktori home",
   "ssh.editConnection": "Edit koneksi",
   "ssh.deleteConnection": "Hapus koneksi",
   "ssh.sessionEnded": "Sesi SSH berakhir — tekan Enter untuk menyambung lagi",

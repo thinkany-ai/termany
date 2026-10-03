@@ -268,6 +268,8 @@ export default {
   "ssh.passwordHint": "連線時會在終端機中安全地輸入密碼，密碼不會被儲存。",
   "ssh.identityHint": "此連線只使用選定的私密金鑰檔案。",
   "ssh.identityFile": "金鑰檔案路徑",
+  "ssh.remoteDir": "遠端目錄（選填）",
+  "ssh.remoteDirPlaceholder": "預設家目錄",
   "ssh.editConnection": "編輯連線",
   "ssh.deleteConnection": "刪除連線",
   "ssh.sessionEnded": "SSH 工作階段已結束 — 按 Enter 重新連線",

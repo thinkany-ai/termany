@@ -22,6 +22,8 @@ export interface SshProfile {
   port?: number;
   authMethod?: "default" | "password" | "identity";
   identityFile?: string;
+  /** Directory to open on the remote host instead of the login directory. */
+  remoteDir?: string;
 }
 
 export type SshTestStatus = "connected" | "passwordRequired" | "hostKey" | "timeout" | "failed";
@@ -47,6 +49,8 @@ export function saveSshProfiles(value: unknown): SshProfile[] {
       : "default";
     const identityFile = String(item.identityFile ?? "").trim().slice(0, 1000);
     if (authMethod === "identity" && !identityFile) throw new Error("identity file path is required");
+    const remoteDir = String(item.remoteDir ?? "").trim().slice(0, 1000);
+    if (/[\x00-\x1f\x7f]/.test(remoteDir)) throw new Error("invalid remote directory");
     if (host.startsWith("-") || /[\x00-\x20\x7f@]/.test(host) || /[\x00-\x20\x7f@]/.test(user)) {
       throw new Error("invalid SSH host or user");
     }
@@ -58,6 +62,7 @@ export function saveSshProfiles(value: unknown): SshProfile[] {
       port,
       authMethod,
       identityFile: authMethod === "identity" ? identityFile : undefined,
+      remoteDir: remoteDir || undefined,
     };
   });
   setMeta("sshProfiles", JSON.stringify(profiles));
@@ -69,6 +74,40 @@ export function sshArgsForConnection(value: string): string[] {
   const profile = listSshProfiles().find((item) => item.id === value.slice(8));
   if (!profile) throw new Error("SSH connection no longer exists");
   return sshArgsForProfile(profile);
+}
+
+/**
+ * Extra argv for the interactive session that opens the profile's remote
+ * directory. Kept apart from the connection args because the port-forwarding
+ * control and probe commands reuse those and must not inherit a remote command.
+ */
+export function sshInteractiveArgsForConnection(value: string, args: string[]): string[] {
+  const remoteDir = remoteDirForConnection(value);
+  return remoteDir ? ["-t", ...args, sshRemoteDirCommand(remoteDir)] : args;
+}
+
+/** The profile's configured remote directory, if the connection is a profile with one. */
+export function remoteDirForConnection(value: string): string | undefined {
+  if (!value.startsWith("profile:")) return undefined;
+  return listSshProfiles().find((item) => item.id === value.slice(8))?.remoteDir;
+}
+
+/**
+ * The remote command is parsed by the user's login shell, which may be fish
+ * or csh, so only rely on single-quoted literals there and do the real work in
+ * `sh`. The directory travels as a positional argument, never as script text.
+ * A missing directory still leaves the user in a login shell.
+ */
+export function sshRemoteDirCommand(dir: string): string {
+  const script =
+    'd=$1; case $d in "~") d=$HOME;; "~/"*) d=$HOME/${d#"~/"};; esac; ' +
+    'cd -- "$d" || printf "termany: cannot open %s\\n" "$1" >&2; ' +
+    'exec "${SHELL:-/bin/sh}" -l';
+  return `exec sh -c ${shellQuote(script)} termany ${shellQuote(dir)}`;
+}
+
+export function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 export function sshArgsForProfile(profile: SshProfile): string[] {

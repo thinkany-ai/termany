@@ -1350,7 +1350,73 @@ export function applyFontSize(size: number) {
   for (const s of sessions.values()) s.term.options.fontSize = size;
 }
 
+/**
+ * Turn off modes a dead shell's programs may have left on: scroll margins,
+ * mouse/focus reporting, bracketed paste, origin mode, application cursor
+ * keys/keypad, hidden cursor, line-drawing charset, SGR attributes. Without
+ * this, e.g. a tmux killed by a dropped SSH link leaves `?1003` on, and every
+ * mouse move types `35;65;47M…` into the next shell.
+ */
+const STALE_MODE_RESET =
+  "\x1b[r\x1b[?1000;1002;1003;1006l\x1b[?1004l\x1b[?2004l\x1b[?6l\x1b[?7h" +
+  "\x1b[?1l\x1b>\x1b[?25h\x1b(B\x0f\x1b[0m";
+
+/**
+ * Release a terminal mouse drag whose mouseup never arrived.
+ *
+ * xterm's SelectionService (and its mouse-tracking drag reporting) attach
+ * document-level mousemove/mouseup on mousedown and only stop on mouseup —
+ * mousemove never checks `buttons`. WKWebView on macOS drops that mouseup
+ * when the button is released outside the window, over a native menu or
+ * dialog, or mid window-drag, leaving xterm stuck in drag mode: every later
+ * hover extends a huge selection with no button held. The first mousemove
+ * that reports the primary button up finishes the drag with a synthetic
+ * mouseup before xterm sees the move.
+ */
+let stuckDragGuardInstalled = false;
+function installStuckDragGuard() {
+  if (stuckDragGuardInstalled) return;
+  stuckDragGuardInstalled = true;
+  let primaryDragInTerminal = false;
+  window.addEventListener(
+    "mousedown",
+    (event) => {
+      primaryDragInTerminal =
+        event.button === 0 &&
+        event.target instanceof Element &&
+        event.target.closest(".term-host") !== null;
+    },
+    true,
+  );
+  window.addEventListener("mouseup", () => { primaryDragInTerminal = false; }, true);
+  window.addEventListener(
+    "mousemove",
+    (event) => {
+      if (!primaryDragInTerminal || event.buttons & 1) return;
+      primaryDragInTerminal = false;
+      // Dispatched on the move's target so it bubbles through the term host
+      // (select-to-copy) up to the document, where xterm removes its drag
+      // listeners before this mousemove reaches them.
+      (event.target ?? document).dispatchEvent(
+        new MouseEvent("mouseup", {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          button: 0,
+          buttons: event.buttons,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          screenX: event.screenX,
+          screenY: event.screenY,
+        }),
+      );
+    },
+    true,
+  );
+}
+
 function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId = id): Session {
+  installStuckDragGuard();
   const existing = sessions.get(id);
   if (existing) return existing;
 
@@ -1421,8 +1487,7 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
       const finishReset = () => {
         const row = term.buffer.active.cursorY + 1; // where the replay ended
         term.write(
-          "\x1b[r\x1b[?1000;1002;1003;1006l\x1b[?1004l\x1b[?2004l\x1b[?6l\x1b[?7h" +
-            "\x1b[?25h\x1b(B\x0f\x1b[0m" +
+          STALE_MODE_RESET +
             `\x1b[${row};1H\x1b7` + // re-park at the content end; overwrite stale saved-cursor
             "\r\n", // no divider — history flows straight into the new shell
           () => {
@@ -1576,7 +1641,9 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
         return;
       }
       session.restartAttempts++;
-      term.write(`\r\n\x1b[2m[session ended — starting a new shell]\x1b[0m\r\n`);
+      // `?1047l` leaves a stale alternate screen without `?1049l`'s cursor
+      // restore, and is a no-op on the normal screen.
+      term.write(`\x1b[?1047l${STALE_MODE_RESET}\r\n\x1b[2m[session ended — starting a new shell]\x1b[0m\r\n`);
       const next = spawnBackend();
       session.backend = next;
       session.spawnedAt = Date.now();
@@ -1590,6 +1657,7 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
     session.ended = false;
     session.connectionState = "connecting";
     notifyConnectionStatus();
+    term.write(`\x1b[?1047l${STALE_MODE_RESET}`); // see the auto-restart above
     const next = spawnBackend();
     session.backend = next;
     session.spawnedAt = Date.now();
@@ -2271,6 +2339,11 @@ export function disposeSession(id: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ids: [id] }),
   }).catch(() => {});
+}
+
+/** Whether a pane has attached a shell (local or SSH) in this window. */
+export function paneHasShell(paneId: string): boolean {
+  return (sessionIdsByPane.get(paneId)?.size ?? 0) > 0;
 }
 
 /** Close every cached local/SSH session owned by a pane. */

@@ -272,6 +272,8 @@ export default {
   "ssh.passwordHint": "คุณจะพิมพ์รหัสผ่านอย่างปลอดภัยในเทอร์มินัลตอนเชื่อมต่อ ระบบจะไม่เก็บรหัสผ่านไว้",
   "ssh.identityHint": "ใช้เฉพาะไฟล์กุญแจส่วนตัวที่เลือกไว้สำหรับการเชื่อมต่อนี้",
   "ssh.identityFile": "พาธของไฟล์กุญแจ",
+  "ssh.remoteDir": "ไดเรกทอรีปลายทาง (ไม่บังคับ)",
+  "ssh.remoteDirPlaceholder": "ไดเรกทอรีหลัก",
   "ssh.editConnection": "แก้ไขการเชื่อมต่อ",
   "ssh.deleteConnection": "ลบการเชื่อมต่อ",
   "ssh.sessionEnded": "เซสชัน SSH สิ้นสุดแล้ว — กด Enter เพื่อเชื่อมต่อใหม่",

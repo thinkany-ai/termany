@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { sshArgsForProfile, sshArgsForTarget, sshProfileFieldsForTarget } from "./ssh.js";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { sshArgsForProfile, sshArgsForTarget, sshProfileFieldsForTarget, sshRemoteDirCommand } from "./ssh.js";
 
 test("passes aliases and user destinations directly to OpenSSH", () => {
   assert.deepEqual(sshArgsForTarget("production"), ["production"]);
@@ -57,4 +61,27 @@ test("turns quick-connect destinations into managed profile fields", () => {
     user: "deploy",
     port: 2200,
   });
+});
+
+test("remote directory command opens the directory before the login shell", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "termany-ssh-"));
+  const shell = path.join(root, "fake-shell");
+  writeFileSync(shell, "#!/bin/sh\npwd\n", { mode: 0o755 });
+  const dir = path.join(root, "it's a dir");
+  mkdirSync(path.join(dir, "sub"), { recursive: true });
+  const run = (target: string, home = root) =>
+    spawnSync("/bin/sh", ["-c", sshRemoteDirCommand(target)], {
+      env: { PATH: process.env.PATH, HOME: home, SHELL: shell },
+      encoding: "utf8",
+    });
+  try {
+    assert.equal(realpathSync(run(dir).stdout.trim()), realpathSync(dir));
+    assert.equal(realpathSync(run("~/it's a dir/sub").stdout.trim()), realpathSync(path.join(dir, "sub")));
+    assert.equal(realpathSync(run("~", dir).stdout.trim()), realpathSync(dir));
+    const missing = run(path.join(root, "missing"));
+    assert.match(missing.stderr, /cannot open/);
+    assert.equal(missing.status, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

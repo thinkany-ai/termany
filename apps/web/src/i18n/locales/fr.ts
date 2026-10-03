@@ -271,6 +271,8 @@ export default {
   "ssh.passwordHint": "Vous saisirez le mot de passe de façon sécurisée dans le terminal au moment de la connexion. Il n'est jamais enregistré.",
   "ssh.identityHint": "N'utiliser que le fichier de clé privée sélectionné pour cette connexion.",
   "ssh.identityFile": "Chemin du fichier d'identité",
+  "ssh.remoteDir": "Dossier distant (facultatif)",
+  "ssh.remoteDirPlaceholder": "Dossier personnel",
   "ssh.editConnection": "Modifier la connexion",
   "ssh.deleteConnection": "Supprimer la connexion",
   "ssh.sessionEnded": "Session SSH terminée — appuyez sur Entrée pour vous reconnecter",

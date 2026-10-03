@@ -271,6 +271,8 @@ export default {
   "ssh.passwordHint": "연결할 때 터미널에서 안전하게 비밀번호를 입력합니다. 저장되지 않습니다.",
   "ssh.identityHint": "이 연결에는 선택한 개인 키 파일만 사용합니다.",
   "ssh.identityFile": "키 파일 경로",
+  "ssh.remoteDir": "원격 디렉터리 (선택)",
+  "ssh.remoteDirPlaceholder": "홈 디렉터리",
   "ssh.editConnection": "연결 편집",
   "ssh.deleteConnection": "연결 삭제",
   "ssh.sessionEnded": "SSH 세션이 종료되었습니다 — Enter를 눌러 다시 연결",

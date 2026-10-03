@@ -87,6 +87,18 @@ export function sshForwardControlArgs(
   ];
 }
 
+function sshExecArgs(session: SshPortSession): string[] {
+  return [
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "ControlMaster=no",
+    "-S",
+    session.controlPath,
+    ...session.connectionArgs,
+  ];
+}
+
 function controlPathFor(sessionId: string, target: string): string {
   mkdirSync(CONTROL_DIR, { recursive: true, mode: 0o700 });
   const key = createHash("sha256").update(`${sessionId}\0${target}`).digest("hex").slice(0, 20);
@@ -148,6 +160,13 @@ export class SshPortForwarding {
 
   isRemote(sessionId: string): boolean {
     return this.sessions.has(sessionId);
+  }
+
+  /** ssh argv (minus the remote command) that runs a command over the
+   *  session's existing master connection, without prompting for auth. */
+  execArgs(sessionId: string): string[] | null {
+    const session = this.sessions.get(sessionId);
+    return session ? sshExecArgs(session) : null;
   }
 
   snapshot(sessionId: string): SshPortForward[] {
@@ -222,16 +241,7 @@ export class SshPortForwarding {
   }
 
   private async runProbe(session: SshPortSession): Promise<number[]> {
-    const args = [
-      "-o",
-      "BatchMode=yes",
-      "-o",
-      "ControlMaster=no",
-      "-S",
-      session.controlPath,
-      ...session.connectionArgs,
-      REMOTE_LISTEN_COMMAND,
-    ];
+    const args = [...sshExecArgs(session), REMOTE_LISTEN_COMMAND];
     const { stdout } = await execFileAsync("ssh", args, {
       timeout: SSH_TIMEOUT_MS,
       maxBuffer: MAX_BUFFER,

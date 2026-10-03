@@ -272,6 +272,8 @@ export default {
   "ssh.passwordHint": "Hasło wpiszesz bezpiecznie w terminalu podczas łączenia. Nigdy nie jest zapisywane.",
   "ssh.identityHint": "Dla tego połączenia używaj wyłącznie wybranego pliku klucza prywatnego.",
   "ssh.identityFile": "Ścieżka pliku klucza",
+  "ssh.remoteDir": "Katalog zdalny (opcjonalnie)",
+  "ssh.remoteDirPlaceholder": "Katalog domowy",
   "ssh.editConnection": "Edytuj połączenie",
   "ssh.deleteConnection": "Usuń połączenie",
   "ssh.sessionEnded": "Sesja SSH zakończona — naciśnij Enter, aby połączyć się ponownie",

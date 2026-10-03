@@ -272,6 +272,8 @@ export default {
   "ssh.passwordHint": "कनेक्ट करते समय आप पासवर्ड टर्मिनल में सुरक्षित रूप से डालेंगे। यह कभी सहेजा नहीं जाता।",
   "ssh.identityHint": "इस कनेक्शन के लिए सिर्फ़ चुनी गई निजी-कुंजी फ़ाइल का उपयोग करें।",
   "ssh.identityFile": "आइडेंटिटी फ़ाइल का पथ",
+  "ssh.remoteDir": "रिमोट डायरेक्टरी (वैकल्पिक)",
+  "ssh.remoteDirPlaceholder": "होम डायरेक्टरी",
   "ssh.editConnection": "कनेक्शन संपादित करें",
   "ssh.deleteConnection": "कनेक्शन हटाएँ",
   "ssh.sessionEnded": "SSH सत्र समाप्त हुआ — दोबारा जुड़ने के लिए Enter दबाएँ",

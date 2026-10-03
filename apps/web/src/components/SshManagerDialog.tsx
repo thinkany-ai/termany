@@ -14,6 +14,7 @@ export interface SshProfile {
   port?: number;
   authMethod?: "default" | "password" | "identity";
   identityFile?: string;
+  remoteDir?: string;
 }
 
 type AuthMethod = NonNullable<SshProfile["authMethod"]>;
@@ -120,6 +121,7 @@ export function SshManagerDialog({
       ...withHost,
       authMethod,
       identityFile: authMethod === "identity" ? withHost.identityFile : undefined,
+      remoteDir: withHost.remoteDir?.trim() || undefined,
     };
   };
 
@@ -196,6 +198,7 @@ export function SshManagerDialog({
               <p>{t(authMethod === "password" ? "ssh.passwordHint" : authMethod === "identity" ? "ssh.identityHint" : "ssh.defaultAuthHint")}</p>
             </fieldset>
             {authMethod === "identity" && <label>{t("ssh.identityFile")}<input {...textInputProps} placeholder="~/.ssh/id_ed25519" value={form.identityFile ?? ""} onChange={(e) => setForm({ ...form, identityFile: e.target.value })} /></label>}
+            <label>{t("ssh.remoteDir")}<input {...textInputProps} placeholder={t("ssh.remoteDirPlaceholder")} value={form.remoteDir ?? ""} onChange={(e) => setForm({ ...form, remoteDir: e.target.value })} /></label>
             {error && <div className="ssh-manager-error">{error}</div>}
             <div className="ssh-manager-actions">
               <div className={`ssh-test-status ${testStatus ?? ""}`}>{testStatus ? t(`ssh.test.${testStatus}`) : ""}</div>

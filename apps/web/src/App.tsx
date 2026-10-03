@@ -16,7 +16,7 @@ import { WindowControls } from "./components/WindowControls";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { isTauri } from "./env";
 import { ACTIONS, matchChord } from "./keybindings";
-import { activeHtab, activeNode, focusedCwdSession, leafIds, useStore } from "./state/store";
+import { activeHtab, activeNode, focusedHostSession, leafIds, useStore } from "./state/store";
 import { openNewWindow } from "./state/windows";
 import {
   adjustTerminalFontSize,
@@ -126,7 +126,7 @@ export function App() {
   const [findOpen, setFindOpen] = useState(false);
   const settingsOpen = settingsSection !== null;
   const focusedPane = htab?.focused;
-  const gitSession = useStore(focusedCwdSession);
+  const gitSession = useStore(focusedHostSession);
   const userNickname = useStore((state) => state.userProfile.nickname);
   const setUserProfile = useStore((state) => state.setUserProfile);
 

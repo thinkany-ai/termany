@@ -1,6 +1,7 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { execFile } from "node:child_process";
 import fs from "node:fs";
-import path from "node:path";
+import nodePath from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -77,16 +78,60 @@ export type GitDiff = {
   truncated?: boolean;
 };
 
-async function git(args: string[], cwd: string): Promise<string> {
-  // core.quotepath=false keeps non-ASCII paths readable in diff headers
-  // instead of octal-escaped (\344\270\255).
-  const { stdout } = await execFileAsync("git", ["-c", "core.quotepath=false", ...args], {
-    cwd,
-    timeout: GIT_TIMEOUT_MS,
-    maxBuffer: GIT_MAX_BUFFER,
-    windowsHide: true,
-  });
-  return stdout;
+/**
+ * The machine a repo lives on. Everything below reads through the host of the
+ * current request, so the same overview/diff logic serves an SSH pane's repo
+ * by running git over that connection (see withGitHost).
+ */
+export interface GitHost {
+  /** `git -c core.quotepath=false <args>` in `cwd`; resolves stdout. */
+  git(args: string[], cwd: string): Promise<string>;
+  /** Up to `max` bytes from the start of a file plus its full size, or null. */
+  readHead(abs: string, max: number): Promise<{ buf: Buffer; size: number } | null>;
+  /** Path flavor of the host — remote hosts are always POSIX. */
+  path: typeof nodePath;
+}
+
+const localHost: GitHost = {
+  async git(args, cwd) {
+    // core.quotepath=false keeps non-ASCII paths readable in diff headers
+    // instead of octal-escaped (\344\270\255).
+    const { stdout } = await execFileAsync("git", ["-c", "core.quotepath=false", ...args], {
+      cwd,
+      timeout: GIT_TIMEOUT_MS,
+      maxBuffer: GIT_MAX_BUFFER,
+      windowsHide: true,
+    });
+    return stdout;
+  },
+  async readHead(abs, max) {
+    let handle: fs.promises.FileHandle | undefined;
+    try {
+      handle = await fs.promises.open(abs, "r");
+      const stat = await handle.stat();
+      const head = Buffer.allocUnsafe(Math.min(stat.size, max));
+      const { bytesRead } = await handle.read(head, 0, head.length, 0);
+      return { buf: head.subarray(0, bytesRead), size: stat.size };
+    } catch {
+      return null;
+    } finally {
+      await handle?.close().catch(() => undefined);
+    }
+  },
+  path: nodePath,
+};
+
+const hostScope = new AsyncLocalStorage<GitHost>();
+
+/** Run `fn` (and every git call it makes) against `host` instead of this machine. */
+export function withGitHost<T>(host: GitHost, fn: () => Promise<T>): Promise<T> {
+  return hostScope.run(host, fn);
+}
+
+const host = () => hostScope.getStore() ?? localHost;
+
+function git(args: string[], cwd: string): Promise<string> {
+  return host().git(args, cwd);
 }
 
 /** The repo root containing `cwd`, or null when `cwd` is not inside a work tree. */
@@ -94,7 +139,7 @@ export async function repoRoot(cwd: string): Promise<string | null> {
   try {
     const out = await git(["rev-parse", "--show-toplevel"], cwd);
     const root = out.trim();
-    return root ? path.resolve(root) : null;
+    return root ? host().path.resolve(root) : null;
   } catch {
     return null;
   }
@@ -157,8 +202,8 @@ async function listWorktrees(root: string): Promise<Omit<GitWorktree, "files">[]
       const branch = lines.find((l) => l.startsWith("branch "))?.slice(7) ?? "";
       const head = lines.find((l) => l.startsWith("HEAD "))?.slice(5) ?? "";
       list.push({
-        path: path.resolve(dir),
-        name: path.basename(dir),
+        path: host().path.resolve(dir),
+        name: host().path.basename(dir),
         // A detached worktree has no branch line; its short sha names it.
         branch: branch.replace(/^refs\/heads\//, "") || head.slice(0, 7) || "HEAD",
         main: list.length === 0,
@@ -367,7 +412,7 @@ async function resolveScope(cwd: string, worktree?: string) {
   const cwdRoot = await repoRoot(cwd);
   if (!cwdRoot) return null;
   const worktrees = await listWorktrees(cwdRoot);
-  const wanted = worktree ? path.resolve(worktree) : undefined;
+  const wanted = worktree ? host().path.resolve(worktree) : undefined;
   const selected = wanted ? worktrees.find((w) => w.path === wanted) : undefined;
   return { root: selected?.path ?? cwdRoot, worktrees, selected };
 }
@@ -443,8 +488,8 @@ export async function gitOverview(cwd: string, scope: GitScope = {}): Promise<Gi
 
 /** Reject paths that escape the repo root (`../`, absolute, symlink-ish tricks). */
 function insideRoot(root: string, relative: string): string | null {
-  const abs = path.resolve(root, relative);
-  if (abs !== root && !abs.startsWith(root + path.sep)) return null;
+  const abs = host().path.resolve(root, relative);
+  if (abs !== root && !abs.startsWith(root + host().path.sep)) return null;
   return abs;
 }
 
@@ -470,21 +515,10 @@ function cap(diff: string): GitDiff {
  * and portable.
  */
 async function untrackedDiff(abs: string, relative: string): Promise<GitDiff> {
-  let handle: fs.promises.FileHandle | undefined;
-  let buf: Buffer;
-  let fileTruncated = false;
-  try {
-    handle = await fs.promises.open(abs, "r");
-    const stat = await handle.stat();
-    const head = Buffer.allocUnsafe(Math.min(stat.size, DIFF_CAP + 1));
-    const { bytesRead } = await handle.read(head, 0, head.length, 0);
-    buf = head.subarray(0, Math.min(bytesRead, DIFF_CAP));
-    fileTruncated = stat.size > DIFF_CAP;
-  } catch {
-    return { diff: "" };
-  } finally {
-    await handle?.close().catch(() => undefined);
-  }
+  const head = await host().readHead(abs, DIFF_CAP + 1);
+  if (!head) return { diff: "" };
+  const buf = head.buf.subarray(0, DIFF_CAP);
+  const fileTruncated = head.size > DIFF_CAP;
   // Same heuristic as /api/fs/read: a NUL byte in the head means "not text".
   if (buf.subarray(0, 8000).includes(0)) return { diff: "", binary: true };
   const text = buf.toString("utf8");

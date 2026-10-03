@@ -120,7 +120,7 @@ export function SideRail({
   };
 
   const openPane = (view: PaneView) => {
-    const paneId = addPane(view);
+    const paneId = addPane(view, undefined, undefined, { inheritSsh: true });
     if (paneId) return;
     const focused = activeHtab(useStore.getState())?.focused;
     if (focused) setPaneView(focused, view);

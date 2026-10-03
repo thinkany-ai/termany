@@ -4,8 +4,8 @@ import { useAgentConfigs } from "../agents";
 import { apiPath } from "../api";
 import { useI18n } from "../i18n";
 import { useImeGuard } from "../imeGuard";
-import { agentSessionPanes, focusedCwdSession, useStore } from "../state/store";
-import { queueCommand } from "../terminal/manager";
+import { activeHtab, agentSessionPanes, findLeaf, focusedCwdSession, remoteLeafFor, useStore } from "../state/store";
+import { paneHasShell, queueCommand, queueCommandWhenShellReady, terminalSessionId } from "../terminal/manager";
 import { AgentIcon, HistoryIcon } from "./icons";
 
 type Translate = ReturnType<typeof useI18n>["t"];
@@ -121,12 +121,16 @@ function formatTokens(n: number): string {
  * project directory (resume only works from there — a deleted worktree falls
  * back to the repo root), and runs the agent's resume command.
  */
-export function AgentHistory({ autoFocus = false }: { autoFocus?: boolean }) {
+export function AgentHistory({ paneId: historyPaneId, autoFocus = false }: { paneId?: string; autoFocus?: boolean }) {
   const { t } = useI18n();
   const ime = useImeGuard();
   const addPane = useStore((s) => s.addPane);
   const jumpToResult = useStore((s) => s.jumpToResult);
   const setPaneAgentSession = useStore((s) => s.setPaneAgentSession);
+  const setPaneSshTarget = useStore((s) => s.setPaneSshTarget);
+  const setPaneView = useStore((s) => s.setPaneView);
+  const closePane = useStore((s) => s.closePane);
+  const renamePane = useStore((s) => s.renamePane);
   const workspaces = useStore((s) => s.workspaces);
   const agents = useAgentConfigs().filter((a) => a.enabled);
   const [agentId, setAgentId] = useState(agents[0]?.id ?? "claude");
@@ -141,8 +145,19 @@ export function AgentHistory({ autoFocus = false }: { autoFocus?: boolean }) {
   const [scopeInfo, setScopeInfo] = useState<ScopeInfo | null | undefined>(undefined);
   const [scope, setScope] = useState<"scoped" | "all">("scoped");
   // The pane this history view was created from, frozen so later focus changes
-  // do not reshuffle the list mid-use.
-  const [gitSession] = useState(() => focusedCwdSession(useStore.getState()));
+  // do not reshuffle the list mid-use. When that pane is an SSH one, the
+  // history is the host's — its agents run there, and so do their resumes.
+  const [{ gitSession, ssh }] = useState(() => {
+    const state = useStore.getState();
+    const id = focusedCwdSession(state);
+    const leaf = id ? remoteLeafFor(state, id) : undefined;
+    return leaf?.sshTarget
+      ? {
+          gitSession: terminalSessionId(leaf.id, leaf.sshTarget),
+          ssh: { target: leaf.sshTarget, label: leaf.sshLabel, session: terminalSessionId(leaf.id, leaf.sshTarget) },
+        }
+      : { gitSession: id, ssh: undefined };
+  });
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -176,7 +191,9 @@ export function AgentHistory({ autoFocus = false }: { autoFocus?: boolean }) {
         });
         return;
       }
-      const dir = await get(`/api/agent/acp/cwd?cwdFrom=${session}`);
+      // The directory fallback reads this machine's shells; a remote pane
+      // outside a repo just lists everything on its host.
+      const dir = ssh ? null : await get(`/api/agent/acp/cwd?cwdFrom=${session}`);
       if (cancelled) return;
       // A pane sitting in the home dir has no meaningful "here" to scope to.
       if (dir?.cwd && dir.cwd !== dir.home) {
@@ -189,7 +206,7 @@ export function AgentHistory({ autoFocus = false }: { autoFocus?: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, [gitSession]);
+  }, [gitSession, ssh]);
 
   const listKey = scope === "scoped" && scopeInfo ? `${agentId}|scoped` : agentId;
   const page = byKey[listKey];
@@ -202,6 +219,7 @@ export function AgentHistory({ autoFocus = false }: { autoFocus?: boolean }) {
     let cancelled = false;
     setError(false);
     const params = new URLSearchParams({ agent: agentId, limit: String(SESSION_PAGE_SIZE) });
+    if (ssh) params.set("session", ssh.session);
     if (scope === "scoped" && scopeInfo) for (const r of scopeInfo.roots) params.append("root", r);
     fetch(apiPath(`/api/agent-sessions?${params}`))
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
@@ -226,7 +244,7 @@ export function AgentHistory({ autoFocus = false }: { autoFocus?: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, [agentId, listKey, byKey, scope, scopeInfo]);
+  }, [agentId, listKey, byKey, scope, scopeInfo, ssh]);
 
   const loadMore = () => {
     const current = byKey[listKey];
@@ -238,6 +256,7 @@ export function AgentHistory({ autoFocus = false }: { autoFocus?: boolean }) {
       limit: String(SESSION_PAGE_SIZE),
       cursor,
     });
+    if (ssh) params.set("session", ssh.session);
     if (scope === "scoped" && scopeInfo) for (const root of scopeInfo.roots) params.append("root", root);
     fetch(apiPath(`/api/agent-sessions?${params}`))
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
@@ -318,10 +337,38 @@ export function AgentHistory({ autoFocus = false }: { autoFocus?: boolean }) {
   // Conversations already hosted by an open pane (registered on resume).
   const openPanes = useMemo(() => agentSessionPanes(workspaces), [workspaces]);
 
+  /** The history pane, when this view is one and sits in the active tab. */
+  const historyLeaf = () => {
+    const htab = historyPaneId ? activeHtab(useStore.getState()) : undefined;
+    return htab && historyPaneId ? findLeaf(htab.layout, historyPaneId) : undefined;
+  };
+
+  /**
+   * Where a picked conversation runs. A pane that only ever showed history
+   * becomes the conversation's terminal in place — same slot, same size. One
+   * with a shell behind it (a terminal switched to this view) goes back to
+   * that shell instead, since typing into it would interrupt whatever runs
+   * there, and the conversation opens in a new pane beside it.
+   */
+  const conversationPane = (): string | null => {
+    const leaf = historyLeaf();
+    if (leaf && !leaf.sshTarget && !paneHasShell(leaf.id)) {
+      setPaneView(leaf.id, "terminal");
+      renamePane(leaf.id, agentId);
+      return leaf.id;
+    }
+    if (leaf) setPaneView(leaf.id, "terminal");
+    return addPane("terminal", agentId, leaf?.id);
+  };
+
   const resume = (s: AgentSession) => {
     // Already open in a pane → go there instead of resuming a second copy.
     const loc = openPanes.get(`${agentId}|${s.sessionId}`);
     if (loc) {
+      // Nothing to run here, so the history just goes away.
+      const leaf = historyLeaf();
+      if (leaf && !leaf.sshTarget && !paneHasShell(leaf.id)) closePane(leaf.id);
+      else if (leaf) setPaneView(leaf.id, "terminal");
       jumpToResult(loc);
       return;
     }
@@ -338,9 +385,17 @@ export function AgentHistory({ autoFocus = false }: { autoFocus?: boolean }) {
     // next-best home for that conversation. Outside a scope we can't tell
     // which repo it belonged to, so just resume from wherever the shell lands.
     const cwd = s.cwdMissing ? (scope === "scoped" ? scopeInfo?.mainRoot ?? null : null) : s.cwd;
-    const paneId = addPane("terminal", agentId);
+    const paneId = conversationPane();
     if (paneId) {
-      queueCommand(paneId, cwd ? `cd ${shellQuote(cwd)} && ${run}` : run);
+      const command = cwd ? `cd ${shellQuote(cwd)} && ${run}` : run;
+      if (ssh) {
+        // Resume on the host the transcript lives on. The connection may still
+        // be authenticating, so wait for the remote prompt before typing.
+        setPaneSshTarget(paneId, ssh.target, ssh.label);
+        queueCommandWhenShellReady(terminalSessionId(paneId, ssh.target), command);
+      } else {
+        queueCommand(paneId, command);
+      }
       setPaneAgentSession(paneId, { agent: agentId, sessionId: s.sessionId });
     }
   };

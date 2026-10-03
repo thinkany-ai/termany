@@ -6,7 +6,16 @@ import { useI18n } from "../i18n";
 import { useImeGuard } from "../imeGuard";
 import { registerOccluder, unregisterOccluder } from "../nativeViewOcclusion";
 import { withShortcut } from "../keybindings";
-import { activeHtab, paneCount, useStore, type DropEdge, type HTab, type Pane } from "../state/store";
+import {
+  activeHtab,
+  paneCount,
+  remoteSessionFor,
+  SSH_PANE_VIEWS,
+  useStore,
+  type DropEdge,
+  type HTab,
+  type Pane,
+} from "../state/store";
 import {
   acknowledgeAgentActivities,
   aggregateAgentActivity,
@@ -263,9 +272,9 @@ function PaneViewMenu({ leaf }: { leaf: Leaf }) {
 
   const current = leaf.view ?? "terminal";
   const CurrentIcon = PANE_VIEWS.find((entry) => entry.view === current)!.Icon;
-  const availableViews = leaf.sshTarget
-    ? PANE_VIEWS.filter((entry) => entry.view === "terminal")
-    : PANE_VIEWS.filter((entry) => railVisibility[entry.view]);
+  const availableViews = PANE_VIEWS.filter(
+    (entry) => railVisibility[entry.view] && (!leaf.sshTarget || SSH_PANE_VIEWS.includes(entry.view)),
+  );
   return (
     <div className="pane-view-menu" ref={rootRef}>
       <button
@@ -436,6 +445,7 @@ function PaneSlot({
   const focused = useStore((s) => activeHtab(s)?.focused === leaf.id);
   const setFocusedPane = useStore((s) => s.setFocusedPane);
   const setPaneWebUrl = useStore((s) => s.setPaneWebUrl);
+  const remoteSession = useStore((s) => (leaf.view === "git" ? remoteSessionFor(s, leaf.id) : undefined));
   const dropEdge = dropTarget?.id === leaf.id ? dropTarget.edge : null;
   const isTerminal = (leaf.view ?? "terminal") === "terminal";
 
@@ -480,11 +490,11 @@ function PaneSlot({
             explicitSelected={leaf.filesSelected}
           />
         ) : leaf.view === "git" ? (
-          <GitDiffView session={leaf.cwdFrom ?? leaf.id} variant="pane" viewId={leaf.id} />
+          <GitDiffView session={remoteSession ?? leaf.cwdFrom ?? leaf.id} variant="pane" viewId={leaf.id} />
         ) : leaf.view === "monitor" ? (
           <SystemMonitor />
         ) : leaf.view === "history" ? (
-          <AgentHistory autoFocus={focused} />
+          <AgentHistory paneId={leaf.id} autoFocus={focused} />
         ) : leaf.view === "usage" ? (
           <AgentUsage />
         ) : leaf.view === "providers" ? (

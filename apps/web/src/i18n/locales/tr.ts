@@ -271,6 +271,8 @@ export default {
   "ssh.passwordHint": "Parolayı bağlanırken terminalde güvenle gireceksiniz. Hiçbir zaman kaydedilmez.",
   "ssh.identityHint": "Bu bağlantı için yalnızca seçilen özel anahtar dosyasını kullanır.",
   "ssh.identityFile": "Anahtar dosyası yolu",
+  "ssh.remoteDir": "Uzak dizin (isteğe bağlı)",
+  "ssh.remoteDirPlaceholder": "Ana dizin",
   "ssh.editConnection": "Bağlantıyı düzenle",
   "ssh.deleteConnection": "Bağlantıyı sil",
   "ssh.sessionEnded": "SSH oturumu sona erdi — yeniden bağlanmak için Enter'a basın",

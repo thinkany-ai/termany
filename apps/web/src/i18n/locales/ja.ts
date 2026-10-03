@@ -271,6 +271,8 @@ export default {
   "ssh.passwordHint": "接続時にターミナル上で安全にパスワードを入力します。保存されることはありません。",
   "ssh.identityHint": "この接続では選択した秘密鍵ファイルのみを使います。",
   "ssh.identityFile": "秘密鍵ファイルのパス",
+  "ssh.remoteDir": "リモートディレクトリ（任意）",
+  "ssh.remoteDirPlaceholder": "ホームディレクトリ",
   "ssh.editConnection": "接続を編集",
   "ssh.deleteConnection": "接続を削除",
   "ssh.sessionEnded": "SSH セッションが終了しました — Enter で再接続",

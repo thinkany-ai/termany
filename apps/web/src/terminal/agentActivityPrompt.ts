@@ -100,6 +100,11 @@ const SHELL_PROMPT_TAIL_RE = /[$%#❯➜\uE0B0-\uE0B7]$/;
  * '<' is read as markup rather than as a prompt.
  */
 const FISH_PROMPT_TAIL_RE = /^(?:>|[^<]*[^-=/><]>)$/;
+/**
+ * oh-my-zsh's default theme (robbyrussell) leads with the arrow and ends on
+ * the directory or git status, optionally behind a `(base)`-style env tag.
+ */
+const ARROW_PROMPT_HEAD_RE = /^(?:\([\w.-]+\)\s+)?➜\s/;
 const INLINE_CONFIRMATION_RE =
   /(?:\[|\()\s*(?:y(?:es)?)\s*\/\s*(?:n(?:o)?)\s*(?:\]|\))|\byes\s*\/\s*no\b/i;
 const CONFIRMATION_QUESTION_RE =
@@ -158,7 +163,7 @@ export function shellPromptVisible(visible: string): boolean {
   if (!rows.length) return false;
   const row = rows[0];
   if (row.length > SHELL_PROMPT_MAX_CHARS) return false;
-  return SHELL_PROMPT_TAIL_RE.test(row) || FISH_PROMPT_TAIL_RE.test(row);
+  return SHELL_PROMPT_TAIL_RE.test(row) || FISH_PROMPT_TAIL_RE.test(row) || ARROW_PROMPT_HEAD_RE.test(row);
 }
 
 /**

@@ -108,6 +108,11 @@ test("shells that do not end in $ or % still read as a prompt", () => {
   assert.equal(shellPromptVisible("$ "), true);
   assert.equal(shellPromptVisible("❯ "), true);
   assert.equal(shellPromptVisible("root@box:/srv# "), true);
+  // oh-my-zsh robbyrussell: the arrow leads, the git status trails.
+  assert.equal(shellPromptVisible("➜  poet-app git:(main) ✗"), true);
+  assert.equal(shellPromptVisible("(base) ➜  poet-app git:(main)"), true);
+  assert.equal(shellPromptVisible("(base) ➜  ~"), true);
+  assert.equal(shellPromptVisible("Building ➜ dist"), false);
 });
 
 test("a shell startup question is not mistaken for a ready prompt", () => {

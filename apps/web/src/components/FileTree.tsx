@@ -5,8 +5,8 @@ import { DocxPreview, PptxPreview, XlsxPreview } from "./OfficePreview";
 import { apiUrl } from "../api";
 import { useImeGuard } from "../imeGuard";
 import { revealPath } from "../openExternal";
-import { activeHtab, findLeaf, useStore } from "../state/store";
-import { sendCommand } from "../terminal/manager";
+import { activeHtab, findLeaf, remoteSessionFor, useStore } from "../state/store";
+import { sendCommand, terminalSessionId } from "../terminal/manager";
 import {
   ChevronIcon,
   CloseIcon,
@@ -32,6 +32,12 @@ function basename(path: string): string {
  *  containing a literal `"` would need shell-specific escaping. */
 function quoteForShell(path: string): string {
   return `"${path.replace(/"/g, '\\"')}"`;
+}
+
+/** An /api/fs URL. `remote` is the SSH terminal session whose host the path
+ *  lives on (see remoteSessionFor); without it the path is local. */
+function fsUrl(endpoint: string, params: Record<string, string>, remote?: string): string {
+  return `${apiUrl()}/api/fs/${endpoint}?${new URLSearchParams(remote ? { ...params, session: remote } : params)}`;
 }
 
 type MediaKind = "image" | "video" | "audio" | "pdf" | "docx" | "xlsx" | "pptx";
@@ -160,7 +166,7 @@ function dirname(path: string): string {
  *  Absolute URLs and data: URIs pass through; a repo-relative path (the common
  *  case — `docs/hero.png`) is resolved against the doc's own directory
  *  and served through the media endpoint, since the web app has no filesystem. */
-function resolveDocUrl(target: string, baseDir: string): string {
+function resolveDocUrl(target: string, baseDir: string, remote?: string): string {
   if (/^(https?:|data:|mailto:|#)/i.test(target)) return target;
   const abs = /^([\\/]|[A-Za-z]:)/.test(target) || !baseDir ? target : `${baseDir}/${target}`;
   const parts: string[] = [];
@@ -170,12 +176,12 @@ function resolveDocUrl(target: string, baseDir: string): string {
     else parts.push(seg);
   }
   const normalized = (abs.startsWith("/") ? "/" : "") + parts.join("/");
-  return `${apiUrl()}/api/fs/media?${new URLSearchParams({ path: normalized })}`;
+  return fsUrl("media", { path: normalized }, remote);
 }
 
 /** `baseDir` is the containing directory of the markdown file being previewed;
  *  it's what relative image sources resolve against. */
-function inlineMarkdown(text: string, baseDir = ""): Array<string | JSX.Element> {
+function inlineMarkdown(text: string, baseDir = "", remote?: string): Array<string | JSX.Element> {
   const out: Array<string | JSX.Element> = [];
   // Order matters. A linked image `[![alt](src)](href)` must be tried before
   // the bare image inside it, and images before links, or each longer form
@@ -190,21 +196,21 @@ function inlineMarkdown(text: string, baseDir = ""): Array<string | JSX.Element>
     if (token.startsWith("`")) out.push(<code key={i++}>{token.slice(1, -1)}</code>);
     else if (token.startsWith("![")) {
       const img = /^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)$/.exec(token);
-      if (img) out.push(<img key={i++} src={resolveDocUrl(img[2], baseDir)} alt={img[1]} />);
+      if (img) out.push(<img key={i++} src={resolveDocUrl(img[2], baseDir, remote)} alt={img[1]} />);
       else out.push(token);
     }
     // Emphasis recurses: its content can itself hold links, code, or images.
     else if (token.startsWith("**"))
-      out.push(<strong key={i++}>{inlineMarkdown(token.slice(2, -2), baseDir)}</strong>);
+      out.push(<strong key={i++}>{inlineMarkdown(token.slice(2, -2), baseDir, remote)}</strong>);
     else if (token.startsWith("*"))
-      out.push(<em key={i++}>{inlineMarkdown(token.slice(1, -1), baseDir)}</em>);
+      out.push(<em key={i++}>{inlineMarkdown(token.slice(1, -1), baseDir, remote)}</em>);
     else {
       // Greedy label so a linked image `[![alt](src)](href)` splits at the
       // final `](`; the label then recurses and renders as the image.
       const link = /^\[(.+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)$/.exec(token);
       out.push(
         <a key={i++} href={link?.[2] ?? "#"} target="_blank" rel="noreferrer">
-          {link ? inlineMarkdown(link[1], baseDir) : token}
+          {link ? inlineMarkdown(link[1], baseDir, remote) : token}
         </a>
       );
     }
@@ -214,7 +220,7 @@ function inlineMarkdown(text: string, baseDir = ""): Array<string | JSX.Element>
   return out;
 }
 
-function MarkdownPreview({ content, baseDir }: { content: string; baseDir: string }) {
+function MarkdownPreview({ content, baseDir, remote }: { content: string; baseDir: string; remote?: string }) {
   const blocks: JSX.Element[] = [];
   const lines = content.replace(/\r\n?/g, "\n").split("\n");
   let paragraph: string[] = [];
@@ -224,7 +230,7 @@ function MarkdownPreview({ content, baseDir }: { content: string; baseDir: strin
 
   const flushParagraph = () => {
     if (!paragraph.length) return;
-    blocks.push(<p key={`p-${blocks.length}`}>{inlineMarkdown(paragraph.join(" "), baseDir)}</p>);
+    blocks.push(<p key={`p-${blocks.length}`}>{inlineMarkdown(paragraph.join(" "), baseDir, remote)}</p>);
     paragraph = [];
   };
   const flushList = () => {
@@ -234,7 +240,7 @@ function MarkdownPreview({ content, baseDir }: { content: string; baseDir: strin
     blocks.push(
       <Tag key={`l-${blocks.length}`}>
         {list.map((item, idx) => (
-          <li key={idx}>{inlineMarkdown(item.text, baseDir)}</li>
+          <li key={idx}>{inlineMarkdown(item.text, baseDir, remote)}</li>
         ))}
       </Tag>
     );
@@ -266,7 +272,7 @@ function MarkdownPreview({ content, baseDir }: { content: string; baseDir: strin
       flushList();
       const level = heading[1].length;
       const Tag = `h${level}` as keyof JSX.IntrinsicElements;
-      blocks.push(<Tag key={`h-${blocks.length}`}>{inlineMarkdown(heading[2], baseDir)}</Tag>);
+      blocks.push(<Tag key={`h-${blocks.length}`}>{inlineMarkdown(heading[2], baseDir, remote)}</Tag>);
       continue;
     }
     if (/^\s*[-*_]{3,}\s*$/.test(line)) {
@@ -279,7 +285,7 @@ function MarkdownPreview({ content, baseDir }: { content: string; baseDir: strin
     if (quote) {
       flushParagraph();
       flushList();
-      blocks.push(<blockquote key={`q-${blocks.length}`}>{inlineMarkdown(quote[1], baseDir)}</blockquote>);
+      blocks.push(<blockquote key={`q-${blocks.length}`}>{inlineMarkdown(quote[1], baseDir, remote)}</blockquote>);
       continue;
     }
     const bullet = /^\s*[-*+]\s+(.*)$/.exec(line);
@@ -430,12 +436,15 @@ interface Selected {
  */
 function FilePreview({
   selected,
+  remote,
   dark,
   treeCollapsed,
   onToggleTree,
   onClose,
 }: {
   selected: Selected;
+  /** SSH session the file lives on — no Finder to reveal it in. */
+  remote?: string;
   dark: boolean;
   treeCollapsed: boolean;
   onToggleTree: () => void;
@@ -461,14 +470,14 @@ function FilePreview({
     fetch(`${apiUrl()}/api/fs/write`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path, content: text }),
+      body: JSON.stringify({ path, content: text, session: remote }),
     })
       .then(async (res) => {
         if (!res.ok) throw new Error(((await res.json().catch(() => null)) as { error?: string } | null)?.error || `HTTP ${res.status}`);
         setDirty(false);
       })
       .catch((e) => setSaveError(e instanceof Error ? e.message : String(e)));
-  }, []);
+  }, [remote]);
 
   const header = (
     <div className="file-tree-head">
@@ -488,9 +497,11 @@ function FilePreview({
           {showSource ? <PreviewIcon /> : <SourceIcon />}
         </button>
       )}
-      <button className="pane-btn" title="Reveal in Finder" onClick={() => revealInFinder(selected.path)}>
-        <RevealFolderIcon />
-      </button>
+      {!remote && (
+        <button className="pane-btn" title="Reveal in Finder" onClick={() => revealInFinder(selected.path)}>
+          <RevealFolderIcon />
+        </button>
+      )}
       <button className="pane-btn" title="Close preview" onClick={onClose}>
         <CloseIcon />
       </button>
@@ -507,7 +518,7 @@ function FilePreview({
 
   if (selected.status === "binary") {
     const mediaKind = mediaKindForPath(selected.path);
-    const mediaSrc = `${apiUrl()}/api/fs/media?${new URLSearchParams({ path: selected.path })}`;
+    const mediaSrc = fsUrl("media", { path: selected.path }, remote);
     if (mediaKind) {
       return (
         <div className="file-preview-panel">
@@ -530,9 +541,11 @@ function FilePreview({
         {header}
         <div className="file-unsupported-preview">
           <FileEntryIcon />
-          <button className="file-open-finder-btn" onClick={() => revealInFinder(selected.path)}>
-            Reveal in Finder
-          </button>
+          {!remote && (
+            <button className="file-open-finder-btn" onClick={() => revealInFinder(selected.path)}>
+              Reveal in Finder
+            </button>
+          )}
         </div>
         {openError && <div className="file-tree-message file-preview-error">{openError}</div>}
       </div>
@@ -568,14 +581,15 @@ function FilePreview({
       {header}
       {selected.truncated && (
         <div className="file-tree-message">
-          File is larger than the 2 MB preview limit — showing (read-only) the start of it. Use "Reveal
-          in Finder" to open the whole file yourself.
+          {remote
+            ? "File is larger than the 2 MB preview limit — showing (read-only) the start of it."
+            : 'File is larger than the 2 MB preview limit — showing (read-only) the start of it. Use "Reveal in Finder" to open the whole file yourself.'}
         </div>
       )}
       {saveError && <div className="file-tree-message file-preview-error">Save failed: {saveError}</div>}
       {openError && <div className="file-tree-message file-preview-error">{openError}</div>}
       {rendered === "markdown" ? (
-        <MarkdownPreview content={selected.content ?? ""} baseDir={dirname(selected.path)} />
+        <MarkdownPreview content={selected.content ?? ""} baseDir={dirname(selected.path)} remote={remote} />
       ) : rendered === "html" ? (
         <iframe
           className="html-preview"
@@ -645,11 +659,27 @@ const stateCache = new Map<string, FileTreeState>();
  * terminal it's attached to (not a global overlay), so each pane can
  * independently show its own terminal or its own file tree.
  */
-export function FileTree({
+export function FileTree(props: {
+  sessionId: string;
+  initialCwdFrom?: string;
+  explicitRoot?: string;
+  explicitSelected?: string;
+}) {
+  // Which machine the tree is on follows the pane's connection (or its
+  // anchor's). A different machine is a different tree entirely, so it gets
+  // its own cache entry and a fresh instance rather than morphing in place.
+  const remote = useStore((s) => remoteSessionFor(s, props.sessionId));
+  const cacheKey = remote ? `${props.sessionId}@${remote}` : props.sessionId;
+  return <FileTreeView key={cacheKey} {...props} remote={remote} cacheKey={cacheKey} />;
+}
+
+function FileTreeView({
   sessionId,
   initialCwdFrom,
   explicitRoot,
   explicitSelected,
+  remote,
+  cacheKey,
 }: {
   sessionId: string;
   /** A files-view pane has no PTY session of its own to resolve a live cwd
@@ -661,13 +691,17 @@ export function FileTree({
   initialCwdFrom?: string;
   explicitRoot?: string;
   explicitSelected?: string;
+  /** SSH terminal session to browse the host of; undefined = local disk. */
+  remote?: string;
+  /** stateCache key: the pane, plus the host when it's remote. */
+  cacheKey: string;
 }) {
   const clearPathInPane = useStore((s) => s.clearPathInPane);
   // Read once per render — cheap, and the editor only needs it at creation
   // anyway (see CodeEditor's own comment on why it doesn't react to changes).
   const dark = document.documentElement.dataset.appearance !== "light";
 
-  const initial = stateCache.get(sessionId) ?? emptyFileTreeState();
+  const initial = stateCache.get(cacheKey) ?? emptyFileTreeState();
   const [root, setRoot] = useState(initial.root);
   const [rootError, setRootError] = useState(initial.rootError);
   const [dirs, setDirs] = useState(initial.dirs);
@@ -719,7 +753,7 @@ export function FileTree({
 
   const loadDir = useCallback((path: string) => {
     setDirs((d) => ({ ...d, [path]: { status: "loading" } }));
-    fetch(`${apiUrl()}/api/fs/list?${new URLSearchParams({ path })}`)
+    fetch(fsUrl("list", { path }, remote))
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
@@ -729,13 +763,13 @@ export function FileTree({
         const msg = e instanceof Error ? e.message : String(e);
         setDirs((d) => ({ ...d, [path]: { status: "error", error: msg } }));
       });
-  }, []);
+  }, [remote]);
 
   // A genuinely new navigation (the address bar, below) — resets the tree,
   // since folders expanded under the OLD root have nothing to do with this one.
   const navigateTo = useCallback((path: string) => {
     setRootError(null);
-    fetch(`${apiUrl()}/api/fs/list?${new URLSearchParams({ path })}`)
+    fetch(fsUrl("list", { path }, remote))
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
@@ -746,11 +780,11 @@ export function FileTree({
         setSelected(null);
       })
       .catch((e) => setRootError(e instanceof Error ? e.message : String(e)));
-  }, []);
+  }, [remote]);
 
   const openExplicitRoot = useCallback((path: string, selectedFile?: string) => {
     setRootError(null);
-    fetch(`${apiUrl()}/api/fs/list?${new URLSearchParams({ path })}`)
+    fetch(fsUrl("list", { path }, remote))
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
@@ -760,7 +794,7 @@ export function FileTree({
         setExpanded(new Set());
         setCollapsedFrom(null);
         setSelected(nextSelected);
-        stateCache.set(sessionId, {
+        stateCache.set(cacheKey, {
           root: body.path,
           rootError: null,
           dirs: { [body.path]: { status: "loaded", entries: body.entries } },
@@ -771,7 +805,7 @@ export function FileTree({
         });
       })
       .catch((e) => setRootError(e instanceof Error ? e.message : String(e)));
-  }, [sessionId]);
+  }, [cacheKey, remote]);
 
   // Resolve root from the pane's LIVE session cwd — how a FRESH entry into
   // files view picks where to start (a remount re-opens its cached root
@@ -780,7 +814,9 @@ export function FileTree({
   // there.
   const resolveRootFromSession = useCallback(() => {
     setRootError(null);
-    fetch(`${apiUrl()}/api/fs/list?${new URLSearchParams({ session: initialCwdFrom ?? sessionId })}`)
+    // A remote tree asks the SSH session itself — the server finds that
+    // host's live shell cwd; a local one resolves through the anchor as ever.
+    fetch(fsUrl("list", { session: remote ?? initialCwdFrom ?? sessionId }))
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
@@ -796,13 +832,13 @@ export function FileTree({
         }
       })
       .catch((e) => setRootError(e instanceof Error ? e.message : String(e)));
-  }, [sessionId, initialCwdFrom]);
+  }, [sessionId, initialCwdFrom, remote]);
 
   // Mirror every render's state into the cache, keyed by this pane's session —
   // NOT scoped to a dependency list, since ANY of the pieces changing should
   // update it (cheap: a Map.set of a plain object).
   useEffect(() => {
-    stateCache.set(sessionId, { root, rootError, dirs, expanded, collapsedFrom, selected, lastCwd: lastKnownCwd.current });
+    stateCache.set(cacheKey, { root, rootError, dirs, expanded, collapsedFrom, selected, lastCwd: lastKnownCwd.current });
   });
 
   // Only hydrate from a DIFFERENT session's cache when `sessionId` actually
@@ -813,8 +849,8 @@ export function FileTree({
   const lastSessionId = useRef<string>();
   const lastExplicitRoot = useRef<string>();
   useEffect(() => {
-    if (lastSessionId.current !== undefined && lastSessionId.current !== sessionId) {
-      const cached = stateCache.get(sessionId) ?? emptyFileTreeState();
+    if (lastSessionId.current !== undefined && lastSessionId.current !== cacheKey) {
+      const cached = stateCache.get(cacheKey) ?? emptyFileTreeState();
       setRoot(cached.root);
       setRootError(cached.rootError);
       setDirs(cached.dirs);
@@ -823,7 +859,7 @@ export function FileTree({
       setSelected(cached.selected);
       lastKnownCwd.current = cached.lastCwd;
     }
-    lastSessionId.current = sessionId;
+    lastSessionId.current = cacheKey;
     if (explicitRoot && explicitRoot !== lastExplicitRoot.current) {
       lastExplicitRoot.current = explicitRoot;
       openExplicitRoot(explicitRoot, explicitSelected);
@@ -838,7 +874,7 @@ export function FileTree({
       // and all, and just re-list what's on screen in case it changed.
       // No cached root means a fresh entry into files view: start from the
       // session's live cwd.
-      const cached = stateCache.get(sessionId);
+      const cached = stateCache.get(cacheKey);
       if (cached?.root) {
         loadDir(cached.root);
         cached.expanded.forEach(loadDir);
@@ -846,7 +882,7 @@ export function FileTree({
         resolveRootFromSession();
       }
     }
-  }, [sessionId, explicitRoot, explicitSelected, resolveRootFromSession, openExplicitRoot, clearPathInPane, loadDir]);
+  }, [sessionId, cacheKey, explicitRoot, explicitSelected, resolveRootFromSession, openExplicitRoot, clearPathInPane, loadDir]);
 
   // The other half of keeping the tree and the terminal in sync: leaving
   // files view for terminal should `cd` the shell to wherever the tree
@@ -863,23 +899,26 @@ export function FileTree({
       const htab = activeHtab(useStore.getState());
       const leaf = htab && findLeaf(htab.layout, sessionId);
       if (!leaf || leaf.view === "files") return;
-      stateCache.delete(sessionId);
+      stateCache.delete(cacheKey);
+      // A remote path only means something to that host's shell, so only `cd`
+      // when the tree was browsing this very pane's own connection.
+      if (remote && remote !== terminalSessionId(sessionId, leaf.sshTarget)) return;
       const path = rootRef.current;
       if (path && path !== lastKnownCwd.current) sendCommand(sessionId, `cd ${quoteForShell(path)}`);
     };
-  }, [sessionId]);
+  }, [sessionId, cacheKey, remote]);
 
   // Click a file: open the preview beside the tree, in this pane. The cache
   // write is synchronous so a remount from any concurrent layout change (a
   // maximize toggle, a split) re-hydrates with the selection already made.
   const selectFile = (path: string) => {
     const next: Selected = { path, status: "loading" };
-    stateCache.set(sessionId, { ...(stateCache.get(sessionId) ?? emptyFileTreeState()), selected: next });
+    stateCache.set(cacheKey, { ...(stateCache.get(cacheKey) ?? emptyFileTreeState()), selected: next });
     setSelected(next);
   };
 
   const closePreview = () => {
-    stateCache.set(sessionId, { ...(stateCache.get(sessionId) ?? emptyFileTreeState()), selected: null });
+    stateCache.set(cacheKey, { ...(stateCache.get(cacheKey) ?? emptyFileTreeState()), selected: null });
     setSelected(null);
     setTreeCollapsed(false);
   };
@@ -894,7 +933,7 @@ export function FileTree({
     if (selected?.status !== "loading") return;
     const path = selected.path;
     let live = true;
-    fetch(`${apiUrl()}/api/fs/read?${new URLSearchParams({ path })}`)
+    fetch(fsUrl("read", { path }, remote))
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
@@ -902,7 +941,7 @@ export function FileTree({
           ? { path, status: "binary" }
           : { path, status: "text", content: body.content, truncated: !!body.truncated };
         if (!live) return;
-        stateCache.set(sessionId, { ...(stateCache.get(sessionId) ?? emptyFileTreeState()), selected: result });
+        stateCache.set(cacheKey, { ...(stateCache.get(cacheKey) ?? emptyFileTreeState()), selected: result });
         setSelected(result);
       })
       .catch((e) => {
@@ -912,7 +951,7 @@ export function FileTree({
     return () => {
       live = false;
     };
-  }, [selected?.path, selected?.status, sessionId]);
+  }, [selected?.path, selected?.status, cacheKey, remote]);
 
   const toggleDir = (path: string) => {
     const opening = !expanded.has(path);
@@ -980,14 +1019,16 @@ export function FileTree({
             }
           }}
         />
-        <button
-          className="pane-btn"
-          title="Reveal in Finder"
-          disabled={!root}
-          onClick={() => root && void revealPath(root).then((err) => err && console.warn("[termany]", err))}
-        >
-          <RevealFolderIcon />
-        </button>
+        {!remote && (
+          <button
+            className="pane-btn"
+            title="Reveal in Finder"
+            disabled={!root}
+            onClick={() => root && void revealPath(root).then((err) => err && console.warn("[termany]", err))}
+          >
+            <RevealFolderIcon />
+          </button>
+        )}
         <button
           className="pane-btn"
           title={collapsedAll ? "Restore expanded folders" : "Collapse all"}
@@ -1063,6 +1104,7 @@ export function FileTree({
       <FilePreview
         key={selected.path}
         selected={selected}
+        remote={remote}
         dark={dark}
         treeCollapsed={collapsed}
         onToggleTree={() => (narrow ? closePreview() : setTreeCollapsed((v) => !v))}

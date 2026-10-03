@@ -267,6 +267,8 @@ export default {
   "ssh.passwordHint": "连接时在终端中安全输入密码，Termany 不会保存密码。",
   "ssh.identityHint": "此连接仅使用所选的私钥文件。",
   "ssh.identityFile": "身份文件路径",
+  "ssh.remoteDir": "远程目录（可选）",
+  "ssh.remoteDirPlaceholder": "默认主目录",
   "ssh.editConnection": "编辑连接",
   "ssh.deleteConnection": "删除连接",
   "ssh.sessionEnded": "SSH 会话已结束 — 按 Enter 重新连接",

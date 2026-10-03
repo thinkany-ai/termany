@@ -271,6 +271,8 @@ export default {
   "ssh.passwordHint": "Bạn sẽ nhập mật khẩu an toàn ngay trong terminal khi kết nối. Mật khẩu không bao giờ được lưu.",
   "ssh.identityHint": "Chỉ dùng tệp khoá riêng đã chọn cho kết nối này.",
   "ssh.identityFile": "Đường dẫn tệp khoá",
+  "ssh.remoteDir": "Thư mục từ xa (tuỳ chọn)",
+  "ssh.remoteDirPlaceholder": "Thư mục home",
   "ssh.editConnection": "Sửa kết nối",
   "ssh.deleteConnection": "Xoá kết nối",
   "ssh.sessionEnded": "Phiên SSH đã kết thúc — nhấn Enter để kết nối lại",

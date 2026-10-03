@@ -271,6 +271,8 @@ export default {
   "ssh.passwordHint": "Je voert het wachtwoord veilig in de terminal in bij het verbinden. Het wordt nooit opgeslagen.",
   "ssh.identityHint": "Gebruik voor deze verbinding alleen het gekozen privésleutelbestand.",
   "ssh.identityFile": "Pad naar het sleutelbestand",
+  "ssh.remoteDir": "Externe map (optioneel)",
+  "ssh.remoteDirPlaceholder": "Thuismap",
   "ssh.editConnection": "Verbinding bewerken",
   "ssh.deleteConnection": "Verbinding verwijderen",
   "ssh.sessionEnded": "SSH-sessie beëindigd — druk op Enter om opnieuw te verbinden",
