@@ -459,18 +459,22 @@ export function Settings({
                 <div className="theme-preview-wrap">
                   <button
                     className="theme-preview"
+                    aria-label={item.name}
+                    aria-pressed={item.id === theme}
                     onClick={() => setTheme(item.id)}
                     style={{
-                      background: item.term.background as string,
+                      // Transparent terminal palettes (Spreadsheet) still need their
+                      // document color beneath the miniature in every active theme.
+                      background: `linear-gradient(${item.term.background}, ${item.term.background}), ${item.colors.bg}`,
                       borderColor: item.colors.border,
                       borderRadius: item.radius.lg,
                     }}
                   >
                     <span className="theme-preview-side" style={{ background: item.colors.bg2 }} />
                     <span className="theme-preview-dot" style={{ background: item.colors.accent }} />
-                    <span className="theme-preview-line lg" style={{ background: item.colors.fg }} />
-                    <span className="theme-preview-line" style={{ background: item.colors.fgDim }} />
-                    <span className="theme-preview-line sm" style={{ background: item.colors.fgDim }} />
+                    <span className="theme-preview-line lg" style={{ background: item.term.foreground ?? item.colors.fg }} />
+                    <span className="theme-preview-line" style={{ background: item.term.foreground ?? item.colors.fgDim }} />
+                    <span className="theme-preview-line sm" style={{ background: item.term.foreground ?? item.colors.fgDim }} />
                   </button>
                 </div>
                 <span className="theme-card-name">{item.name}</span>

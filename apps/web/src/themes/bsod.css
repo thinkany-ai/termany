@@ -1,0 +1,156 @@
+/* BSOD is intentionally flat. Tokens handle most surfaces; these rules remove
+   hard-coded decoration and preserve white labels on blue controls. */
+html[data-theme="bsod"] :is(body, #root) {
+  font-family: "Segoe UI", "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+html[data-theme="bsod"] .sidebar::before {
+  content: ":(";
+  display: block;
+  flex: 0 0 auto;
+  padding: 12px 18px 18px;
+  font: 300 clamp(64px, 12vh, 116px)/1.05 "Segoe UI", "Helvetica Neue", sans-serif;
+  color: #fff;
+  pointer-events: none;
+}
+html[data-theme="bsod"] :is(.app.tauri, .htab, .pane-slot, .zen-pane, .agent-message-content, .agent-message-user .agent-message-content, .agent-composer, .agent-tool-detail, .agent-permission, .search-row-chord, .ws-avatar) {
+  border-radius: 0;
+  box-shadow: none;
+}
+html[data-theme="bsod"] :is(.htabbar, .pane-head, .pane-body, .term-pane, .agent-pane, .agent-composer, .agent-tool-detail, .agent-permission, .agent-message-user .agent-message-content, .file-tree-head, .web-toolbar, .agent-tools-header, .settings-nav, .language-setting, .rail-icons-setting, .ms-card, .usage-card, .find-bar) {
+  background: #0078d7;
+  color: #fff;
+  box-shadow: none;
+  border-color: #85bde9;
+}
+html[data-theme="bsod"] :is(.htab.active, .htab.active:hover) {
+  background: #0078d7;
+  color: #fff;
+  box-shadow: none;
+  border-bottom: 2px solid #fff;
+}
+html[data-theme="bsod"] :is(.tree-row.active, .tree-row.active:hover, .file-tree-row.selected, .file-tree-row.selected:hover, .settings-nav-item.active) {
+  background: #0078d7;
+  color: #fff;
+  outline: 1px solid #fff;
+  outline-offset: -1px;
+}
+html[data-theme="bsod"] :is(.tree-row:hover, .file-tree-row:hover, .htab:hover) { background: #0078d7; text-decoration: underline; }
+html[data-theme="bsod"] :is(.pane-head-title, .pane-connection-trigger, .pane-connection-trigger > svg, .pane-btn, .agent-send, .agent-send:hover:not(:disabled), .ws-avatar, .ws-dialog-btn.primary, .ms-btn.primary, .agent-permission-actions button.allow) { color: #fff; }
+html[data-theme="bsod"] :is(.pane-btn:hover, .pane-connection-trigger:hover, .side-rail-btn.active) { background: #0078d7; outline: 1px solid #fff; outline-offset: -1px; }
+html[data-theme="bsod"] :is(.ws-avatar, .agent-send, .agent-send:hover:not(:disabled)) { background: #0078d7; border: 1px solid #fff; border-radius: 0; }
+html[data-theme="bsod"] :is(.agent-message-error, .agent-attachment-error, .pop-item.danger, .ws-menu-item.danger, .ws-dialog-btn.danger, .agent-tool-failed, .agent-permission-actions button.reject) { color: #fff; text-decoration: underline; }
+html[data-theme="bsod"] :is(.settings-backdrop, .search-backdrop, .ws-dialog-backdrop, .ms-form-backdrop, .ssh-manager-backdrop, .zen-scrim) { background: #0078d780; backdrop-filter: none; }
+html[data-theme="bsod"] :is(.settings-window, .settings-backdrop, .zen-pane, .zen-scrim) { animation: none; }
+html[data-theme="bsod"] .theme-card.selected .theme-card-name { color: #fff; text-decoration: underline; text-underline-offset: 4px; }
+html[data-theme="bsod"] .theme-card.selected .theme-preview { outline: 2px solid #fff; outline-offset: 2px; box-shadow: none; }
+html[data-theme="bsod"] ::selection { background: #00579c; color: #fff; }
+html[data-theme="bsod"] * { scrollbar-width: auto; scrollbar-color: auto; }
+html[data-theme="bsod"] .htab-strip { scrollbar-width: none; }
+html[data-theme="bsod"] ::-webkit-scrollbar { width: 8px; height: 8px; }
+html[data-theme="bsod"] ::-webkit-scrollbar-track,
+html[data-theme="bsod"] ::-webkit-scrollbar-corner { background: #0078d7; }
+html[data-theme="bsod"] ::-webkit-scrollbar-thumb { background: #fff; border-radius: 0; }
+html[data-theme="bsod"] ::-webkit-scrollbar-thumb:hover { background: #e2f1ff; }
+
+/* Shared control coverage, kept in this scoped sheet so the theme is standalone.
+   Portal menus and dialogs need opaque surfaces even when artwork is enabled. */
+html[data-theme="bsod"] :is(.ws-menu, .pop-panel, .pop-sub, .emoji-pop, .agent-menu, .agent-composer-menu, .agent-message-menu-panel, .usage-select-menu, .ws-dialog, .search-palette, .settings-window, .ms-form, .ssh-manager-dialog, .find-bar, .drag-ghost) {
+  background: #0078d7; color: #fff; border: 1px solid #85bde9; box-shadow: none;
+}
+html[data-theme="bsod"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button) {
+  background: #0078d7; color: #fff; border: 1px solid #85bde9; border-radius: var(--radius-sm); box-shadow: none;
+}
+html[data-theme="bsod"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button):hover:not(:disabled) {
+  border-color: #fff; text-decoration: underline;
+}
+html[data-theme="bsod"] :is(.ws-dialog-btn.primary, .ms-btn.primary, .ssh-manager-actions button.primary, .agent-permission-actions button.allow, .agent-send, .agent-enable-toggle button.active, .ssh-auth-switch button.active) {
+  background: #0078d7; color: #fff; border: 1px solid #fff;
+}
+html[data-theme="bsod"] :is(.ws-dialog-btn.primary, .ms-btn.primary, .ssh-manager-actions button.primary, .agent-permission-actions button.allow, .agent-send, .agent-enable-toggle button.active, .ssh-auth-switch button.active):hover:not(:disabled) {
+  background: #0078d7; color: #fff; filter: none; transform: none;
+}
+html[data-theme="bsod"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button, .agent-send):active:not(:disabled) {
+  background: #0078d7; color: #fff; box-shadow: none; outline: 1px solid #fff; outline-offset: -2px;
+}
+html[data-theme="bsod"] :is(.ws-menu-item:hover, .ws-menu-row:hover, .pop-item:hover, .pop-item.active, .search-row.active, .usage-select-item:hover, .usage-select-item.active, .ssh-connection-row:hover, .agent-composer-menu-item:hover, .agent-message-menu-panel button:hover) {
+  background: #0078d7; color: #fff; outline: 1px solid #fff; outline-offset: -1px;
+}
+html[data-theme="bsod"] :is(.pop-item:hover, .ws-menu-row:hover, .usage-select-item.active) svg {
+  color: inherit;
+}
+html[data-theme="bsod"] :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), textarea:not(.xterm-helper-textarea), select) {
+  background: #0078d7; color: #fff; border: 1px solid #85bde9; border-radius: var(--radius-sm);
+}
+html[data-theme="bsod"] :is(input, textarea)::placeholder {
+  color: #edf6ff; opacity: 1;
+}
+html[data-theme="bsod"] :is(input, select) {
+  accent-color: #fff;
+}
+html[data-theme="bsod"] .agent-composer textarea {
+  background: transparent; border: 0; box-shadow: none;
+}
+html[data-theme="bsod"] :is(button, [role="button"], input, select, textarea:not(.xterm-helper-textarea)):focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px;
+}
+html[data-theme="bsod"] .agent-composer:focus-within {
+  border-color: #fff; box-shadow: none;
+}
+html[data-theme="bsod"] :is(button, input, select, textarea):disabled {
+  opacity: .5; cursor: default; filter: none;
+}
+html[data-theme="bsod"] :is(.ws-menu, .pop-panel, .pop-sub, .emoji-pop, .agent-menu, .agent-composer-menu, .agent-message-menu-panel, .usage-select-menu, .ws-dialog, .search-palette, .settings-window, .ms-form, .ssh-manager-dialog, .find-bar, .drag-ghost, .ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button, .agent-send) {
+  border-radius: 0; box-shadow: none;
+}
+/* These newer navigation/message controls have fixed radii in the base CSS. */
+html[data-theme="bsod"] :is(.agent-composer-add, .app-tab-button, .app-tab-icon, .app-tab-unread, .agent-menu-icon, .agent-message-file, .agent-composer-file, .agent-composer-image, .history-badge, .tree-count, .tree-live, .settings-close) {
+  border-radius: 0;
+  box-shadow: none;
+}
+html[data-theme="bsod"] :is(.agent-message-menu-panel, .agent-composer-menu, .settings-window, .ws-menu, .pop-panel) { background-image: none; }
+html[data-theme="bsod"] :is(.agent-pane-controls-error, .agent-group-notice, .agent-group-selection-count.warn, .ws-dialog-error, .ssh-manager-error, .ms-form-error) { color: #fff; }
+
+/* Hard-coded modern controls also need the flat blue/white contract.
+   Theme swatches retain the palettes they represent. */
+html[data-theme="bsod"] :is(button:not(.theme-preview), input, select, textarea, .agent-composer, .agent-composer-input, .agent-composer-add, .agent-composer-file, .agent-model-picker, .ssh-connection-menu, .settings-nav-item) {
+  border-radius: 0;
+  box-shadow: none;
+  text-shadow: none;
+}
+html[data-theme="bsod"] :is(.bot-setting-switch, .bot-setting-switch[aria-checked="true"], .rail-icon-option input, .rail-icon-option input:checked) {
+  background: #0078d7;
+  border: 1px solid #fff;
+}
+html[data-theme="bsod"] .bot-setting-switch::before { background: #fff; border-radius: 0; box-shadow: none; }
+html[data-theme="bsod"] .rail-icon-option input::before { border-color: #fff; }
+html[data-theme="bsod"] .theme-card.selected .theme-preview-wrap::after {
+  background: #0078d7;
+  color: #fff;
+  border: 1px solid #fff;
+  border-radius: 0;
+  box-shadow: none;
+}
+html[data-theme="bsod"] :is(.agent-composer-add, .agent-composer-add:hover, .agent-composer-controls, .agent-model-picker, .ssh-connection-menu) {
+  background: #0078d7; color: #fff; border-color: #85bde9;
+}
+html[data-theme="bsod"] :is(.agent-dot, .tree-dot) { background: #fff; box-shadow: none; }
+html[data-theme="bsod"] :is(button, input, select, textarea)[aria-disabled="true"] { opacity: .5; }
+html[data-theme="bsod"] input { accent-color: #fff; }
+
+/* A selected tool or menu remains identifiable without relying on hue. */
+html[data-theme="bsod"] :is(.app-tab-button.active .app-tab-icon, .side-rail-btn.active) {
+  outline: 1px solid var(--fg); outline-offset: 2px;
+}
+html[data-theme="bsod"] :is(.htab.active, .tree-row.active, .settings-nav-item.active) { font-weight: 700; }
+html[data-theme="bsod"] .pane-slot.focused .pane-head { border-bottom-color: var(--fg); }
+html[data-theme="bsod"] .pane-slot:not(.focused) .pane-head { border-bottom-style: dashed; }
+html[data-theme="bsod"] :is(.ws-menu, .pop-panel, .pop-sub, .search-palette, .settings-window, .ws-dialog, .ssh-manager-dialog) {
+  border-color: var(--fg);
+}
+html[data-theme="bsod"] .sidebar::before { padding-bottom: 12px; font-size: clamp(56px, 10vh, 96px); }
+@media (max-height: 600px) {
+  html[data-theme="bsod"] .sidebar::before { font-size: 48px; padding-block: 4px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="bsod"] :is(.pane-slot, .app-tab-icon) { animation: none; transition: none; }
+}

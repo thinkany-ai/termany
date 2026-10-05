@@ -1341,13 +1341,19 @@ function refreshOnSymbolsFontLoad() {
  *  symbols fallback rides along so Nerd Font icons survive any font choice. */
 export function applyFontFamily(family: string) {
   currentFontFamily = family;
-  for (const s of sessions.values()) s.term.options.fontFamily = withSymbolsFallback(family);
+  for (const [id, s] of sessions) {
+    s.term.options.fontFamily = withSymbolsFallback(family);
+    requestAnimationFrame(() => fitSession(id));
+  }
 }
 
 /** Push a font size change to every live terminal + future sessions. */
 export function applyFontSize(size: number) {
   currentFontSize = size;
-  for (const s of sessions.values()) s.term.options.fontSize = size;
+  for (const [id, s] of sessions) {
+    s.term.options.fontSize = size;
+    requestAnimationFrame(() => fitSession(id));
+  }
 }
 
 function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId = id): Session {
@@ -1946,6 +1952,14 @@ export function fitSession(id: string) {
   if (s.el.isConnected && (s.el.clientWidth < 5 || s.el.clientHeight < 5)) return;
   try {
     s.fit.fit();
+    // Worksheet decoration follows the rendered rows, including per-pane zoom
+    // and fractional device scaling. No private xterm renderer API is needed.
+    const screen = s.term.element?.querySelector<HTMLElement>(".xterm-screen");
+    const body = s.el.closest<HTMLElement>(".pane-body");
+    const rowHeight = screen ? parseFloat(getComputedStyle(screen).height) / s.term.rows : 0;
+    if (body && Number.isFinite(rowHeight) && rowHeight > 0) {
+      body.style.setProperty("--terminal-row-height", `${rowHeight}px`);
+    }
     s.backend.resize(s.term.cols, s.term.rows);
     if (!s.followOutput && s.lockedViewportY !== null) {
       s.term.scrollToLine(Math.min(s.lockedViewportY, s.term.buffer.active.baseY));
