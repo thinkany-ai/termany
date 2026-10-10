@@ -60,3 +60,88 @@ test("session history returns newest files one page at a time", async () => {
     await fs.promises.rm(home, { recursive: true, force: true });
   }
 });
+
+test("session history reports model, tokens and context, following appends", async () => {
+  const originalHome = process.env.HOME;
+  const home = await fs.promises.mkdtemp(path.join(os.tmpdir(), "termany-agent-sessions-"));
+  try {
+    process.env.HOME = home;
+    const dir = path.join(home, ".claude", "projects", "-proj");
+    await fs.promises.mkdir(dir, { recursive: true });
+    const id = "0123abcd-0000-4000-8000-00000000abcd";
+    const file = path.join(dir, `${id}.jsonl`);
+    const turn = (msg: string, model: string, input: number, output: number) =>
+      JSON.stringify({
+        type: "assistant",
+        requestId: `req_${msg}`,
+        message: { id: `msg_${msg}`, model, usage: { input_tokens: input, output_tokens: output } },
+      });
+    await fs.promises.writeFile(
+      file,
+      [
+        JSON.stringify({ type: "user", cwd: home, message: { content: "hi" } }),
+        turn("a", "claude-opus-5-5", 100, 10),
+        // The same message split over two lines must count once.
+        turn("a", "claude-opus-5-5", 100, 10),
+        "",
+      ].join("\n")
+    );
+
+    let [row] = (await listAgentSessions("claude")).sessions!;
+    assert.equal(row.model, "claude-opus-5-5");
+    assert.equal(row.totalTokens, 110);
+    assert.equal(row.contextTokens, 110);
+
+    // An appended turn plus a half-written line: only complete lines count.
+    await fs.promises.appendFile(file, turn("b", "claude-sonnet-5-5", 300, 20) + "\n" + '{"type":"assis');
+    [row] = (await listAgentSessions("claude")).sessions!;
+    assert.equal(row.model, "claude-sonnet-5-5");
+    assert.equal(row.totalTokens, 430);
+    assert.equal(row.contextTokens, 320);
+
+    await fs.promises.appendFile(file, 'tant"}\n' + turn("c", "claude-sonnet-5-5", 50, 5) + "\n");
+    [row] = (await listAgentSessions("claude")).sessions!;
+    assert.equal(row.totalTokens, 485);
+    assert.equal(row.contextTokens, 55);
+  } finally {
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
+    await fs.promises.rm(home, { recursive: true, force: true });
+  }
+});
+
+test("codex history rows carry the turn model and cumulative total", async () => {
+  const originalHome = process.env.HOME;
+  const home = await fs.promises.mkdtemp(path.join(os.tmpdir(), "termany-agent-sessions-"));
+  try {
+    process.env.HOME = home;
+    const dir = path.join(home, ".codex", "sessions", "2026", "10", "05");
+    await fs.promises.mkdir(dir, { recursive: true });
+    await fs.promises.writeFile(
+      path.join(dir, "rollout-x.jsonl"),
+      [
+        JSON.stringify({ type: "session_meta", payload: { id: "cx", cwd: home } }),
+        JSON.stringify({ type: "turn_context", payload: { model: "gpt-6-astra" } }),
+        JSON.stringify({
+          type: "event_msg",
+          payload: {
+            type: "token_count",
+            info: {
+              total_token_usage: { input_tokens: 900, output_tokens: 100, total_tokens: 1000 },
+              last_token_usage: { input_tokens: 400, output_tokens: 50, total_tokens: 450 },
+            },
+          },
+        }),
+        "",
+      ].join("\n")
+    );
+    const [row] = (await listAgentSessions("codex")).sessions!;
+    assert.equal(row.model, "gpt-6-astra");
+    assert.equal(row.totalTokens, 1000);
+    assert.equal(row.contextTokens, 450);
+  } finally {
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
+    await fs.promises.rm(home, { recursive: true, force: true });
+  }
+});
