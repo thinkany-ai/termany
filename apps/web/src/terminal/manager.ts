@@ -30,6 +30,7 @@ import {
   RESTART_HEALTHY_MS,
   shellExitDisposition,
 } from "./shellExit";
+import { SHIFT_ENTER_DATA, isShiftEnterNewline } from "./shiftEnter";
 import { forgetSessionUrls, noteSessionOutput } from "./servedUrls";
 import { registerWebLinks } from "./webLinks";
 import { fixWebkitGtkImeComposition } from "./webkitGtkIme";
@@ -806,11 +807,13 @@ function updateAgentActivityFromOutput(id: string, data: string) {
   }
 }
 
-function noteAgentInput(id: string, data: string) {
+function noteAgentInput(id: string, data: string, isSubmit = true) {
   clearAgentIdleTimer(id);
   agentIdleReports.delete(id);
   if (!isDemo) return;
-  if (!data.includes("\r")) return;
+  // A synthetic newline is never a submit — in demo mode no less, where the
+  // scripted reply still drives the activity animation from its own output.
+  if (!isSubmit || !data.includes("\r")) return;
   const session = sessions.get(id);
   if (!session) return;
   if (agentActivities.has(id) || AGENT_RE.test(sessionVisibleText(id))) {
@@ -837,8 +840,11 @@ function submittedAgentForTerminalInput(
   );
 }
 
-function writeTerminalInput(id: string, session: Session, data: string) {
-  const agent = submittedAgentForTerminalInput(id, data);
+function writeTerminalInput(id: string, session: Session, data: string, isSubmit = true) {
+  // A synthetic newline (Shift+Enter) carries a CR in its bytes but is not a
+  // submit: running submit detection on it would flash the agent "working"
+  // state and hold the bytes behind the activity registration roundtrip.
+  const agent = isSubmit ? submittedAgentForTerminalInput(id, data) : undefined;
   const previous = terminalInputSendChains.get(id);
   if (!agent && !previous) {
     session.backend.write(data);
@@ -871,6 +877,36 @@ function writeTerminalInput(id: string, session: Session, data: string) {
     }
   };
   void run.then(cleanup, cleanup);
+}
+
+/**
+ * Everything xterm emits — plus the synthetic Shift+Enter newline, which
+ * bypasses xterm's encoder — funnels through here: an Enter-containing
+ * keystroke wakes an ended SSH session, every keystroke feeds the agent
+ * activity trackers, and the bytes go to the backend in submit order.
+ *
+ * `isSubmit` carries the keystroke's intent, which the bytes alone cannot:
+ * the synthetic newline shares its CR with a real submit. Only a submit runs
+ * submit detection; a newline skips it and goes straight to the backend
+ * (still ordered behind any in-flight submit chain).
+ */
+function deliverTerminalInput(
+  id: string,
+  session: Session,
+  term: Terminal,
+  sshTarget: string | undefined,
+  data: string,
+  isSubmit = true
+) {
+  if (sshTarget && session.ended) {
+    if (/[\r\n]/.test(data)) {
+      term.write("\r\n");
+      session.restart?.();
+    }
+    return;
+  }
+  noteAgentInput(id, data, isSubmit);
+  writeTerminalInput(id, session, data, isSubmit);
 }
 
 export function subscribeAgentActivity(listener: () => void): () => void {
@@ -1384,6 +1420,22 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
     for (const action of ACTIONS) {
       if (matchChord(event, keybindings[action.id] ?? action.default)) return false;
     }
+    // Shift+Enter inserts a newline instead of submitting. xterm encodes it
+    // as a bare CR — byte-identical to Enter — so intercept it here, where
+    // returning false skips xterm's encoding entirely, and send the same
+    // ESC CR bytes Option+Enter already produces (see shiftEnter.ts).
+    // Runs AFTER the shortcut loop so a user rebind of Shift+Enter still wins.
+    if (isShiftEnterNewline(event)) {
+      // Returning false alone only skips xterm's encoding; without
+      // preventDefault the keystroke would also land in xterm's hidden
+      // textarea as a stray newline, and without stopPropagation it would
+      // keep bubbling to the app-level shortcut listener.
+      event.preventDefault();
+      event.stopPropagation();
+      const live = sessions.get(id);
+      if (live) deliverTerminalInput(id, live, live.term, sshTarget, SHIFT_ENTER_DATA, false);
+      return false;
+    }
     return true;
   });
 
@@ -1569,15 +1621,7 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
 
   term.onData((data) => {
     if (IME_DEBUG) imeLog(`→PTY ${JSON.stringify(data)}`);
-    if (sshTarget && session.ended) {
-      if (/[\r\n]/.test(data)) {
-        term.write("\r\n");
-        session.restart?.();
-      }
-      return;
-    }
-    noteAgentInput(id, data);
-    writeTerminalInput(id, session, data);
+    deliverTerminalInput(id, session, term, sshTarget, data);
   });
 
   // Select-to-copy only after an actual selection gesture. The old listener
