@@ -11,7 +11,8 @@ import { apiUrl } from "../api";
 import { writeClipboard } from "../clipboard";
 import { applyTextInputProps } from "../textInputProps";
 import { DemoBackend, demoInteracted, isDemo } from "../demo";
-import { ACTIONS, loadKeybindings, matchChord } from "../keybindings";
+import { ACTIONS, IS_MAC, loadKeybindings, matchChord } from "../keybindings";
+import { isNativePasteShortcut } from "./pasteShortcut";
 import {
   agentConfirmationPromptVisible,
   agentInputPromptVisible,
@@ -1415,6 +1416,9 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
   // Step aside for any key that matches a live user shortcut binding so it
   // reaches the app instead of being typed into the shell.
   term.attachCustomKeyEventHandler((event) => {
+    // Otherwise Ctrl+V can also reach the PTY as SYN (\x16), causing Codex
+    // to read its own image clipboard instead of receiving our paste event.
+    if (isNativePasteShortcut(event, IS_MAC)) return false;
     if (event.type !== "keydown") return true;
     const keybindings = loadKeybindings();
     for (const action of ACTIONS) {
