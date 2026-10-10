@@ -1,7 +1,9 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Hindi — हिन्दी (developer-facing terms like Git, SSH, token stay in Latin script,
 // as Indian developers read and speak them that way)
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} आपका संदेश आवंटित कर रहा है ({attempt}/{total})…",
   "agentGroup.routingTimeout": "पिछले एजेंट का समय समाप्त हो गया। {name} कार्य संभाल रहा है ({attempt}/{total})…",
   "agentGroup.routingFallback": "पिछला एजेंट विफल हुआ। {name} कार्य संभाल रहा है ({attempt}/{total})…",

@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Portuguese (Brazil) — Português (Brasil)
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} está encaminhando sua mensagem ({attempt}/{total})…",
   "agentGroup.routingTimeout": "O agente anterior excedeu o tempo limite. {name} está assumindo ({attempt}/{total})…",
   "agentGroup.routingFallback": "O agente anterior falhou. {name} está assumindo ({attempt}/{total})…",

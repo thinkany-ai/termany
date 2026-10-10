@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Vietnamese — Tiếng Việt
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} đang phân công tin nhắn của bạn ({attempt}/{total})…",
   "agentGroup.routingTimeout": "Tác nhân trước đã hết thời gian chờ. {name} đang tiếp quản ({attempt}/{total})…",
   "agentGroup.routingFallback": "Tác nhân trước đã thất bại. {name} đang tiếp quản ({attempt}/{total})…",

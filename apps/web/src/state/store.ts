@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { BotSkillBinding } from "@termany/core";
 import {
   type Chord,
   DEFAULT_KEYBINDINGS,
@@ -203,6 +204,8 @@ export type AgentConversation = Extract<Pane, { kind: "leaf" }> & {
   updatedAt: number;
   agentTags?: string;
   agentDescription?: string;
+  agentInstructions?: string;
+  agentSkills?: BotSkillBinding[];
   agentNotifications?: boolean;
   /** A small, locally stored image; empty/absent uses the runtime's icon. */
   agentAvatar?: string;
@@ -240,7 +243,7 @@ export interface AgentConversationFolder {
 
 export type AgentConversationMeta = Pick<
   AgentConversation,
-  "title" | "agentTags" | "agentDescription" | "agentNotifications" | "agentAvatar"
+  "title" | "agentTags" | "agentDescription" | "agentInstructions" | "agentSkills" | "agentNotifications" | "agentAvatar"
 >;
 
 /** Which side of a target pane a drag is dropping onto. */
@@ -326,7 +329,7 @@ interface State {
   takenPages: Set<string>;
   setTakenPages: (taken: Set<string>) => void;
 
-  addAgentConversation: (runtimeId?: string, title?: string) => string;
+  addAgentConversation: (runtimeId?: string, title?: string, behavior?: Pick<AgentConversationMeta, "agentDescription" | "agentInstructions" | "agentSkills" | "agentAvatar">) => string;
   addAgentGroup: (title: string, memberIds: string[], workspaceId: string) => string | null;
   setAgentGroupMembers: (id: string, memberIds: string[]) => void;
   setAgentGroupLeadMember: (id: string, memberId: string) => void;
@@ -1215,8 +1218,13 @@ export const useStore = create<State>((set, get) => ({
   takenPages: new Set<string>(),
   setTakenPages: (taken) => set({ takenPages: taken }),
 
-  addAgentConversation: (runtimeId, title) => {
-    const conversation = makeAgentConversation(runtimeId, get().activeWorkspace, title);
+  addAgentConversation: (runtimeId, title, behavior) => {
+    const conversation = { ...makeAgentConversation(runtimeId, get().activeWorkspace, title),
+      agentAvatar: behavior?.agentAvatar,
+      agentDescription: behavior?.agentDescription,
+      agentInstructions: behavior?.agentInstructions,
+      agentSkills: behavior?.agentSkills?.map((binding) => ({ ...binding, contextFiles: binding.contextFiles?.slice() })),
+    };
     set((s) => ({ agentConversations: [conversation, ...s.agentConversations] }));
     return conversation.id;
   },

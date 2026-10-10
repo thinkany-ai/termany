@@ -1,7 +1,9 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Ukrainian — Українська (counts use a "noun: N" form to sidestep the three
 // Slavic plural stems)
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} розподіляє повідомлення ({attempt}/{total})…",
   "agentGroup.routingTimeout": "Час очікування попереднього агента минув. {name} перебирає завдання ({attempt}/{total})…",
   "agentGroup.routingFallback": "Попередній агент завершився з помилкою. {name} перебирає завдання ({attempt}/{total})…",

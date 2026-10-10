@@ -1,3 +1,4 @@
+import { SkillSettings } from "./SkillSettings";
 import { textInputProps } from "../textInputProps";
 import { Bot, Brain, Info, Keyboard, Palette, UserRound } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -66,7 +67,7 @@ const ABOUT_LINKS = [
   { key: "feedback", url: `${REPO}/issues` },
 ] as const;
 
-export type SettingsSection = "profile" | "general" | "appearance" | "models" | "agents" | "keyboard" | "about";
+export type SettingsSection = "profile" | "general" | "appearance" | "models" | "agents" | "skills" | "keyboard" | "about";
 
 /** Left-nav entries, in display order. Labels come from i18n (settings.<id>). */
 const NAV_SECTIONS: { id: SettingsSection; icon: ReactNode }[] = [
@@ -75,6 +76,7 @@ const NAV_SECTIONS: { id: SettingsSection; icon: ReactNode }[] = [
   { id: "appearance", icon: <Palette size={16} /> },
   { id: "models", icon: <Brain size={16} /> },
   { id: "agents", icon: <Bot size={16} /> },
+  { id: "skills", icon: <Brain size={16} /> },
   { id: "keyboard", icon: <Keyboard size={16} /> },
   { id: "about", icon: <Info size={16} /> },
 ];
@@ -259,7 +261,7 @@ export function Settings({
   // listens on `window` capture.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && !document.querySelector("dialog.skill-picker[open]")) {
         e.preventDefault();
         e.stopPropagation();
         onClose();
@@ -318,7 +320,7 @@ export function Settings({
   const [emptyBefore, emptyAfter] = t("theme.empty").split("{site}");
 
   return (
-    <div className="settings-backdrop" onClick={onClose}>
+    <div className={`settings-backdrop ${section === "skills" ? "settings-skills-backdrop" : ""}`} onClick={onClose}>
       <div
         className="settings-window"
         role="dialog"
@@ -374,6 +376,7 @@ export function Settings({
             </>
           )}
           {section === "models" && <ModelSettings />}
+          {section === "skills" && <SkillSettings />}
           {section === "agents" && (
             <AgentSettings
               initialAgentId={initialAgentId}

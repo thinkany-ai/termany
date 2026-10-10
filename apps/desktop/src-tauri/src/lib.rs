@@ -112,6 +112,7 @@ struct ServerProcess(Mutex<Option<Child>>);
 struct ServerRestartAttempts(AtomicU32);
 const MAX_AUTO_RESTARTS: u32 = 3;
 const SERVER_PORT: u16 = 5174;
+const BUNDLED_SERVER_BUILD_ID: &str = include_str!("../resources/server/build-id");
 
 /// Set once the user confirms the quit-confirm dialog, so the `ExitRequested`
 /// handler below can tell that apart from the original OS/menu request that
@@ -180,12 +181,22 @@ fn server_get(path: &str) -> Option<String> {
     Some(body.to_owned())
 }
 
-/// Pull `version` out of `{"version":"0.1.17"}` without pulling in a JSON dep.
-fn parse_version_field(body: &str) -> Option<String> {
-    let rest = body.split_once("\"version\"")?.1;
+/// Pull a string field out of a tiny local server response without adding a
+/// JSON dependency to the launch path.
+fn parse_string_field(body: &str, field: &str) -> Option<String> {
+    let rest = body.split_once(&format!("\"{field}\""))?.1;
     let rest = rest.split_once('"')?.1;
     let (value, _) = rest.split_once('"')?;
     Some(value.to_owned())
+}
+
+fn parse_version_field(body: &str) -> Option<String> {
+    parse_string_field(body, "version")
+}
+
+fn server_identity_matches(body: &str, expected_version: &str, expected_build_id: &str) -> bool {
+    parse_version_field(body).as_deref() == Some(expected_version)
+        && parse_string_field(body, "buildId").as_deref() == Some(expected_build_id)
 }
 
 /// Count task records that are still actively working. The server owns this
@@ -226,22 +237,24 @@ fn running_server_task_count() -> usize {
 ///
 /// This applies in either direction, including the rarer downgrade/run-an-
 /// older-build case — matching this app beats guessing once it is safe.
-fn existing_server_matches(expected: &str) -> bool {
+fn existing_server_matches(expected_version: &str, expected_build_id: &str) -> bool {
     let Some(body) = server_get("/api/version") else {
         return false;
     };
+    if server_identity_matches(&body, expected_version, expected_build_id) {
+        return true;
+    }
     match parse_version_field(&body) {
-        Some(found) if found == expected => true,
         Some(found) => {
             let running = running_server_task_count();
             if running > 0 {
                 log::warn!(
-                    "[termany] server on localhost:{SERVER_PORT} is version {found}, this app is {expected}, but it owns {running} running task(s) — deferring the server upgrade"
+                    "[termany] server on localhost:{SERVER_PORT} does not match this build (server version {found}, app version {expected_version}), but it owns {running} running task(s) — deferring the server upgrade"
                 );
                 return true;
             }
             log::warn!(
-                "[termany] server on localhost:{SERVER_PORT} is version {found}, this app is {expected} — restarting it"
+                "[termany] server on localhost:{SERVER_PORT} does not match this build (server version {found}, app version {expected_version}) — restarting it"
             );
             false
         }
@@ -452,7 +465,8 @@ fn node_compatible_windows_path(path: &std::path::Path) -> std::path::PathBuf {
 
 fn spawn_server_child(app: &tauri::AppHandle) -> Option<Child> {
     let version = app.package_info().version.to_string();
-    if existing_server_matches(&version) {
+    let build_id = BUNDLED_SERVER_BUILD_ID.trim();
+    if existing_server_matches(&version, build_id) {
         log::info!("[termany] reusing existing PTY server on localhost:{SERVER_PORT}");
         return None;
     }
@@ -1300,7 +1314,7 @@ pub fn run() {
 mod tests {
     use super::{
         is_termany_server_command, node_compatible_windows_path, parse_pid_lines,
-        parse_running_task_count, parse_version_field,
+        parse_running_task_count, parse_version_field, server_identity_matches,
     };
     use std::path::{Path, PathBuf};
 
@@ -1323,6 +1337,25 @@ mod tests {
         assert_eq!(parse_version_field("{}"), None);
         assert_eq!(parse_version_field("not json at all"), None);
         assert_eq!(parse_version_field(r#"{"version":"#), None);
+    }
+
+    #[test]
+    fn requires_matching_server_build_identity() {
+        assert!(server_identity_matches(
+            r#"{"version":"0.2.6","buildId":"0.2.6-new"}"#,
+            "0.2.6",
+            "0.2.6-new"
+        ));
+        assert!(!server_identity_matches(
+            r#"{"version":"0.2.6","buildId":"0.2.6-old"}"#,
+            "0.2.6",
+            "0.2.6-new"
+        ));
+        assert!(!server_identity_matches(
+            r#"{"version":"0.2.6"}"#,
+            "0.2.6",
+            "0.2.6-new"
+        ));
     }
 
     #[test]

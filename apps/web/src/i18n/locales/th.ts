@@ -1,7 +1,9 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Thai — ไทย (developer terms like Git, SSH, PID, token stay in Latin script,
 // which is how Thai developers read and write them)
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} กำลังจัดสรรข้อความของคุณ ({attempt}/{total})…",
   "agentGroup.routingTimeout": "เอเจนต์ก่อนหน้าหมดเวลา {name} กำลังรับช่วงต่อ ({attempt}/{total})…",
   "agentGroup.routingFallback": "เอเจนต์ก่อนหน้าล้มเหลว {name} กำลังรับช่วงต่อ ({attempt}/{total})…",

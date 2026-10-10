@@ -57,7 +57,7 @@ async function readAvatar(file: File): Promise<string> {
   }
 }
 
-export function AgentAvatarEditor({ avatar, icon, fallback, group, members, compact = false, showReset = true, onAvatarChange }: {
+export function AgentAvatarEditor({ avatar, icon, fallback, group, members, compact = false, showReset = true, disabled = false, onUploadingChange, onAvatarChange }: {
   avatar?: string;
   icon?: string;
   fallback?: ReactNode;
@@ -65,22 +65,29 @@ export function AgentAvatarEditor({ avatar, icon, fallback, group, members, comp
   members?: AgentAvatarMember[];
   compact?: boolean;
   showReset?: boolean;
+  disabled?: boolean;
+  onUploadingChange?: (uploading: boolean) => void;
   onAvatarChange: (avatar: string) => void;
 }) {
   const { t } = useI18n();
   const [uploading, setUploading] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const upload = async (file: File) => {
+    if (disabled || uploading) return;
     setUploading(true);
+    onUploadingChange?.(true);
     setAvatarError(false);
     try {
-      onAvatarChange(await readAvatar(file));
+      const result = await readAvatar(file);
+      if (mounted.current) onAvatarChange(result);
     } catch {
-      setAvatarError(true);
+      if (mounted.current) setAvatarError(true);
     } finally {
-      setUploading(false);
+      if (mounted.current) { setUploading(false); onUploadingChange?.(false); }
     }
   };
 
@@ -92,7 +99,7 @@ export function AgentAvatarEditor({ avatar, icon, fallback, group, members, comp
         title={t("agentWorkspace.changeAvatar")}
         aria-label={t("agentWorkspace.changeAvatar")}
         aria-busy={uploading}
-        disabled={uploading}
+        disabled={uploading || disabled}
         onClick={() => fileInputRef.current?.click()}
       >
         <AgentAvatar avatar={avatar} icon={icon} fallback={fallback} group={group} members={members} className="hero" />
@@ -115,7 +122,7 @@ export function AgentAvatarEditor({ avatar, icon, fallback, group, members, comp
         <button
           type="button"
           className="agent-avatar-change"
-          disabled={uploading}
+          disabled={uploading || disabled}
           onClick={() => fileInputRef.current?.click()}
         >
           {t("agentWorkspace.changeAvatar")}
@@ -125,7 +132,7 @@ export function AgentAvatarEditor({ avatar, icon, fallback, group, members, comp
         <button
           type="button"
           className="agent-avatar-reset"
-          disabled={uploading}
+          disabled={uploading || disabled}
           onClick={() => {
             setAvatarError(false);
             onAvatarChange("");

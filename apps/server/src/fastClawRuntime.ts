@@ -4,7 +4,7 @@ import path from "node:path";
 import type { AcpRuntimeEvent } from "./acpRuntime.js";
 import type { AgentConfig } from "./agentConfig.js";
 import type { LoadedAgentImage } from "./agentImages.js";
-import { botAcpPrompt } from "./botIdentity.js";
+import { compileBotAcpPrompt } from "./botContext.js";
 
 type Emit = (event: AcpRuntimeEvent) => void;
 
@@ -66,8 +66,8 @@ async function discoverAgents(endpoint: string, apiKey: string): Promise<Respons
   }
 }
 
-function promptText(text: string, botIdentity: unknown): string {
-  const prompt = botAcpPrompt(text, botIdentity);
+async function promptText(text: string, botIdentity: unknown): Promise<string> {
+  const prompt = await compileBotAcpPrompt(text, botIdentity);
   return typeof prompt === "string" ? prompt : prompt.map((block) => block.text).join("\n\n");
 }
 
@@ -217,7 +217,7 @@ export class FastClawRuntime {
           input: [{
             role: "user",
             parts: [
-              { content_type: "text/plain", content: promptText(text, botIdentity) },
+              { content_type: "text/plain", content: await promptText(text, botIdentity) },
               ...images.map((image) => ({
                 name: path.basename(image.path),
                 content_type: image.mimeType,

@@ -2,6 +2,7 @@ import { textInputProps } from "../textInputProps";
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { BotIdentity } from "@termany/core";
+import { botIdentityForConversation } from "../botProfile";
 import { agentCommand, useAgentConfigs } from "../agents";
 import { needsInteractiveAgentLogin } from "../agentAuthentication";
 import { modelLabelFor, modelMenuItems, shortModelName, type AcpConfigOption } from "../agentModelMenu";
@@ -1004,7 +1005,10 @@ export function AgentPane({
     display((current) => [...current, assistant]);
 
     const endpoint = selectedRuntime ? "/api/agent/acp/chat" : "/api/agent/chat";
-    const identity = { name: profile.name, description: profile.description };
+    const currentBot = useStore.getState().agentConversations.find((bot) => bot.id === (speaker?.id ?? leaf.id));
+    const identity = currentBot
+      ? botIdentityForConversation(currentBot, profile.name)
+      : botIdentity ?? { name: profile.name, description: profile.description };
     const body = selectedRuntime
       ? {
           paneId: speaker ? groupMemberSessionId(leaf.id, speaker.id, topicId) : runtimePaneId,
@@ -1017,6 +1021,7 @@ export function AgentPane({
           botIdentity: identity,
         }
       : {
+          paneId: speaker ? groupMemberSessionId(leaf.id, speaker.id, topicId) : runtimePaneId,
           model: selectedModel || undefined,
           messages: [{ role: "user", content: prompt }],
           botIdentity: identity,
@@ -1061,7 +1066,7 @@ export function AgentPane({
               durationMs: Date.now() - startedAt,
               error: failure,
             }], true);
-          } else replaceReply(assistant.id, [], true);
+          } else replaceReply(assistant.id, [{ ...assistant, error: failure }], true);
         }
       } finally {
         if (inactivityTimer) clearTimeout(inactivityTimer);
@@ -1132,6 +1137,13 @@ export function AgentPane({
     const reply = async (member: AgentConversation | null, turn?: GroupTurn, visibleHistory = history,
       a2aDelivery?: AgentA2AMessage): Promise<GroupReply & { a2aMessages?: AgentA2AMessage[] }> => {
       if (abort.signal.aborted) return { messages: [] };
+      // A queued group/A2A turn must use the recipient's current configuration,
+      // not the closure captured when this group run began.
+      if (member) {
+        const currentMember = useStore.getState().agentConversations.find((bot) => bot.id === member!.id && !bot.agentGroup);
+        if (!currentMember) return { messages: [], failed: true };
+        member = currentMember;
+      }
       const inboxDelivery = Boolean(member && a2aDelivery);
       let completed: AgentMessage[] = [];
       let privateMessages: AgentPrivateMessage[] = [];
@@ -1162,7 +1174,8 @@ export function AgentPane({
         topicPrivateMessages()
       ) : sourcePrompt;
       const replyPrompt = agentReplyPrompt(baseReplyPrompt);
-      const replyIdentity = member ? { name: member.title, description: member.agentDescription } : botIdentity;
+      const currentBot = member ?? useStore.getState().agentConversations.find((bot) => bot.id === leaf.id);
+      const replyIdentity = currentBot ? botIdentityForConversation(currentBot) : botIdentity;
       const startedAt = Date.now();
       let text = "";
       let rawText = "";
@@ -1218,6 +1231,7 @@ export function AgentPane({
                   botIdentity: replyIdentity,
                 }
               : {
+                  paneId: replyPaneId,
                   model: (member ? member.agentModel || models?.defaultModel : selectedModel) || undefined,
                   messages: member ? [{ role: "user", content: replyPrompt, images: imageRequestPayload(user.attachments) }]
                     : peers.length ? [...history.slice(0, -1).map(({ role, content: body, attachments, files }) => ({
