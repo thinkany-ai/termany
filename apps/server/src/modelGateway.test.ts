@@ -240,6 +240,33 @@ test("HTTP proxy authenticates, remaps models, strips client credentials and str
   } finally { await close(gateway); await close(upstream); }
 });
 
+test("Chat passthrough uses max_completion_tokens for newer OpenAI models", async () => {
+  let received: Record<string, unknown> | undefined;
+  const upstream = createServer(async (req, res) => {
+    let body = ""; for await (const chunk of req) body += chunk;
+    const parsed: unknown = JSON.parse(body);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Expected an upstream request object.");
+    received = parsed;
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end('{"choices":[]}');
+  });
+  const origin = await listen(upstream);
+  saveConfig({ providers: [{ ...providers[1], apiBase: origin, models: ["gpt-5.6-sol"] }], defaultModel: "b/gpt-5.6-sol" });
+  const id = saveGatewayRoute({ ...auto, mode: "provider", providerId: "b", model: "gpt-5.6-sol" });
+  const gateway = createServer((req, res) => void proxyGatewayRequest(req, res));
+  const base = await listen(gateway);
+  try {
+    const response = await fetch(`${base}/gateway/${id}/v1/chat/completions`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${gatewayConnection(id, 0).apiKey}`, "content-type": "application/json" },
+      body: JSON.stringify({ model: "alias", messages: [], max_tokens: 100 }),
+    });
+    assert.equal(response.status, 200); await response.text();
+    assert.ok(received);
+    assert.equal(received.max_completion_tokens, 100); assert.equal(received.max_tokens, undefined);
+  } finally { await close(gateway); await close(upstream); }
+});
+
 test("Anthropic proxy replaces auth and forwards count_tokens plus upstream error status", async () => {
   let received: any;
   const upstream = createServer(async (req, res) => {

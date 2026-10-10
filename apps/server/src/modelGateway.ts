@@ -16,6 +16,7 @@ import { listAgentConfigs, findAgentConfig } from "./agentConfig.js";
 import { atomicWrite, readJsonIfExists, readTextIfExists, snapshot, type SnapshotFile } from "./agentProviders/files.js";
 import { readSection, readTopLevelKey, removeSection, setTopLevelKey, upsertSection } from "./agentProviders/toml.js";
 import { applyHermesGateway, restoreHermesGateway, gatewayHermesBaseUrl } from "./gatewayHermes.js";
+import { moveLegacyTokenLimit } from "./chatTokens.js";
 
 export interface GatewayRoute {
   id: string;
@@ -405,6 +406,7 @@ export async function proxyGatewayRequest(req: IncomingMessage, res: ServerRespo
     }
     const upstreamEndpoint = converted ? upstreamFormat === "anthropic" ? "/v1/messages" : "/v1/chat/completions" : endpoint;
     const upstreamBody = converted ? translateGatewayRequest(body, clientFormat, upstreamFormat, model) : { ...body, model };
+    if (!converted && clientFormat === "chat" && upstreamFormat === "chat") moveLegacyTokenLimit(upstreamBody, model);
     const upstreamUrl = gatewayUpstreamUrl(provider.apiBase, upstreamEndpoint, provider.kind);
     if (!converted && url.searchParams.has("beta")) upstreamUrl.searchParams.set("beta", url.searchParams.get("beta")!);
     const headers = new Headers({ "content-type": "application/json", "accept-encoding": "identity" });

@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { loadConfig, type Provider } from "./config.js";
+import { chatTokenLimitParam } from "./chatTokens.js";
 
 /**
  * AI theme generation. Runs server-side so provider API keys never reach the
@@ -177,7 +178,7 @@ async function viaOpenAI(provider: Provider, model: string, prompt: string): Pro
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
     body: JSON.stringify({
       model,
-      max_tokens: 1500,
+      [chatTokenLimitParam(model)]: 1500,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: `${SYSTEM}\n\n${JSON_HINT}` },

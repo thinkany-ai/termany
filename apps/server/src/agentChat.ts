@@ -1,6 +1,7 @@
 import { loadConfig, type Provider } from "./config.js";
 import { botIdentityPrompt } from "./botIdentity.js";
 import { loadAgentImages, type AgentImageInput, type LoadedAgentImage } from "./agentImages.js";
+import { chatTokenLimitParam } from "./chatTokens.js";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -118,7 +119,7 @@ async function streamOpenAI(
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
     body: JSON.stringify({
       model,
-      max_tokens: 4096,
+      [chatTokenLimitParam(model)]: 4096,
       stream: true,
       messages: [{ role: "system", content: system }, ...messages.map(({ role, content, images }) => images.length ? {
         role,
