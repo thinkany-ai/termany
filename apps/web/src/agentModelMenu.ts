@@ -40,6 +40,19 @@ export interface ModelMenuItem {
   items?: ModelMenuItem[];
 }
 
+/**
+ * A native select does not include its optgroup label when it renders the
+ * selected value. Flatten grouped model choices and qualify every child with
+ * its provider so two providers offering the same model remain distinguishable
+ * both while choosing and after the control closes.
+ */
+export function modelSelectItems(choices: ModelMenuItem[]): ModelMenuItem[] {
+  return choices.flatMap((choice) => choice.items
+    ? choice.items.map((item) => ({ ...item, label: `${item.label} · ${choice.label}` }))
+    : [choice]
+  );
+}
+
 /** Flatten a selector's values, whichever of the two shapes ACP sent. */
 export function modelValues(option: AcpConfigOption | undefined): AcpConfigValue[] {
   return (option?.options ?? []).flatMap((entry) => ("group" in entry ? entry.options : [entry]));

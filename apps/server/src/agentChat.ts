@@ -2,6 +2,7 @@ import { loadConfig, type Provider } from "./config.js";
 import { compileBotContext } from "./botContext.js";
 import { loadAgentImages, type AgentImageInput, type LoadedAgentImage } from "./agentImages.js";
 import { BOUND_SKILL_TOOL_NAME, snapshotBoundSkillFiles, type BoundSkillFileReader } from "./boundSkillTool.js";
+import { chatTokenLimitParam } from "./chatTokens.js";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -102,7 +103,8 @@ export async function streamModel(
       method: "POST", signal,
       headers: anthropic ? { "Content-Type": "application/json", "x-api-key": provider.apiKey, "anthropic-version": "2023-06-01" } : { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
       body: JSON.stringify({
-        model, max_tokens: 4096, stream: true,
+        model, stream: true,
+        [anthropic ? "max_tokens" : chatTokenLimitParam(model)]: 4096,
         ...(anthropic
           ? {
               system, messages,

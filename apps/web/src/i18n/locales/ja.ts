@@ -334,6 +334,11 @@ export default {
   "activity.done": "{agent} が完了しました",
   "activity.working": "{agent} が作業中です",
 
+  "notification.done.title": "{agent} が完了しました",
+  "notification.done.body": "タスクが完了しました。戻って確認してください。",
+  "notification.error.title": "{agent} が確認を待っています",
+  "notification.error.body": "タスクが停止し、あなたを待っています。",
+
   "agentChat.title": "何かお手伝いできることはありますか？",
   "agentChat.placeholder": "タスクを頼む、または何でも質問する",
   "agentChat.noModel": "設定でモデルを追加すると会話を始められます",
@@ -398,6 +403,7 @@ export default {
   "about.checking": "確認中…",
   "about.upToDate": "最新の状態です ✓",
   "about.checkUpdates": "アップデートを確認",
+  "about.updateUnavailable": "このプラットフォームでは自動更新をまだ利用できません",
   "about.downloading": "ダウンロード中…",
   "about.restarting": "インストール完了 — 再起動中…",
   "about.waitingForTasks": "インストール完了 — 実行中のタスク {count} 件の終了を待っています…",

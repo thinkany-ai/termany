@@ -1109,6 +1109,9 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
+        // Native OS notifications for agent turns that finish while the app is
+        // in the background (see apps/web/src/agentNotifications.ts).
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             stop_server,
             frontend_ready_for_open_paths,

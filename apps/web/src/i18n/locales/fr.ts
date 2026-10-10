@@ -334,6 +334,11 @@ export default {
   "activity.done": "{agent} a terminé",
   "activity.working": "{agent} travaille",
 
+  "notification.done.title": "{agent} a terminé",
+  "notification.done.body": "La tâche est terminée — revenez pour la vérifier.",
+  "notification.error.title": "{agent} requiert votre attention",
+  "notification.error.body": "La tâche s'est arrêtée et vous attend.",
+
   "agentChat.title": "Que puis-je faire pour vous ?",
   "agentChat.placeholder": "Confiez une tâche ou posez n'importe quelle question",
   "agentChat.noModel": "Ajoutez un modèle dans les réglages pour démarrer une conversation",
@@ -398,6 +403,7 @@ export default {
   "about.checking": "Vérification…",
   "about.upToDate": "Vous êtes à jour ✓",
   "about.checkUpdates": "Rechercher des mises à jour",
+  "about.updateUnavailable": "Les mises à jour automatiques ne sont pas encore disponibles pour cette plateforme",
   "about.downloading": "Téléchargement…",
   "about.restarting": "Installé — redémarrage…",
   "about.waitingForTasks": "Installé — en attente de la fin de {count} tâche(s) en cours…",

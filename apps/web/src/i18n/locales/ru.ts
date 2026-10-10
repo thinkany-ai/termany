@@ -334,6 +334,11 @@ export default {
   "activity.done": "{agent} завершил работу",
   "activity.working": "{agent} работает",
 
+  "notification.done.title": "{agent} завершил",
+  "notification.done.body": "Задача выполнена — вернитесь, чтобы проверить её.",
+  "notification.error.title": "{agent} требует внимания",
+  "notification.error.body": "Задача остановилась и ждёт вас.",
+
   "agentChat.title": "Чем могу помочь?",
   "agentChat.placeholder": "Поставьте задачу или задайте любой вопрос",
   "agentChat.noModel": "Добавьте модель в настройках, чтобы начать диалог",
@@ -398,6 +403,7 @@ export default {
   "about.checking": "Проверка…",
   "about.upToDate": "Установлена последняя версия ✓",
   "about.checkUpdates": "Проверить обновления",
+  "about.updateUnavailable": "Автоматические обновления для этой платформы пока недоступны",
   "about.downloading": "Загрузка…",
   "about.restarting": "Установлено — перезапуск…",
   "about.waitingForTasks": "Установлено — ожидание завершения запущенных задач: {count}…",

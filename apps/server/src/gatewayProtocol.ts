@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { moveLegacyTokenLimit } from "./chatTokens.js";
 
 /** Agent wire formats are independent of the selected provider's API kind. */
 export type GatewayFormat = "anthropic" | "chat" | "responses";
@@ -252,7 +253,11 @@ function chatToAnthropic(body: Wire): Wire {
 }
 
 export function translateGatewayRequest(body: Wire, from: GatewayFormat, to: "anthropic" | "chat", model: string): Wire {
-  if (from === to) return { ...body, model };
+  if (from === to) {
+    const result = { ...body, model };
+    if (to === "chat") moveLegacyTokenLimit(result, model);
+    return result;
+  }
   const chat = from === "anthropic" ? anthropicToChat(body) : from === "responses" ? responsesToChat(body) : { ...body };
   const result = to === "anthropic" ? chatToAnthropic(chat) : chat;
   if (to === "chat") {
@@ -263,6 +268,7 @@ export function translateGatewayRequest(body: Wire, from: GatewayFormat, to: "an
       content: Array.isArray(message.content) && message.content.every((part: Wire) => part.type === "text")
         ? message.content.map((part: Wire) => part.text).join("\n") : message.content,
     }));
+    moveLegacyTokenLimit(result, model);
   }
   return { ...result, model };
 }

@@ -334,6 +334,11 @@ export default {
   "activity.done": "{agent} tamamladı",
   "activity.working": "{agent} çalışıyor",
 
+  "notification.done.title": "{agent} tamamladı",
+  "notification.done.body": "Görev bitti — kontrol etmek için geri dönün.",
+  "notification.error.title": "{agent} ilginizi bekliyor",
+  "notification.error.body": "Görev durdu ve sizi bekliyor.",
+
   "agentChat.title": "Sizin için ne yapabilirim?",
   "agentChat.placeholder": "Bir görev verin ya da dilediğinizi sorun",
   "agentChat.noModel": "Konuşmaya başlamak için Ayarlar'dan bir model ekleyin",
@@ -398,6 +403,7 @@ export default {
   "about.checking": "Denetleniyor…",
   "about.upToDate": "Her şey güncel ✓",
   "about.checkUpdates": "Güncellemeleri denetle",
+  "about.updateUnavailable": "Otomatik güncellemeler henüz bu platformda kullanılamıyor",
   "about.downloading": "İndiriliyor…",
   "about.restarting": "Kuruldu — yeniden başlatılıyor…",
   "about.waitingForTasks": "Kuruldu — çalışan {count} görevin bitmesi bekleniyor…",

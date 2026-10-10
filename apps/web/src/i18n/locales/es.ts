@@ -334,6 +334,11 @@ export default {
   "activity.done": "{agent} ha terminado",
   "activity.working": "{agent} está trabajando",
 
+  "notification.done.title": "{agent} ha terminado",
+  "notification.done.body": "La tarea está lista: vuelve para revisarla.",
+  "notification.error.title": "{agent} requiere tu atención",
+  "notification.error.body": "La tarea se detuvo y te está esperando.",
+
   "agentChat.title": "¿En qué puedo ayudarte?",
   "agentChat.placeholder": "Asigna una tarea o pregunta lo que quieras",
   "agentChat.noModel": "Añade un modelo en Ajustes para iniciar una conversación",
@@ -398,6 +403,7 @@ export default {
   "about.checking": "Comprobando…",
   "about.upToDate": "Todo está actualizado ✓",
   "about.checkUpdates": "Buscar actualizaciones",
+  "about.updateUnavailable": "Las actualizaciones automáticas aún no están disponibles para esta plataforma",
   "about.downloading": "Descargando…",
   "about.restarting": "Instalado: reiniciando…",
   "about.waitingForTasks": "Instalado: esperando a que terminen {count} tarea(s) en curso…",

@@ -12,6 +12,7 @@ import { useStore } from "../state/store";
 import {
   checkForUpdate,
   installUpdate,
+  isUnsupportedUpdatePlatformError,
   isUpdateInstalled,
   relaunchApp,
   runningTaskCount,
@@ -166,14 +167,21 @@ export function Settings({
   const [version, setVersion] = useState("0.1.0");
   const [aboutError, setAboutError] = useState<string | null>(null);
 
-  // Self-update flow (desktop only): idle → checking → (none | available) →
-  // downloading → (waiting → ready | restarting). `updateVersion` is
+  // Self-update flow (desktop only): idle → checking → (none | unsupported |
+  // available) → downloading → (waiting → ready | restarting). `updateVersion` is
   // global so badges stay in sync; the installed flag lives in updater.ts so
   // closing and reopening Settings does not offer to download it twice.
   const updateVersion = useStore((s) => s.updateVersion);
   const setUpdateVersion = useStore((s) => s.setUpdateVersion);
   const [updPhase, setUpdPhase] = useState<
-    "idle" | "checking" | "none" | "downloading" | "waiting" | "ready" | "restarting"
+    | "idle"
+    | "checking"
+    | "none"
+    | "unsupported"
+    | "downloading"
+    | "waiting"
+    | "ready"
+    | "restarting"
   >(() => (isUpdateInstalled() ? "waiting" : "idle"));
   const [updPct, setUpdPct] = useState(0);
   const [runningTasks, setRunningTasks] = useState(0);
@@ -191,6 +199,10 @@ export function Settings({
       setUpdateVersion(u?.version ?? null);
       setUpdPhase(u ? "idle" : "none");
     } catch (e) {
+      if (isUnsupportedUpdatePlatformError(e)) {
+        setUpdPhase("unsupported");
+        return;
+      }
       setUpdError(e instanceof Error ? e.message : String(e));
       setUpdPhase("idle");
     }
@@ -450,18 +462,22 @@ export function Settings({
                 <div className="theme-preview-wrap">
                   <button
                     className="theme-preview"
+                    aria-label={item.name}
+                    aria-pressed={item.id === theme}
                     onClick={() => setTheme(item.id)}
                     style={{
-                      background: item.term.background as string,
+                      // Transparent terminal palettes (Spreadsheet) still need their
+                      // document color beneath the miniature in every active theme.
+                      background: `linear-gradient(${item.term.background}, ${item.term.background}), ${item.colors.bg}`,
                       borderColor: item.colors.border,
                       borderRadius: item.radius.lg,
                     }}
                   >
                     <span className="theme-preview-side" style={{ background: item.colors.bg2 }} />
                     <span className="theme-preview-dot" style={{ background: item.colors.accent }} />
-                    <span className="theme-preview-line lg" style={{ background: item.colors.fg }} />
-                    <span className="theme-preview-line" style={{ background: item.colors.fgDim }} />
-                    <span className="theme-preview-line sm" style={{ background: item.colors.fgDim }} />
+                    <span className="theme-preview-line lg" style={{ background: item.term.foreground ?? item.colors.fg }} />
+                    <span className="theme-preview-line" style={{ background: item.term.foreground ?? item.colors.fgDim }} />
+                    <span className="theme-preview-line sm" style={{ background: item.term.foreground ?? item.colors.fgDim }} />
                   </button>
                 </div>
                 <span className="theme-card-name">{item.name}</span>
@@ -710,6 +726,8 @@ export function Settings({
                           {t("about.updateRestart", { version: updateVersion })}
                         </button>
                       )
+                    ) : updPhase === "unsupported" ? (
+                      <span className="update-status">{t("about.updateUnavailable")}</span>
                     ) : (
                       <button
                         className="update-check-btn"

@@ -335,6 +335,11 @@ export default {
   "activity.done": "{agent} ทำเสร็จแล้ว",
   "activity.working": "{agent} กำลังทำงาน",
 
+  "notification.done.title": "{agent} เสร็จแล้ว",
+  "notification.done.body": "งานเสร็จแล้ว — กลับมาตรวจสอบได้เลย",
+  "notification.error.title": "{agent} ต้องการความสนใจ",
+  "notification.error.body": "งานหยุดลงและกำลังรอคุณอยู่",
+
   "agentChat.title": "มีอะไรให้ช่วยไหม?",
   "agentChat.placeholder": "มอบหมายงาน หรือถามอะไรก็ได้",
   "agentChat.noModel": "เพิ่มโมเดลในการตั้งค่าเพื่อเริ่มบทสนทนา",
@@ -399,6 +404,7 @@ export default {
   "about.checking": "กำลังตรวจสอบ…",
   "about.upToDate": "เป็นเวอร์ชันล่าสุดแล้ว ✓",
   "about.checkUpdates": "ตรวจหาอัปเดต",
+  "about.updateUnavailable": "ยังไม่มีการอัปเดตอัตโนมัติสำหรับแพลตฟอร์มนี้",
   "about.downloading": "กำลังดาวน์โหลด…",
   "about.restarting": "ติดตั้งแล้ว — กำลังเริ่มใหม่…",
   "about.waitingForTasks": "ติดตั้งแล้ว — กำลังรองาน {count} รายการที่ทำงานอยู่ให้เสร็จ…",

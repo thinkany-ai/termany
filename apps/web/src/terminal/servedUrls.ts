@@ -50,6 +50,14 @@ const URL_RE = /https?:\/\/[^\s"'`<>|\\^{}]*[^\s"'`<>|\\^{}.,;:!?)\]]/gi;
 /** `0.0.0.0`/`::` mean "every interface" — as a link they must become loopback. */
 const ANY_HOSTS = new Set(["0.0.0.0", "::", "[::]"]);
 
+/** Private interface addresses commonly advertised by `vite --host` and peers. */
+function isPrivateLanHost(host: string): boolean {
+  const h = host.toLowerCase();
+  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h)) return true;
+  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(h)) return true;
+  return /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(h);
+}
+
 /**
  * Hosts a pane can plausibly be serving itself on. Everything else — a docs
  * link, an npm registry URL, someone's staging domain — is excluded even if
@@ -61,9 +69,7 @@ function isLocalHost(host: string): boolean {
   if (h.endsWith(".localhost") || h.endsWith(".local")) return true;
   if (/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h)) return true;
   // Private LAN ranges — `vite --host` prints one of these as "Network:".
-  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h)) return true;
-  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(h)) return true;
-  return /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(h);
+  return isPrivateLanHost(h);
 }
 
 /**
@@ -83,7 +89,11 @@ export function extractServedUrls(raw: string): ServedUrl[] {
     const port = Number(url.port);
     if (!Number.isInteger(port) || port <= 0 || port > 65535) continue;
     if (!isLocalHost(url.hostname)) continue;
-    if (ANY_HOSTS.has(url.hostname.toLowerCase())) url.hostname = "localhost";
+    // A dev server may print its loopback URL first and its LAN URL second.
+    // Normalising both wildcard and private-interface hosts prevents the later
+    // "Network" line from making the pane button open 192.168.x.x/10.x.x.x.
+    const host = url.hostname.toLowerCase();
+    if (ANY_HOSTS.has(host) || isPrivateLanHost(host)) url.hostname = "localhost";
     found.push({ port, url: url.href });
   }
   return found;

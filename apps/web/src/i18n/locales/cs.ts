@@ -335,6 +335,11 @@ export default {
   "activity.done": "{agent} dokončil práci",
   "activity.working": "{agent} pracuje",
 
+  "notification.done.title": "{agent} skončil",
+  "notification.done.body": "Úkol je hotový — přepněte se zpět a zkontrolujte ho.",
+  "notification.error.title": "{agent} potřebuje pozornost",
+  "notification.error.body": "Úkol se zastavil a čeká na vás.",
+
   "agentChat.title": "Co pro vás mohu udělat?",
   "agentChat.placeholder": "Zadejte úkol nebo se na cokoli zeptejte",
   "agentChat.noModel": "Konverzaci zahájíte přidáním modelu v Nastavení",
@@ -399,6 +404,7 @@ export default {
   "about.checking": "Kontrola…",
   "about.upToDate": "Vše je aktuální ✓",
   "about.checkUpdates": "Zkontrolovat aktualizace",
+  "about.updateUnavailable": "Automatické aktualizace zatím nejsou pro tuto platformu dostupné",
   "about.downloading": "Stahování…",
   "about.restarting": "Nainstalováno — restartuje se…",
   "about.waitingForTasks": "Nainstalováno — čeká se na dokončení běžících úloh: {count}…",

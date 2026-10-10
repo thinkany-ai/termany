@@ -1180,8 +1180,8 @@ export const useStore = create<State>((set, get) => ({
   toggleRail: () => set((s) => ({ railCollapsed: !s.railCollapsed })),
 
   botEnabled: (() => {
-    try { return localStorage.getItem("termany.bot-enabled") !== "false"; }
-    catch { return true; }
+    try { return localStorage.getItem("termany.bot-enabled") === "true"; }
+    catch { return false; }
   })(),
   setBotEnabled: (botEnabled) => {
     try { localStorage.setItem("termany.bot-enabled", String(botEnabled)); }

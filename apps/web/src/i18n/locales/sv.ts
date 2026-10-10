@@ -334,6 +334,11 @@ export default {
   "activity.done": "{agent} är klar",
   "activity.working": "{agent} arbetar",
 
+  "notification.done.title": "{agent} är klar",
+  "notification.done.body": "Uppgiften är klar — gå tillbaka för att granska den.",
+  "notification.error.title": "{agent} behöver din uppmärksamhet",
+  "notification.error.body": "Uppgiften stoppade och väntar på dig.",
+
   "agentChat.title": "Vad kan jag hjälpa till med?",
   "agentChat.placeholder": "Ge en uppgift eller fråga vad som helst",
   "agentChat.noModel": "Lägg till en modell i Inställningar för att starta ett samtal",
@@ -398,6 +403,7 @@ export default {
   "about.checking": "Kontrollerar…",
   "about.upToDate": "Allt är uppdaterat ✓",
   "about.checkUpdates": "Sök efter uppdateringar",
+  "about.updateUnavailable": "Automatiska uppdateringar är inte tillgängliga för den här plattformen ännu",
   "about.downloading": "Hämtar…",
   "about.restarting": "Installerad — startar om…",
   "about.waitingForTasks": "Installerad — väntar på att {count} pågående uppgifter ska bli klara…",

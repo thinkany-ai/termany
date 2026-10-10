@@ -335,6 +335,11 @@ export default {
   "activity.done": "{agent} завершив роботу",
   "activity.working": "{agent} працює",
 
+  "notification.done.title": "{agent} завершив",
+  "notification.done.body": "Завдання виконано — поверніться, щоб переглянути його.",
+  "notification.error.title": "{agent} потребує уваги",
+  "notification.error.body": "Завдання зупинилося й чекає на вас.",
+
   "agentChat.title": "Чим можу допомогти?",
   "agentChat.placeholder": "Дайте завдання або запитайте будь-що",
   "agentChat.noModel": "Додайте модель у налаштуваннях, щоб почати розмову",
@@ -399,6 +404,7 @@ export default {
   "about.checking": "Перевірка…",
   "about.upToDate": "Встановлено найновішу версію ✓",
   "about.checkUpdates": "Перевірити оновлення",
+  "about.updateUnavailable": "Автоматичні оновлення для цієї платформи поки недоступні",
   "about.downloading": "Завантаження…",
   "about.restarting": "Встановлено — перезапуск…",
   "about.waitingForTasks": "Встановлено — очікування завершення запущених завдань: {count}…",
