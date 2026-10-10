@@ -329,6 +329,11 @@ export default {
   "activity.done": "{agent} का काम पूरा हुआ",
   "activity.working": "{agent} काम कर रहा है",
 
+  "notification.done.title": "{agent} ने पूरा किया",
+  "notification.done.body": "काम पूरा हो गया — देखने के लिए वापस आएँ।",
+  "notification.error.title": "{agent} को आपकी ज़रूरत है",
+  "notification.error.body": "काम रुक गया है और आपका इंतज़ार कर रहा है।",
+
   "agentChat.title": "मैं आपके लिए क्या कर सकता हूँ?",
   "agentChat.placeholder": "कोई काम सौंपें या कुछ भी पूछें",
   "agentChat.noModel": "बातचीत शुरू करने के लिए सेटिंग्स में एक मॉडल जोड़ें",

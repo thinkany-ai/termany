@@ -329,6 +329,11 @@ export default {
   "activity.done": "{agent} dokončil práci",
   "activity.working": "{agent} pracuje",
 
+  "notification.done.title": "{agent} skončil",
+  "notification.done.body": "Úkol je hotový — přepněte se zpět a zkontrolujte ho.",
+  "notification.error.title": "{agent} potřebuje pozornost",
+  "notification.error.body": "Úkol se zastavil a čeká na vás.",
+
   "agentChat.title": "Co pro vás mohu udělat?",
   "agentChat.placeholder": "Zadejte úkol nebo se na cokoli zeptejte",
   "agentChat.noModel": "Konverzaci zahájíte přidáním modelu v Nastavení",

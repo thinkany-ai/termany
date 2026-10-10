@@ -328,6 +328,11 @@ export default {
   "activity.done": "{agent} is klaar",
   "activity.working": "{agent} is bezig",
 
+  "notification.done.title": "{agent} is klaar",
+  "notification.done.body": "De taak is klaar — ga terug om hem te bekijken.",
+  "notification.error.title": "{agent} heeft aandacht nodig",
+  "notification.error.body": "De taak is gestopt en wacht op jou.",
+
   "agentChat.title": "Wat kan ik voor je doen?",
   "agentChat.placeholder": "Geef een taak of vraag wat je wilt",
   "agentChat.noModel": "Voeg een model toe in Instellingen om een gesprek te starten",
