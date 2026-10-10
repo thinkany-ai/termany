@@ -14,7 +14,7 @@ test('ACP idle lifecycle preserves context and prevents duplicate/orphan startup
   const runtime = await import('./acpRuntime.js');
   t.after(async () => { runtime.closeAllAcpRuntimes(); await fs.rm(directory, { recursive: true, force: true }); });
   const fixture = fileURLToPath(new URL('../tests/fixtures/idle-acp.mjs', import.meta.url));
-  db.setAgentsRaw(JSON.stringify(['load', 'no-load', 'fail-load'].map((id) => ({
+  db.setAgentsRaw(JSON.stringify(['load', 'no-load', 'fail-load', 'resume'].map((id) => ({
     id, name: id, command: process.execPath, args: '', enabled: true,
     runtime: { protocol: 'acp', distribution: 'custom', modelSource: 'agent', command: process.execPath,
       args: `${JSON.stringify(fixture)} ${id}` },
@@ -77,6 +77,23 @@ test('ACP idle lifecycle preserves context and prevents duplicate/orphan startup
   const newCount = (await transcript()).filter((m) => m.method === 'session/new').length;
   await assert.rejects(prompt('failure', 'fail-load'), /Cannot load saved session/);
   assert.equal((await transcript()).filter((m) => m.method === 'session/new').length, newCount, 'load failure must never silently reset context');
+
+  // A resume-only agent advertises `sessionCapabilities.resume` and no `loadSession`
+  // (dsh's shape). It must still be checkpointed and brought back — via
+  // `session/resume`, never `session/load`, which it does not implement.
+  const resumeFrom = (await transcript()).length;
+  const resumable = await prompt('resumed', 'resume');
+  assert.equal(resumable.reply.turns, 1);
+  const newBeforeResume = (await transcript()).filter((m) => m.method === 'session/new').length;
+  runtime.reapIdleAcpRuntimes(Date.now() + 600_000);
+  const resumed = await prompt('resumed', 'resume');
+  assert.equal(resumed.sessionId, resumable.sessionId, 'resume-only session keeps its id across idle eviction');
+  assert.equal(resumed.reply.turns, 2, 'resume restores the agent-side context');
+  assert.notEqual(resumed.reply.pid, resumable.reply.pid, 'resume runs in a fresh agent process');
+  assert.equal((await transcript()).filter((m) => m.method === 'session/new').length, newBeforeResume, 'resume must not silently start a new session');
+  const resumeTail = (await transcript()).slice(resumeFrom).filter((m) => m.method?.startsWith('session/'));
+  assert.equal(resumeTail.filter((m) => m.method === 'session/resume').length, 1, 'the resumed session goes through session/resume');
+  assert.equal(resumeTail.filter((m) => m.method === 'session/load').length, 0, 'a resume-only agent is never sent session/load');
 
   const startup = runtime.loadAcpRuntimeConfig(target('closed'));
   runtime.closeAcpRuntimes(['closed']);

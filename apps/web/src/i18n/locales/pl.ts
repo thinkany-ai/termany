@@ -329,6 +329,11 @@ export default {
   "activity.done": "{agent} zakończył pracę",
   "activity.working": "{agent} pracuje",
 
+  "notification.done.title": "{agent} zakończył",
+  "notification.done.body": "Zadanie gotowe — wróć, aby je sprawdzić.",
+  "notification.error.title": "{agent} wymaga uwagi",
+  "notification.error.body": "Zadanie zatrzymało się i czeka na Ciebie.",
+
   "agentChat.title": "W czym mogę pomóc?",
   "agentChat.placeholder": "Zleć zadanie albo zapytaj o cokolwiek",
   "agentChat.noModel": "Dodaj model w Ustawieniach, aby rozpocząć rozmowę",

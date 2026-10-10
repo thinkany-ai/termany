@@ -1,10 +1,10 @@
 import { textInputProps } from "../textInputProps";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { apiPath } from "../api";
 import { useI18n } from "../i18n";
 import { useImeGuard } from "../imeGuard";
-import { registerOccluder, unregisterOccluder } from "../nativeViewOcclusion";
+import { HEADER_POPOVER_STYLE, usePaneHeadPopover } from "./usePaneHeadPopover";
 import { useStore } from "../state/store";
 import { subscribeTerminalConnectionStatus, terminalConnectionStatus } from "../terminal/manager";
 import { CheckIcon, ChevronIcon, EditIcon, GearIcon, SshIcon, SpinnerIcon, TerminalIcon } from "./icons";
@@ -45,11 +45,9 @@ export function SshConnections({
   const [connections, setConnections] = useState<SshConnection[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ left: 8, top: 36 });
   const [, setConnectionStatusVersion] = useState(0);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const occluderId = useId();
+  const close = useCallback(() => setOpen(false), []);
+  const { rootRef, panelRef } = usePaneHeadPopover(open, close, "left");
 
   useEffect(() => subscribeTerminalConnectionStatus(() => {
     setConnectionStatusVersion((version) => version + 1);
@@ -57,40 +55,6 @@ export function SshConnections({
 
   useEffect(() => {
     if (!open) return;
-    const onClick = (event: MouseEvent) => {
-      const node = event.target as Node;
-      if (!rootRef.current?.contains(node) && !panelRef.current?.contains(node)) setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("click", onClick);
-    window.addEventListener("keydown", onKey, true);
-    return () => {
-      window.removeEventListener("click", onClick);
-      window.removeEventListener("keydown", onKey, true);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const position = () => {
-      const rect = rootRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      setMenuPosition({
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - 328)),
-        top: rect.bottom + 4,
-      });
-    };
-    position();
-    window.addEventListener("resize", position);
-    return () => window.removeEventListener("resize", position);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const panel = panelRef.current;
-    if (panel) registerOccluder(occluderId, panel.getBoundingClientRect());
     setLoading(true);
     setError(false);
     const abort = new AbortController();
@@ -106,9 +70,8 @@ export function SshConnections({
       .finally(() => setLoading(false));
     return () => {
       abort.abort();
-      unregisterOccluder(occluderId);
     };
-  }, [open, occluderId]);
+  }, [open]);
 
   const connect = (value?: string, label?: string) => {
     if (!value) {
@@ -186,8 +149,9 @@ export function SshConnections({
           ref={panelRef}
           role="dialog"
           aria-label={t("ssh.open")}
-          style={menuPosition}
+          style={HEADER_POPOVER_STYLE}
           onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
         >
           <form
             autoComplete="off"

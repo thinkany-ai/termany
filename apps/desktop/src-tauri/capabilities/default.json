@@ -11,6 +11,7 @@
     "opener:default",
     "updater:default",
     "process:default",
+    "notification:default",
     "core:webview:allow-create-webview",
     "core:webview:allow-set-webview-position",
     "core:webview:allow-set-webview-size",

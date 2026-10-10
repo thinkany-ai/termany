@@ -30,6 +30,17 @@ test("Anthropic → Chat converts system, images, tool choice and complete tool 
   assert.deepEqual(chat.stop, ["END"]); assert.equal(chat.max_tokens, 1024);
 });
 
+test("Chat-bound requests use completion token limits only for newer OpenAI models", () => {
+  const anthropic = translateGatewayRequest(request, "anthropic", "chat", "gpt-5.6-sol");
+  assert.equal(anthropic.max_completion_tokens, 1024); assert.equal(anthropic.max_tokens, undefined);
+  const responses = translateGatewayRequest({ input: "hello", max_output_tokens: 200 }, "responses", "chat", "o3-mini");
+  assert.equal(responses.max_completion_tokens, 200); assert.equal(responses.max_tokens, undefined);
+  const passthrough = translateGatewayRequest({ messages: [], max_tokens: 100 }, "chat", "chat", "gpt-5-chat-latest");
+  assert.equal(passthrough.max_completion_tokens, 100); assert.equal(passthrough.max_tokens, undefined);
+  const explicit = translateGatewayRequest({ messages: [], max_tokens: 100, max_completion_tokens: 200 }, "chat", "chat", "gpt-5-chat-latest");
+  assert.equal(explicit.max_completion_tokens, 200); assert.equal(explicit.max_tokens, undefined);
+});
+
 test("Chat → Anthropic restores tool results and schemas without fabricating reasoning signatures", () => {
   const chat = translateGatewayRequest(request, "anthropic", "chat", "deepseek-chat");
   const result = translateGatewayRequest(chat, "chat", "anthropic", "claude-real");

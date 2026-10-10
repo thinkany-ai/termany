@@ -328,6 +328,11 @@ export default {
   "activity.done": "{agent} sudah selesai",
   "activity.working": "{agent} sedang bekerja",
 
+  "notification.done.title": "{agent} selesai",
+  "notification.done.body": "Tugas selesai — kembali untuk memeriksanya.",
+  "notification.error.title": "{agent} perlu perhatian",
+  "notification.error.body": "Tugas berhenti dan menunggu Anda.",
+
   "agentChat.title": "Ada yang bisa saya bantu?",
   "agentChat.placeholder": "Berikan tugas atau tanyakan apa saja",
   "agentChat.noModel": "Tambahkan model di Pengaturan untuk memulai percakapan",

@@ -328,6 +328,11 @@ export default {
   "activity.done": "{agent} är klar",
   "activity.working": "{agent} arbetar",
 
+  "notification.done.title": "{agent} är klar",
+  "notification.done.body": "Uppgiften är klar — gå tillbaka för att granska den.",
+  "notification.error.title": "{agent} behöver din uppmärksamhet",
+  "notification.error.body": "Uppgiften stoppade och väntar på dig.",
+
   "agentChat.title": "Vad kan jag hjälpa till med?",
   "agentChat.placeholder": "Ge en uppgift eller fråga vad som helst",
   "agentChat.noModel": "Lägg till en modell i Inställningar för att starta ett samtal",

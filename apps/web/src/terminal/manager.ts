@@ -8,6 +8,15 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { loadAgentConfigs } from "../agents";
+import {
+  agentNotificationText,
+  cleanSessionTitle,
+  defaultNotificationBackend,
+  forgetClosedSessions,
+  pendingAgentNotifications,
+  postAgentNotification,
+  type AgentNotificationActivity,
+} from "../agentNotifications";
 import { apiUrl } from "../api";
 import { writeClipboard } from "../clipboard";
 import { applyTextInputProps } from "../textInputProps";
@@ -320,6 +329,65 @@ function clearAgentIdleTimer(id: string) {
   agentIdleTimers.delete(id);
 }
 
+/** Finished turns already announced, keyed by session id -> task epoch. */
+const announcedAgentTurns = new Map<string, number>();
+/** Latest OS window title an agent set per session, for notification labels. */
+const sessionTitles = new Map<string, string>();
+const notificationBackend = defaultNotificationBackend();
+
+/** Sessions the user can actually see: attached terminals in the live DOM. */
+function visibleAgentSessionIds(): string[] {
+  const visible: string[] = [];
+  for (const [id, session] of sessions) {
+    const element = session.term.element;
+    if (element?.isConnected && element.offsetParent !== null) visible.push(id);
+  }
+  return visible;
+}
+
+/**
+ * Post an OS notification for turns that finished out of sight. Driven by the
+ * shared activity ledger, so it covers every agent the tracker reports rather
+ * than any single CLI.
+ */
+function announceFinishedAgentTurns(
+  before: Map<string, AgentActivity>,
+  after: Map<string, AgentActivity>,
+) {
+  if (!notificationBackend || isDemo) return;
+
+  const windowFocused =
+    typeof document === "undefined" ||
+    (document.visibilityState === "visible" && document.hasFocus());
+
+  const requests = pendingAgentNotifications(
+    before as Map<string, AgentNotificationActivity>,
+    after as Map<string, AgentNotificationActivity>,
+    {
+      windowFocused,
+      visibleSessionIds: visibleAgentSessionIds(),
+      // A turn that finishes inside a still-open agent TUI is the main case
+      // this exists for, so an active session must not be filtered out here.
+    },
+    announcedAgentTurns,
+  );
+
+  for (const request of requests) {
+    announcedAgentTurns.set(request.sessionId, request.taskEpoch);
+    // The OSC window title is a trustworthy session label. Do not attach the
+    // rendered terminal screen as a body: full-screen TUIs mix model output
+    // with model/context/workspace status chrome, which is misleading detail.
+    const label = cleanSessionTitle(sessionTitles.get(request.sessionId));
+    const text = agentNotificationText(
+      { ...request, label },
+      (agent) => loadAgentConfigs().find((config) => config.id === agent)?.name,
+    );
+    void postAgentNotification(notificationBackend, text);
+  }
+
+  forgetClosedSessions(announcedAgentTurns, after.keys());
+}
+
 function applyAgentActivityPayload(payload: any) {
   if (!payload?.activities || typeof payload.activities !== "object") return;
   if (
@@ -415,10 +483,12 @@ function applyAgentActivityPayload(payload: any) {
       clearAgentIdleTimer(id);
     }
   }
+  const beforeActivities = new Map(agentActivities);
   agentActivities.clear();
   for (const [id, activity] of next) agentActivities.set(id, activity);
   agentActiveSessions.clear();
   for (const id of nextActiveSessions) agentActiveSessions.add(id);
+  announceFinishedAgentTurns(beforeActivities, next);
   notifyAgentActivity();
   for (const [id, activity] of next) {
     if (activity.status === "working" || activity.status === "done") {
@@ -1341,13 +1411,19 @@ function refreshOnSymbolsFontLoad() {
  *  symbols fallback rides along so Nerd Font icons survive any font choice. */
 export function applyFontFamily(family: string) {
   currentFontFamily = family;
-  for (const s of sessions.values()) s.term.options.fontFamily = withSymbolsFallback(family);
+  for (const [id, s] of sessions) {
+    s.term.options.fontFamily = withSymbolsFallback(family);
+    requestAnimationFrame(() => fitSession(id));
+  }
 }
 
 /** Push a font size change to every live terminal + future sessions. */
 export function applyFontSize(size: number) {
   currentFontSize = size;
-  for (const s of sessions.values()) s.term.options.fontSize = size;
+  for (const [id, s] of sessions) {
+    s.term.options.fontSize = size;
+    requestAnimationFrame(() => fitSession(id));
+  }
 }
 
 function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId = id): Session {
@@ -1376,6 +1452,12 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
     // artwork shows through the pane veil; opaque themes render identically.
     allowTransparency: true,
     theme: inactiveTermTheme(),
+  });
+
+  // Capture the OS window title an agent animates so a completion notification
+  // can name the session; the raw value is cleaned in cleanSessionTitle.
+  term.onTitleChange((title) => {
+    if (title) sessionTitles.set(id, title);
   });
 
   const fit = new FitAddon();
@@ -1946,6 +2028,14 @@ export function fitSession(id: string) {
   if (s.el.isConnected && (s.el.clientWidth < 5 || s.el.clientHeight < 5)) return;
   try {
     s.fit.fit();
+    // Worksheet decoration follows the rendered rows, including per-pane zoom
+    // and fractional device scaling. No private xterm renderer API is needed.
+    const screen = s.term.element?.querySelector<HTMLElement>(".xterm-screen");
+    const body = s.el.closest<HTMLElement>(".pane-body");
+    const rowHeight = screen ? parseFloat(getComputedStyle(screen).height) / s.term.rows : 0;
+    if (body && Number.isFinite(rowHeight) && rowHeight > 0) {
+      body.style.setProperty("--terminal-row-height", `${rowHeight}px`);
+    }
     s.backend.resize(s.term.cols, s.term.rows);
     if (!s.followOutput && s.lockedViewportY !== null) {
       s.term.scrollToLine(Math.min(s.lockedViewportY, s.term.buffer.active.baseY));
@@ -2258,6 +2348,8 @@ export function disposeSession(id: string) {
   terminalInputSendChains.delete(id);
   commandSendChains.delete(id);
   shellReadyCommands.delete(id);
+  sessionTitles.delete(id);
+  announcedAgentTurns.delete(id);
   const activityChanged = agentActivities.delete(id);
   const presenceChanged = agentActiveSessions.delete(id);
   if (activityChanged || presenceChanged) notifyAgentActivity();
