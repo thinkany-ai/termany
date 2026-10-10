@@ -138,6 +138,14 @@ function formatToolOutput(content: unknown, rawOutput: unknown): string | undefi
   }
 }
 
+/**
+ * How this agent can bring back a suspended conversation. `load` replays the
+ * whole transcript (ACP `loadSession`); `resume` restores the context without
+ * replaying it. Either is worth checkpointing — only `load` can feed
+ * recoverFinalText(), which needs the replayed transcript.
+ */
+type SessionRestore = "load" | "resume";
+
 class Runtime {
   private emit: Emit | null = null;
   private prompting = false;
@@ -164,7 +172,7 @@ class Runtime {
     private session: ActiveSession,
     private readonly compatibility: AcpConfigCompatibility,
     private readonly supportsImagePrompts: boolean,
-    private readonly supportsSessionLoad: boolean
+    private readonly restore: SessionRestore | undefined
   ) {
     this.configOptions = session.newSessionResponse.configOptions ?? [];
     rememberConfig(agent.id, this.configOptions);
@@ -246,22 +254,33 @@ class Runtime {
         clientCapabilities: {},
         clientInfo: { name: "Termany", version: "0.1.21" },
       });
+      const capabilities = initialization.agentCapabilities;
+      const restore: SessionRestore | undefined = capabilities?.loadSession === true
+        ? "load"
+        : capabilities?.sessionCapabilities?.resume ? "resume" : undefined;
       let session: ActiveSession;
       if (saved?.sessionId) {
-        if (!initialization.agentCapabilities?.loadSession) {
+        if (restore === "load") {
+          // Attach after load: transcript replay must not leak into the next reply.
+          const response = await connection.agent.request(methods.agent.session.load, {
+            sessionId: saved.sessionId, cwd, mcpServers: [],
+          });
+          session = connection.agent.attachSession({ ...response, sessionId: saved.sessionId });
+        } else if (restore === "resume") {
+          // ACP `session/resume` restores the context without replaying history, and
+          // its response carries no sessionId, so put back the one we asked to resume.
+          const response = await connection.agent.request(methods.agent.session.resume, {
+            sessionId: saved.sessionId, cwd, mcpServers: [],
+          });
+          session = connection.agent.attachSession({ ...response, sessionId: saved.sessionId });
+        } else {
           throw new Error("Agent no longer supports restoring this conversation");
         }
-        // Attach after load: transcript replay must not leak into the next reply.
-        const response = await connection.agent.request(methods.agent.session.load, {
-          sessionId: saved.sessionId, cwd, mcpServers: [],
-        });
-        session = connection.agent.attachSession({ ...response, sessionId: saved.sessionId });
       } else {
         session = await connection.agent.buildSession(cwd).start();
       }
       runtime = new Runtime(paneId, agent, cwd, child, connection, session, compatibility,
-        initialization.agentCapabilities?.promptCapabilities?.image === true,
-        initialization.agentCapabilities?.loadSession === true);
+        capabilities?.promptCapabilities?.image === true, restore);
       runtime.hasPrompted = Boolean(saved?.sessionId);
       return runtime;
     } catch (error) {
@@ -395,7 +414,8 @@ class Runtime {
    * characters, replay the agent's persisted transcript and use its authoritative final
    * assistant message. This is intentionally lazy so ordinary turns pay no extra request. */
   private async recoverFinalText(): Promise<string | undefined> {
-    if (!this.supportsSessionLoad) return;
+    // Only session/load replays the transcript, so a resume-only agent cannot feed this.
+    if (this.restore !== "load") return;
     const response = this.session.newSessionResponse;
     const capture = { sessionId: this.session.sessionId, finalText: "", lastUpdateAt: 0 };
     this.session.dispose();
@@ -425,7 +445,7 @@ class Runtime {
   }
 
   checkpoint(): SuspendedRuntime | undefined {
-    if (this.prompting || (this.hasPrompted && !this.supportsSessionLoad)) return;
+    if (this.prompting || (this.hasPrompted && this.restore === undefined)) return;
     return {
       agent: this.agent, cwd: this.cwd, config: this.configOptions,
       sessionId: this.hasPrompted ? this.session.sessionId : undefined,
