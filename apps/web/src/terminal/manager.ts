@@ -11,7 +11,6 @@ import { apiUrl } from "../api";
 import { writeClipboard } from "../clipboard";
 import { applyTextInputProps } from "../textInputProps";
 import { DemoBackend, demoInteracted, isDemo } from "../demo";
-import { ACTIONS, loadKeybindings, matchChord } from "../keybindings";
 import {
   agentConfirmationPromptVisible,
   agentInputPromptVisible,
@@ -34,6 +33,8 @@ import { forgetSessionUrls, noteSessionOutput } from "./servedUrls";
 import { registerWebLinks } from "./webLinks";
 import { fixWebkitGtkImeComposition } from "./webkitGtkIme";
 import { createGlyphAtlasRepairer, onAtlasPagesMerged } from "./glyphAtlas";
+import { isModifierKeyEvent, registerTerminalKeybindings } from "./keyEvents";
+import { resumeOutputFollow, resumeOutputOnInput } from "./scrollFollow";
 
 /**
  * The terminal session registry.
@@ -104,9 +105,10 @@ export function noteManualScroll(id: string) {
   // between the wheel gesture and xterm noticing that it left the bottom.
   session.followOutput = false;
   session.lockedViewportY = session.term.buffer.active.viewportY;
+  const scrollUntil = session.manualScrollUntil;
   requestAnimationFrame(() => {
     const latest = sessions.get(id);
-    if (!latest) return;
+    if (latest !== session || latest.manualScrollUntil !== scrollUntil) return;
     const state = readScrollState(latest.term);
     latest.followOutput = state.atBottom;
     latest.lockedViewportY = state.atBottom ? null : latest.term.buffer.active.viewportY;
@@ -1378,14 +1380,7 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
   // typing IS the terminal), app shortcuts like ⌘W silently did nothing.
   // Step aside for any key that matches a live user shortcut binding so it
   // reaches the app instead of being typed into the shell.
-  term.attachCustomKeyEventHandler((event) => {
-    if (event.type !== "keydown") return true;
-    const keybindings = loadKeybindings();
-    for (const action of ACTIONS) {
-      if (matchChord(event, keybindings[action.id] ?? action.default)) return false;
-    }
-    return true;
-  });
+  registerTerminalKeybindings(term);
 
   // Replay the previous run's output tail (server-captured, sanitized) ABOVE
   // the fresh shell, so a reopened pane shows where it left off. The raw replay
@@ -1569,6 +1564,13 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
 
   term.onData((data) => {
     if (IME_DEBUG) imeLog(`→PTY ${JSON.stringify(data)}`);
+    if (resumeOutputOnInput(session, data, readScrollState(term).atBottom)) {
+      if (session.deferredFlushTimer !== null) {
+        window.clearTimeout(session.deferredFlushTimer);
+        session.deferredFlushTimer = null;
+      }
+      flushDeferredOutput(id);
+    }
     if (sshTarget && session.ended) {
       if (/[\r\n]/.test(data)) {
         term.write("\r\n");
@@ -1793,6 +1795,7 @@ function fixAbandonedImeFinalize(term: Terminal) {
     "keydown",
     (e) => {
       if (!composing || e.target !== ta) return;
+      if (isModifierKeyEvent(e)) return;
       composing = false;
       if (e.keyCode === 229 || MODIFIERS.has(e.keyCode) || e.key === "Enter") return;
       imeLog(`fix:drop-abandoned-composition before ${JSON.stringify(e.key)} ta=${JSON.stringify(ta.value)}`);
@@ -1888,8 +1891,8 @@ export function scrollSessionToBottom(id: string) {
   id = activeSessionId(id);
   const session = sessions.get(id);
   if (!session) return;
-  session.followOutput = true;
-  session.lockedViewportY = null;
+  resumeOutputFollow(session);
+  flushDeferredOutput(id);
   settleSessionAtBottom(id, true);
 }
 
