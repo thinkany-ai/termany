@@ -16,6 +16,8 @@ import { detectAgentExecutable, detectCommandExecutable, parseAgentDetectionInpu
 import { sampleOnceOutputSettles } from "./foregroundJob.js";
 import { DEFAULT_SESSION_PAGE_SIZE, listAgentSessions, listAgentUsage } from "./agentSessions.js";
 import { streamAgentChat } from "./agentChat.js";
+import { compileBotContext } from "./botContext.js";
+import { handleSkillRequest } from "./skillsHttp.js";
 import { listAgentConfigs, saveAgentConfigs } from "./agentConfig.js";
 import {
   acpRuntimeConfig,
@@ -63,6 +65,7 @@ import { gitDiffs, gitOverview, worktreeOverview } from "./git.js";
 import { pickFolder } from "./folderPicker.js";
 import { pickFiles } from "./filePicker.js";
 import { testProvider } from "./providerTest.js";
+import { cwdForPid as nativeCwdForPid } from "./processCwd.js";
 import { ptyEnvironment } from "./ptyEnvironment.js";
 import { generateTheme } from "./theme.js";
 import {
@@ -168,12 +171,14 @@ const PORT = Number(process.env.TERMANY_PORT ?? DEFAULT_PORT);
 /**
  * Baked in at bundle time by scripts/bundle-server.mjs (esbuild --define) so a
  * packaged server can report which build it belongs to. The desktop app rejects
- * a running server whose version doesn't match its own — see
+ * a running server whose build identity doesn't match its own — see
  * existing_server_matches() in apps/desktop/src-tauri/src/lib.rs. Undefined when
  * run from source (tsx), where "dev" never matches a release app on purpose.
  */
 declare const __TERMANY_VERSION__: string | undefined;
+declare const __TERMANY_BUILD_ID__: string | undefined;
 const SERVER_VERSION = typeof __TERMANY_VERSION__ === "string" ? __TERMANY_VERSION__ : "dev";
+const SERVER_BUILD_ID = typeof __TERMANY_BUILD_ID__ === "string" ? __TERMANY_BUILD_ID__ : "dev";
 const IS_WIN = os.platform() === "win32";
 const PASTE_DIR = process.env.TERMANY_PASTE_DIR ?? `${os.tmpdir()}/termany-pastes`;
 const execFileAsync = promisify(execFile);
@@ -633,7 +638,7 @@ setInterval(flushScroll, 10_000).unref();
 // JSON API (POST /api/theme — AI theme generation, key stays server-side).
 const http = createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Image-Type");
 
   if (req.method === "OPTIONS") {
@@ -651,6 +656,17 @@ const http = createServer((req, res) => {
     json(500, { error: msg });
   };
   const reqUrl = new URL(req.url ?? "/", "http://localhost");
+
+  if (reqUrl.pathname === "/api/skills" || reqUrl.pathname.startsWith("/api/skills/") || reqUrl.pathname === "/api/skill-roots" || reqUrl.pathname === "/api/skill-catalog" || reqUrl.pathname.startsWith("/api/skill-catalog/")) {
+    void handleSkillRequest(req, res, reqUrl).catch(fail);
+    return;
+  }
+  if (req.method === "POST" && reqUrl.pathname === "/api/bot-context/preview") {
+    readJson(req).then(async (body) => {
+      json(200, await compileBotContext(body.botIdentity));
+    }).catch((error) => json(400, { error: error instanceof Error ? error.message : String(error), code: error?.code ?? "BOT_CONTEXT_ERROR" }));
+    return;
+  }
 
   if (reqUrl.pathname.startsWith("/gateway/")) {
     void proxyGatewayRequest(req, res).catch(fail);
@@ -1078,7 +1094,7 @@ const http = createServer((req, res) => {
         try {
           const result = await streamAgentChat(body?.model, body?.messages, abort.signal, (text) => {
             if (!res.writableEnded && text) res.write(`${JSON.stringify({ type: "delta", text })}\n`);
-          }, body?.botIdentity);
+          }, body?.botIdentity, typeof body?.paneId === "string" ? body.paneId : undefined);
           if (!res.writableEnded) res.end(`${JSON.stringify({ type: "done", model: result.model })}\n`);
         } catch (err) {
           if (abort.signal.aborted || res.writableEnded) return;
@@ -1479,7 +1495,7 @@ const http = createServer((req, res) => {
   // decide whether an already-listening server is safe to reuse; keep it cheap
   // and dependency-free so it answers even if everything else is broken.
   if (req.method === "GET" && reqUrl.pathname === "/api/version") {
-    json(200, { version: SERVER_VERSION });
+    json(200, { version: SERVER_VERSION, buildId: SERVER_BUILD_ID });
     return;
   }
 
@@ -1714,22 +1730,9 @@ const wss = new WebSocketServer({ server: http });
 let connCount = 0;
 
 async function cwdForPid(pid: number): Promise<string | undefined> {
-  try {
-    if (os.platform() === "linux") return await fs.promises.realpath(`/proc/${pid}/cwd`);
-    if (os.platform() === "darwin") {
-      const { stdout } = await execFileAsync("lsof", ["-a", "-d", "cwd", "-p", String(pid), "-Fn"], {
-        timeout: 1000,
-        maxBuffer: 4096,
-      });
-      const line = stdout
-        .split("\n")
-        .find((value) => value.startsWith("n") && value.length > 1);
-      return line?.slice(1);
-    }
-  } catch {
-    return undefined;
-  }
-  return oscCwdByPid.get(pid);
+  // Windows has neither /proc nor lsof, so nativeCwdForPid declines and the
+  // PTY's own OSC 7 reports (see OSC7_PS_HOOK above) are all there is.
+  return (await nativeCwdForPid(pid)) ?? oscCwdByPid.get(pid);
 }
 
 /**

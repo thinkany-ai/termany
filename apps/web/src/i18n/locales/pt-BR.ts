@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Portuguese (Brazil) — Português (Brasil)
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} está encaminhando sua mensagem ({attempt}/{total})…",
   "agentGroup.routingTimeout": "O agente anterior excedeu o tempo limite. {name} está assumindo ({attempt}/{total})…",
   "agentGroup.routingFallback": "O agente anterior falhou. {name} está assumindo ({attempt}/{total})…",
@@ -47,6 +49,10 @@ export default {
   "common.delete": "Excluir",
   "common.edit": "Editar",
   "common.done": "Concluído",
+  "closeConfirm.tab": "Fechar a aba \"{name}\"?",
+  "closeConfirm.page": "Excluir a página \"{name}\" e tudo abaixo dela?",
+  "closeConfirm.pane": "Fechar o painel \"{name}\"?",
+  "closeConfirm.reason": "Alguns painéis ainda estão em execução ou precisam de atenção. Fechar irá interrompê-los.",
   "agentWorkspace.new": "Novo bot",
   "agentWorkspace.newBot": "Novo bot",
   "agentWorkspace.botName": "Nome do bot",
@@ -328,6 +334,11 @@ export default {
   "activity.done": "{agent} terminou",
   "activity.working": "{agent} está trabalhando",
 
+  "notification.done.title": "{agent} terminou",
+  "notification.done.body": "A tarefa está pronta — volte para revisá-la.",
+  "notification.error.title": "{agent} precisa de atenção",
+  "notification.error.body": "A tarefa parou e está esperando por você.",
+
   "agentChat.title": "O que posso fazer por você?",
   "agentChat.placeholder": "Passe uma tarefa ou pergunte qualquer coisa",
   "agentChat.noModel": "Adicione um modelo nas Configurações para iniciar uma conversa",
@@ -392,6 +403,7 @@ export default {
   "about.checking": "Verificando…",
   "about.upToDate": "Tudo atualizado ✓",
   "about.checkUpdates": "Verificar atualizações",
+  "about.updateUnavailable": "As atualizações automáticas ainda não estão disponíveis para esta plataforma",
   "about.downloading": "Baixando…",
   "about.restarting": "Instalado — reiniciando…",
   "about.waitingForTasks": "Instalado — aguardando {count} tarefa(s) em execução terminar(em)…",

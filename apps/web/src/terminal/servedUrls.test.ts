@@ -27,9 +27,27 @@ test("normalises the bracketed IPv6 wildcard python prints", () => {
   assert.deepEqual(extractServedUrls(text), [{ port: 8123, url: "http://localhost:8123/" }]);
 });
 
-test("accepts the LAN address `vite --host` advertises", () => {
-  assert.deepEqual(extractServedUrls("➜  Network: http://192.168.1.20:5173/"), [
-    { port: 5173, url: "http://192.168.1.20:5173/" },
+test("rewrites private LAN addresses advertised by dev servers to localhost", () => {
+  const text = [
+    "vite: http://192.168.1.20:5173/app?mode=dev",
+    "other: http://10.0.0.8:4173/",
+    "third: https://172.31.2.4:8443/health",
+  ].join("\n");
+  assert.deepEqual(extractServedUrls(text), [
+    { port: 5173, url: "http://localhost:5173/app?mode=dev" },
+    { port: 4173, url: "http://localhost:4173/" },
+    { port: 8443, url: "https://localhost:8443/health" },
+  ]);
+});
+
+test("a later vite Network line cannot replace localhost with a LAN address", () => {
+  const text = [
+    "➜  Local:   http://localhost:5173/",
+    "➜  Network: http://192.168.1.20:5173/",
+  ].join("\n");
+  assert.deepEqual(extractServedUrls(text), [
+    { port: 5173, url: "http://localhost:5173/" },
+    { port: 5173, url: "http://localhost:5173/" },
   ]);
 });
 

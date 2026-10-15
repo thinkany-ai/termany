@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Korean — 한국어
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name}이(가) 메시지를 배정하고 있습니다 ({attempt}/{total})…",
   "agentGroup.routingTimeout": "이전 에이전트의 시간이 초과되었습니다. {name}이(가) 이어받습니다 ({attempt}/{total})…",
   "agentGroup.routingFallback": "이전 에이전트가 실패했습니다. {name}이(가) 이어받습니다 ({attempt}/{total})…",
@@ -47,6 +49,10 @@ export default {
   "common.delete": "삭제",
   "common.edit": "편집",
   "common.done": "완료",
+  "closeConfirm.tab": "탭 \"{name}\" 닫기",
+  "closeConfirm.page": "페이지 \"{name}\" 및 하위 항목 모두 삭제",
+  "closeConfirm.pane": "창 \"{name}\" 닫기",
+  "closeConfirm.reason": "일부 창이 아직 실행 중이거나 주의가 필요합니다. 닫으면 중지됩니다.",
   "agentWorkspace.new": "새 봇",
   "agentWorkspace.newBot": "새 봇",
   "agentWorkspace.botName": "봇 이름",
@@ -328,6 +334,11 @@ export default {
   "activity.done": "{agent}이(가) 완료했습니다",
   "activity.working": "{agent}이(가) 작업 중입니다",
 
+  "notification.done.title": "{agent}이(가) 완료했습니다",
+  "notification.done.body": "작업이 끝났습니다. 돌아와서 확인하세요.",
+  "notification.error.title": "{agent}에 확인이 필요합니다",
+  "notification.error.body": "작업이 중단되어 기다리고 있습니다.",
+
   "agentChat.title": "무엇을 도와드릴까요?",
   "agentChat.placeholder": "작업을 맡기거나 무엇이든 물어보세요",
   "agentChat.noModel": "설정에서 모델을 추가하면 대화를 시작할 수 있습니다",
@@ -392,6 +403,7 @@ export default {
   "about.checking": "확인 중…",
   "about.upToDate": "최신 버전입니다 ✓",
   "about.checkUpdates": "업데이트 확인",
+  "about.updateUnavailable": "이 플랫폼에서는 아직 자동 업데이트를 사용할 수 없습니다",
   "about.downloading": "다운로드 중…",
   "about.restarting": "설치 완료 — 다시 시작하는 중…",
   "about.waitingForTasks": "설치 완료 — 실행 중인 작업 {count}개가 끝나기를 기다리는 중…",

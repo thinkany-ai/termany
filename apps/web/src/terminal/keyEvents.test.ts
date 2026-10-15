@@ -17,14 +17,18 @@ function keyboardEvent(overrides: Partial<KeyboardEvent> = {}): KeyboardEvent {
   } as KeyboardEvent;
 }
 
-function handler(isMac = true, bindings: Record<string, Chord> = {}) {
+function handler(
+  isMac = true,
+  bindings: Record<string, Chord> = {},
+  sendNewline?: (data: string) => void,
+) {
   let callback: ((event: KeyboardEvent) => boolean) | undefined;
   const term = {
     attachCustomKeyEventHandler(value: (event: KeyboardEvent) => boolean) {
       callback = value;
     },
   } as unknown as Terminal;
-  registerTerminalKeybindings(term, () => bindings, isMac);
+  registerTerminalKeybindings(term, () => bindings, isMac, sendNewline);
   return (event: KeyboardEvent) => callback!(event);
 }
 
@@ -85,4 +89,58 @@ test("application shortcuts still use the live binding map", () => {
   bindings.newTab = { code: "KeyU", ctrl: true };
   assert.equal(handle(keyboardEvent({ code: "KeyY", ctrlKey: true })), true);
   assert.equal(handle(keyboardEvent({ code: "KeyU", ctrlKey: true })), false);
+});
+
+test("Windows/Linux native paste bypasses xterm throughout the key sequence", () => {
+  const handle = handler(false);
+  for (const type of ["keydown", "keypress", "keyup"]) {
+    let prevented = false;
+    assert.equal(handle(keyboardEvent({
+      type,
+      key: "v",
+      code: "KeyV",
+      ctrlKey: true,
+      preventDefault: () => { prevented = true; },
+    })), false);
+    assert.equal(prevented, false);
+  }
+  assert.equal(handle(keyboardEvent({ key: "V", code: "KeyV", ctrlKey: true, shiftKey: true })), true);
+});
+
+test("Shift+Enter sends one synthetic newline without native textarea input", () => {
+  const newlines: string[] = [];
+  const handle = handler(true, {}, (data) => newlines.push(data));
+  let prevented = false;
+  let stopped = false;
+  const event = keyboardEvent({
+    key: "Enter",
+    code: "Enter",
+    shiftKey: true,
+    preventDefault: () => { prevented = true; },
+    stopPropagation: () => { stopped = true; },
+  });
+
+  assert.equal(handle(event), false);
+  assert.equal(prevented, true);
+  assert.equal(stopped, true);
+  assert.equal(handle({ ...event, type: "keyup" }), true);
+  assert.deepEqual(newlines, ["\x1b\r"]);
+});
+
+test("an application rebind of Shift+Enter takes precedence over a newline", () => {
+  const newlines: string[] = [];
+  const handle = handler(true, { newTab: { code: "Enter", shift: true } }, (data) => newlines.push(data));
+  assert.equal(handle(keyboardEvent({ key: "Enter", code: "Enter", shiftKey: true })), false);
+  assert.deepEqual(newlines, []);
+});
+
+test("Shift+Enter during IME composition stays with xterm", () => {
+  const newlines: string[] = [];
+  const handle = handler(true, {}, (data) => newlines.push(data));
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    assert.equal(handle(keyboardEvent({
+      key: "Enter", code: "Enter", shiftKey: true, ...composition,
+    })), true);
+  }
+  assert.deepEqual(newlines, []);
 });

@@ -1,7 +1,9 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Ukrainian — Українська (counts use a "noun: N" form to sidestep the three
 // Slavic plural stems)
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} розподіляє повідомлення ({attempt}/{total})…",
   "agentGroup.routingTimeout": "Час очікування попереднього агента минув. {name} перебирає завдання ({attempt}/{total})…",
   "agentGroup.routingFallback": "Попередній агент завершився з помилкою. {name} перебирає завдання ({attempt}/{total})…",
@@ -48,6 +50,10 @@ export default {
   "common.delete": "Видалити",
   "common.edit": "Змінити",
   "common.done": "Готово",
+  "closeConfirm.tab": "Закрити вкладку «{name}»?",
+  "closeConfirm.page": "Видалити сторінку «{name}» й усе, що в ній?",
+  "closeConfirm.pane": "Закрити панель «{name}»?",
+  "closeConfirm.reason": "Деякі панелі досі працюють або потребують уваги. Закриття зупинить їх.",
   "agentWorkspace.new": "Новий бот",
   "agentWorkspace.newBot": "Новий бот",
   "agentWorkspace.botName": "Ім’я бота",
@@ -329,6 +335,11 @@ export default {
   "activity.done": "{agent} завершив роботу",
   "activity.working": "{agent} працює",
 
+  "notification.done.title": "{agent} завершив",
+  "notification.done.body": "Завдання виконано — поверніться, щоб переглянути його.",
+  "notification.error.title": "{agent} потребує уваги",
+  "notification.error.body": "Завдання зупинилося й чекає на вас.",
+
   "agentChat.title": "Чим можу допомогти?",
   "agentChat.placeholder": "Дайте завдання або запитайте будь-що",
   "agentChat.noModel": "Додайте модель у налаштуваннях, щоб почати розмову",
@@ -393,6 +404,7 @@ export default {
   "about.checking": "Перевірка…",
   "about.upToDate": "Встановлено найновішу версію ✓",
   "about.checkUpdates": "Перевірити оновлення",
+  "about.updateUnavailable": "Автоматичні оновлення для цієї платформи поки недоступні",
   "about.downloading": "Завантаження…",
   "about.restarting": "Встановлено — перезапуск…",
   "about.waitingForTasks": "Встановлено — очікування завершення запущених завдань: {count}…",

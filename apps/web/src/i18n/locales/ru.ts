@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Russian — Русский
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} распределяет сообщение ({attempt}/{total})…",
   "agentGroup.routingTimeout": "Время ожидания предыдущего агента истекло. {name} принимает задачу ({attempt}/{total})…",
   "agentGroup.routingFallback": "Предыдущий агент завершился с ошибкой. {name} принимает задачу ({attempt}/{total})…",
@@ -47,6 +49,10 @@ export default {
   "common.delete": "Удалить",
   "common.edit": "Изменить",
   "common.done": "Готово",
+  "closeConfirm.tab": "Закрыть вкладку «{name}»?",
+  "closeConfirm.page": "Удалить страницу «{name}» и всё, что внутри?",
+  "closeConfirm.pane": "Закрыть панель «{name}»?",
+  "closeConfirm.reason": "Некоторые панели всё ещё работают или требуют внимания. Закрытие остановит их.",
   "agentWorkspace.new": "Новый бот",
   "agentWorkspace.newBot": "Новый бот",
   "agentWorkspace.botName": "Имя бота",
@@ -328,6 +334,11 @@ export default {
   "activity.done": "{agent} завершил работу",
   "activity.working": "{agent} работает",
 
+  "notification.done.title": "{agent} завершил",
+  "notification.done.body": "Задача выполнена — вернитесь, чтобы проверить её.",
+  "notification.error.title": "{agent} требует внимания",
+  "notification.error.body": "Задача остановилась и ждёт вас.",
+
   "agentChat.title": "Чем могу помочь?",
   "agentChat.placeholder": "Поставьте задачу или задайте любой вопрос",
   "agentChat.noModel": "Добавьте модель в настройках, чтобы начать диалог",
@@ -392,6 +403,7 @@ export default {
   "about.checking": "Проверка…",
   "about.upToDate": "Установлена последняя версия ✓",
   "about.checkUpdates": "Проверить обновления",
+  "about.updateUnavailable": "Автоматические обновления для этой платформы пока недоступны",
   "about.downloading": "Загрузка…",
   "about.restarting": "Установлено — перезапуск…",
   "about.waitingForTasks": "Установлено — ожидание завершения запущенных задач: {count}…",

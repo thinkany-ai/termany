@@ -1,7 +1,9 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Polish — Polski (counts use a "noun: N" form where Polish would otherwise
 // need three plural stems)
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} przydziela wiadomość ({attempt}/{total})…",
   "agentGroup.routingTimeout": "Poprzedni agent przekroczył limit czasu. {name} przejmuje zadanie ({attempt}/{total})…",
   "agentGroup.routingFallback": "Poprzedni agent zakończył się błędem. {name} przejmuje zadanie ({attempt}/{total})…",
@@ -48,6 +50,10 @@ export default {
   "common.delete": "Usuń",
   "common.edit": "Edytuj",
   "common.done": "Gotowe",
+  "closeConfirm.tab": "Zamknąć kartę \"{name}\"?",
+  "closeConfirm.page": "Usunąć stronę \"{name}\" i wszystko, co w niej jest?",
+  "closeConfirm.pane": "Zamknąć panel \"{name}\"?",
+  "closeConfirm.reason": "Niektóre panele wciąż działają lub wymagają uwagi. Zamknięcie je zatrzyma.",
   "agentWorkspace.new": "Nowy bot",
   "agentWorkspace.newBot": "Nowy bot",
   "agentWorkspace.botName": "Nazwa bota",
@@ -329,6 +335,11 @@ export default {
   "activity.done": "{agent} zakończył pracę",
   "activity.working": "{agent} pracuje",
 
+  "notification.done.title": "{agent} zakończył",
+  "notification.done.body": "Zadanie gotowe — wróć, aby je sprawdzić.",
+  "notification.error.title": "{agent} wymaga uwagi",
+  "notification.error.body": "Zadanie zatrzymało się i czeka na Ciebie.",
+
   "agentChat.title": "W czym mogę pomóc?",
   "agentChat.placeholder": "Zleć zadanie albo zapytaj o cokolwiek",
   "agentChat.noModel": "Dodaj model w Ustawieniach, aby rozpocząć rozmowę",
@@ -393,6 +404,7 @@ export default {
   "about.checking": "Sprawdzanie…",
   "about.upToDate": "Wszystko aktualne ✓",
   "about.checkUpdates": "Sprawdź aktualizacje",
+  "about.updateUnavailable": "Automatyczne aktualizacje nie są jeszcze dostępne na tej platformie",
   "about.downloading": "Pobieranie…",
   "about.restarting": "Zainstalowano — ponowne uruchamianie…",
   "about.waitingForTasks": "Zainstalowano — czekanie na zakończenie uruchomionych zadań: {count}…",

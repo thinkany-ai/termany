@@ -8,6 +8,7 @@
  * here by provider id, so the secret never round-trips.
  */
 import { loadConfig, type ProviderKind } from "./config.js";
+import { chatTokenLimitParam } from "./chatTokens.js";
 
 export interface TestInput {
   kind: ProviderKind;
@@ -74,9 +75,17 @@ export async function testProvider(input: TestInput): Promise<TestResult> {
   }
   if (!apiKey) return { ok: false, endpoint, error: "API key is required to test" };
 
+  // Legacy OpenAI models and Anthropic answer fine inside a 1-token cap.
+  // Reasoning-era OpenAI models (o-series, gpt-5+) reject the legacy
+  // max_tokens spelling and spend the budget on hidden reasoning before the
+  // first visible token, so a 1-token probe can never finish — give them
+  // room to answer cheaply instead.
+  const probe = kind === "anthropic" || chatTokenLimitParam(model) === "max_tokens"
+    ? { max_tokens: 1 }
+    : { max_completion_tokens: 512, reasoning_effort: "low" };
   const body = JSON.stringify({
     model,
-    max_tokens: 1,
+    ...probe,
     messages: [{ role: "user", content: "hi" }],
   });
   const headers: Record<string, string> =

@@ -19,13 +19,17 @@ export function botIdentityPrompt(raw: unknown): string {
 }
 
 /** ACP has user content blocks, not a portable system-prompt override. Keep
- * the profile separate from the user's message, and refresh it every turn so
- * live metadata edits and cleared descriptions do not need a new session. */
-export function botAcpPrompt(text: string, identity: unknown): string | { type: "text"; text: string }[] {
+ * the profile separate from the user's message. The runtime decides whether
+ * a complete snapshot or a short recovery reminder is required. */
+export function isBotRuntimeCommand(text: string): boolean {
+  return /^\s*\/[a-z][\w-]*(?:\s|$)/i.test(text);
+}
+
+export function botAcpPrompt(text: string, identity: unknown, compiledContext?: string): string | { type: "text"; text: string }[] {
   // Runtime commands such as /compact or /model must remain the entire input
   // so the adapter can recognize them before passing ordinary text to a model.
-  if (/^\s*\/[a-z][\w-]*(?:\s|$)/i.test(text)) return text;
-  const profile = botIdentityPrompt(identity);
+  if (isBotRuntimeCommand(text)) return text;
+  const profile = compiledContext ?? botIdentityPrompt(identity);
   return profile
     ? [{ type: "text", text: profile }, { type: "text", text }]
     : text;

@@ -1,3 +1,4 @@
+import { SkillSettings } from "./SkillSettings";
 import { textInputProps } from "../textInputProps";
 import { Bot, Brain, Info, Keyboard, Palette, UserRound } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -11,6 +12,7 @@ import { useStore } from "../state/store";
 import {
   checkForUpdate,
   installUpdate,
+  isUnsupportedUpdatePlatformError,
   isUpdateInstalled,
   relaunchApp,
   runningTaskCount,
@@ -66,7 +68,7 @@ const ABOUT_LINKS = [
   { key: "feedback", url: `${REPO}/issues` },
 ] as const;
 
-export type SettingsSection = "profile" | "general" | "appearance" | "models" | "agents" | "keyboard" | "about";
+export type SettingsSection = "profile" | "general" | "appearance" | "models" | "agents" | "skills" | "keyboard" | "about";
 
 /** Left-nav entries, in display order. Labels come from i18n (settings.<id>). */
 const NAV_SECTIONS: { id: SettingsSection; icon: ReactNode }[] = [
@@ -75,6 +77,7 @@ const NAV_SECTIONS: { id: SettingsSection; icon: ReactNode }[] = [
   { id: "appearance", icon: <Palette size={16} /> },
   { id: "models", icon: <Brain size={16} /> },
   { id: "agents", icon: <Bot size={16} /> },
+  { id: "skills", icon: <Brain size={16} /> },
   { id: "keyboard", icon: <Keyboard size={16} /> },
   { id: "about", icon: <Info size={16} /> },
 ];
@@ -164,14 +167,21 @@ export function Settings({
   const [version, setVersion] = useState("0.1.0");
   const [aboutError, setAboutError] = useState<string | null>(null);
 
-  // Self-update flow (desktop only): idle → checking → (none | available) →
-  // downloading → (waiting → ready | restarting). `updateVersion` is
+  // Self-update flow (desktop only): idle → checking → (none | unsupported |
+  // available) → downloading → (waiting → ready | restarting). `updateVersion` is
   // global so badges stay in sync; the installed flag lives in updater.ts so
   // closing and reopening Settings does not offer to download it twice.
   const updateVersion = useStore((s) => s.updateVersion);
   const setUpdateVersion = useStore((s) => s.setUpdateVersion);
   const [updPhase, setUpdPhase] = useState<
-    "idle" | "checking" | "none" | "downloading" | "waiting" | "ready" | "restarting"
+    | "idle"
+    | "checking"
+    | "none"
+    | "unsupported"
+    | "downloading"
+    | "waiting"
+    | "ready"
+    | "restarting"
   >(() => (isUpdateInstalled() ? "waiting" : "idle"));
   const [updPct, setUpdPct] = useState(0);
   const [runningTasks, setRunningTasks] = useState(0);
@@ -189,6 +199,10 @@ export function Settings({
       setUpdateVersion(u?.version ?? null);
       setUpdPhase(u ? "idle" : "none");
     } catch (e) {
+      if (isUnsupportedUpdatePlatformError(e)) {
+        setUpdPhase("unsupported");
+        return;
+      }
       setUpdError(e instanceof Error ? e.message : String(e));
       setUpdPhase("idle");
     }
@@ -259,7 +273,7 @@ export function Settings({
   // listens on `window` capture.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && !document.querySelector("dialog.skill-picker[open]")) {
         e.preventDefault();
         e.stopPropagation();
         onClose();
@@ -318,7 +332,7 @@ export function Settings({
   const [emptyBefore, emptyAfter] = t("theme.empty").split("{site}");
 
   return (
-    <div className="settings-backdrop" onClick={onClose}>
+    <div className={`settings-backdrop ${section === "skills" ? "settings-skills-backdrop" : ""}`} onClick={onClose}>
       <div
         className="settings-window"
         role="dialog"
@@ -374,6 +388,7 @@ export function Settings({
             </>
           )}
           {section === "models" && <ModelSettings />}
+          {section === "skills" && <SkillSettings />}
           {section === "agents" && (
             <AgentSettings
               initialAgentId={initialAgentId}
@@ -447,18 +462,22 @@ export function Settings({
                 <div className="theme-preview-wrap">
                   <button
                     className="theme-preview"
+                    aria-label={item.name}
+                    aria-pressed={item.id === theme}
                     onClick={() => setTheme(item.id)}
                     style={{
-                      background: item.term.background as string,
+                      // Transparent terminal palettes (Spreadsheet) still need their
+                      // document color beneath the miniature in every active theme.
+                      background: `linear-gradient(${item.term.background}, ${item.term.background}), ${item.colors.bg}`,
                       borderColor: item.colors.border,
                       borderRadius: item.radius.lg,
                     }}
                   >
                     <span className="theme-preview-side" style={{ background: item.colors.bg2 }} />
                     <span className="theme-preview-dot" style={{ background: item.colors.accent }} />
-                    <span className="theme-preview-line lg" style={{ background: item.colors.fg }} />
-                    <span className="theme-preview-line" style={{ background: item.colors.fgDim }} />
-                    <span className="theme-preview-line sm" style={{ background: item.colors.fgDim }} />
+                    <span className="theme-preview-line lg" style={{ background: item.term.foreground ?? item.colors.fg }} />
+                    <span className="theme-preview-line" style={{ background: item.term.foreground ?? item.colors.fgDim }} />
+                    <span className="theme-preview-line sm" style={{ background: item.term.foreground ?? item.colors.fgDim }} />
                   </button>
                 </div>
                 <span className="theme-card-name">{item.name}</span>
@@ -707,6 +726,8 @@ export function Settings({
                           {t("about.updateRestart", { version: updateVersion })}
                         </button>
                       )
+                    ) : updPhase === "unsupported" ? (
+                      <span className="update-status">{t("about.updateUnavailable")}</span>
                     ) : (
                       <button
                         className="update-check-btn"

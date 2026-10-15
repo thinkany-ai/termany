@@ -1,7 +1,9 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Hindi — हिन्दी (developer-facing terms like Git, SSH, token stay in Latin script,
 // as Indian developers read and speak them that way)
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} आपका संदेश आवंटित कर रहा है ({attempt}/{total})…",
   "agentGroup.routingTimeout": "पिछले एजेंट का समय समाप्त हो गया। {name} कार्य संभाल रहा है ({attempt}/{total})…",
   "agentGroup.routingFallback": "पिछला एजेंट विफल हुआ। {name} कार्य संभाल रहा है ({attempt}/{total})…",
@@ -48,6 +50,10 @@ export default {
   "common.delete": "हटाएँ",
   "common.edit": "संपादित करें",
   "common.done": "हो गया",
+  "closeConfirm.tab": "टैब \"{name}\" बंद करें?",
+  "closeConfirm.page": "पेज \"{name}\" और इसके अंदर का सब कुछ हटाएँ?",
+  "closeConfirm.pane": "पेन \"{name}\" बंद करें?",
+  "closeConfirm.reason": "कुछ पेन अभी भी चल रहे हैं या उन पर ध्यान देने की ज़रूरत है। बंद करने पर वे रुक जाएँगे।",
   "agentWorkspace.new": "नया बॉट",
   "agentWorkspace.newBot": "नया बॉट",
   "agentWorkspace.botName": "बॉट का नाम",
@@ -329,6 +335,11 @@ export default {
   "activity.done": "{agent} का काम पूरा हुआ",
   "activity.working": "{agent} काम कर रहा है",
 
+  "notification.done.title": "{agent} ने पूरा किया",
+  "notification.done.body": "काम पूरा हो गया — देखने के लिए वापस आएँ।",
+  "notification.error.title": "{agent} को आपकी ज़रूरत है",
+  "notification.error.body": "काम रुक गया है और आपका इंतज़ार कर रहा है।",
+
   "agentChat.title": "मैं आपके लिए क्या कर सकता हूँ?",
   "agentChat.placeholder": "कोई काम सौंपें या कुछ भी पूछें",
   "agentChat.noModel": "बातचीत शुरू करने के लिए सेटिंग्स में एक मॉडल जोड़ें",
@@ -393,6 +404,7 @@ export default {
   "about.checking": "जाँच हो रही है…",
   "about.upToDate": "आप अद्यतन हैं ✓",
   "about.checkUpdates": "अपडेट देखें",
+  "about.updateUnavailable": "इस प्लेटफ़ॉर्म के लिए स्वचालित अपडेट अभी उपलब्ध नहीं हैं",
   "about.downloading": "डाउनलोड हो रहा है…",
   "about.restarting": "इंस्टॉल हो गया — फिर से शुरू हो रहा है…",
   "about.waitingForTasks": "इंस्टॉल हो गया — {count} चल रहे काम पूरे होने का इंतज़ार है…",

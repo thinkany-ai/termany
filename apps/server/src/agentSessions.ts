@@ -8,8 +8,9 @@
  *    session_meta; token_count events (with per-turn last_token_usage) are
  *    scattered through the file, so it's streamed end-to-end like claude.
  *
- * History is paginated and reads only transcript headers. Usage reads complete
- * files only when their mtime intersects the requested (maximum 31-day) range.
+ * History is paginated and reads transcript headers plus incrementally-scanned
+ * row stats (see sessionStats). Usage reads complete files only when their
+ * mtime intersects the requested (maximum 31-day) range.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -27,6 +28,8 @@ export interface AgentSession {
   contextTokens: number | null;
   /** Git branch the session ran on, as recorded in its transcript. */
   gitBranch: string | null;
+  /** Model the latest turn ran on (null if unknown). */
+  model: string | null;
   /** Set (per request, never cached) when `cwd` no longer exists on disk —
    * typically a worktree that has since been deleted. */
   cwdMissing?: true;
@@ -158,6 +161,7 @@ async function parseClaudeSessionHead(abs: string, st: fs.Stats): Promise<AgentS
     totalTokens: null,
     contextTokens: null,
     gitBranch,
+    model: null,
   };
 }
 
@@ -210,6 +214,7 @@ async function parseCodexSessionHead(abs: string, st: fs.Stats): Promise<AgentSe
     totalTokens: null,
     contextTokens: null,
     gitBranch,
+    model: null,
   };
 }
 
@@ -224,6 +229,7 @@ async function parseClaudeFile(abs: string, st: fs.Stats): Promise<ParsedFile> {
   let totalTokens = 0;
   let sawUsage = false;
   let contextTokens: number | null = null;
+  let lastModel: string | null = null;
   let lineNo = 0;
   const buckets = new Map<string, UsageBucket>();
   // A single assistant message is written as several JSONL lines (one per
@@ -247,6 +253,8 @@ async function parseClaudeFile(abs: string, st: fs.Stats): Promise<ParsedFile> {
       // Sidechains (subagents) consume tokens but run on their own context.
       if (!line.includes('"isSidechain":true')) {
         contextTokens = input + cacheW + cacheR + output;
+        const m = /"model":"([^"]+)"/.exec(line)?.[1];
+        if (m && m !== "<synthetic>") lastModel = m;
       }
       const msgId = /"id":"(msg_[^"]+)"/.exec(line)?.[1];
       const reqId = /"requestId":"(req_[^"]+)"/.exec(line)?.[1];
@@ -305,6 +313,7 @@ async function parseClaudeFile(abs: string, st: fs.Stats): Promise<ParsedFile> {
       totalTokens: sawUsage ? totalTokens : null,
       contextTokens,
       gitBranch,
+      model: lastModel,
     },
     usage: [...buckets.values()],
   };
@@ -415,6 +424,7 @@ async function parseCodexFile(abs: string, st: fs.Stats): Promise<ParsedFile | n
       totalTokens,
       contextTokens,
       gitBranch,
+      model: model === "unknown" ? null : model,
     },
     usage: [...buckets.values()],
   };
@@ -520,6 +530,170 @@ async function parseSessionFile(
   return parse;
 }
 
+// ---------------------------------------------------------------------------
+// History-row stats: model, cumulative tokens and live context size.
+//
+// The history list needs these for every visible row, including sessions still
+// being written to — where the full usage cache is always stale. Transcripts
+// are append-only JSONL, so each file is scanned once and later requests only
+// read the bytes appended since. Files too big for a first full pass fall back
+// to reading their tail, which still yields model + context (and codex's
+// cumulative total, which it logs on every turn).
+
+interface SessionStats {
+  totalTokens: number | null;
+  contextTokens: number | null;
+  model: string | null;
+}
+
+interface StatsState extends SessionStats {
+  /** Byte offset just past the last complete line consumed. */
+  offset: number;
+  /** claude: message+request ids already counted (one message spans lines). */
+  seen: Set<string>;
+  /** claude: whether every usage line so far was summed (false for a tail read). */
+  sums: boolean;
+  /** claude: running sum of per-turn usage. */
+  sum: number;
+}
+
+const STATS_FULL_SCAN_LIMIT = 64 * 1024 * 1024;
+const STATS_TAIL_BYTES = 2 * 1024 * 1024;
+const STATS_CHUNK = 1024 * 1024;
+
+const statsCache = new Map<string, StatsState>();
+const statsInflight = new Map<string, Promise<SessionStats>>();
+
+/** Per-agent line handler; only lines containing a marker are decoded. */
+const STATS_READERS: Record<string, { markers: string[]; line: (state: StatsState, line: string) => void }> = {
+  claude: {
+    markers: ['"usage"'],
+    line(state, line) {
+      const input = Number(/"input_tokens":(\d+)/.exec(line)?.[1] ?? 0);
+      const cacheW = Number(/"cache_creation_input_tokens":(\d+)/.exec(line)?.[1] ?? 0);
+      const cacheR = Number(/"cache_read_input_tokens":(\d+)/.exec(line)?.[1] ?? 0);
+      const output = Number(/"output_tokens":(\d+)/.exec(line)?.[1] ?? 0);
+      const sum = input + cacheW + cacheR + output;
+      if (!line.includes('"isSidechain":true')) {
+        state.contextTokens = sum;
+        const m = /"model":"([^"]+)"/.exec(line)?.[1];
+        if (m && m !== "<synthetic>") state.model = m;
+      }
+      const msgId = /"id":"(msg_[^"]+)"/.exec(line)?.[1];
+      const reqId = /"requestId":"(req_[^"]+)"/.exec(line)?.[1];
+      const key = msgId ? `${msgId}:${reqId ?? ""}` : null;
+      if (key && state.seen.has(key)) return;
+      if (key) state.seen.add(key);
+      if (state.sums) state.totalTokens = (state.sum += sum);
+    },
+  },
+  codex: {
+    markers: ['"turn_context"', '"total_token_usage"'],
+    line(state, line) {
+      if (line.includes('"turn_context"')) {
+        const m = /"model":"([^"]+)"/.exec(line)?.[1];
+        if (m) state.model = m;
+      }
+      if (line.includes('"total_token_usage"')) {
+        const total = /"total_token_usage":\{[^}]*"total_tokens":(\d+)/.exec(line)?.[1];
+        if (total) state.totalTokens = Number(total);
+        const last = /"last_token_usage":\{([^}]*)\}/.exec(line)?.[1];
+        if (last) {
+          const input = Number(/"input_tokens":(\d+)/.exec(last)?.[1] ?? 0);
+          const output = Number(/"output_tokens":(\d+)/.exec(last)?.[1] ?? 0);
+          state.contextTokens = input + output;
+        }
+      }
+    },
+  },
+};
+
+/**
+ * Feed every complete line in [start, end) to `onLine` (skipping the partial
+ * first line when `skipFirst`). Returns the offset just past the last newline,
+ * so a line still being written is picked up whole on the next call.
+ */
+async function scanLines(
+  abs: string,
+  start: number,
+  end: number,
+  skipFirst: boolean,
+  markers: string[],
+  onLine: (line: string) => void
+): Promise<number> {
+  const fh = await fs.promises.open(abs, "r");
+  try {
+    let pos = start;
+    let consumed = start;
+    let carry: Buffer = Buffer.alloc(0);
+    let skipping = skipFirst;
+    while (pos < end) {
+      const chunk = Buffer.alloc(Math.min(STATS_CHUNK, end - pos));
+      const { bytesRead } = await fh.read(chunk, 0, chunk.length, pos);
+      if (bytesRead === 0) break;
+      pos += bytesRead;
+      let buf = carry.length ? Buffer.concat([carry, chunk.subarray(0, bytesRead)]) : chunk.subarray(0, bytesRead);
+      let from = 0;
+      for (let nl = buf.indexOf(10); nl !== -1; nl = buf.indexOf(10, from)) {
+        const line = buf.subarray(from, nl);
+        if (skipping) skipping = false;
+        else if (markers.some((m) => line.includes(m))) onLine(line.toString("utf8"));
+        consumed += nl + 1 - from;
+        from = nl + 1;
+      }
+      carry = Buffer.from(buf.subarray(from));
+    }
+    return consumed;
+  } finally {
+    await fh.close();
+  }
+}
+
+async function readSessionStats(agent: string, { abs, st }: AgentFile): Promise<SessionStats> {
+  const reader = STATS_READERS[agent];
+  if (!reader) return { totalTokens: null, contextTokens: null, model: null };
+  const cached = statsCache.get(abs);
+  if (cached && cached.offset <= st.size) {
+    // Append-only: resume where the last scan stopped (no-op when unchanged).
+    if (cached.offset < st.size) {
+      cached.offset = await scanLines(abs, cached.offset, st.size, false, reader.markers, (l) =>
+        reader.line(cached, l)
+      );
+    }
+    return cached;
+  }
+  const full = st.size <= STATS_FULL_SCAN_LIMIT;
+  const state: StatsState = {
+    totalTokens: null,
+    contextTokens: null,
+    model: null,
+    offset: 0,
+    seen: new Set(),
+    // A tail can't sum claude's per-turn usage; codex's total is cumulative.
+    sums: full,
+    sum: 0,
+  };
+  const start = full ? 0 : st.size - STATS_TAIL_BYTES;
+  state.offset = await scanLines(abs, start, st.size, !full, reader.markers, (l) => reader.line(state, l));
+  // Only a full pass can be extended incrementally.
+  if (full) statsCache.set(abs, state);
+  return state;
+}
+
+/** Serialize stats reads per file so concurrent pages don't double-count. */
+function sessionStats(agent: string, file: AgentFile): Promise<SessionStats> {
+  const prev = statsInflight.get(file.abs) ?? Promise.resolve(null);
+  const next = prev
+    .catch(() => null)
+    .then(() => readSessionStats(agent, file))
+    .then((st) => ({ totalTokens: st.totalTokens, contextTokens: st.contextTokens, model: st.model }));
+  statsInflight.set(file.abs, next);
+  void next.finally(() => {
+    if (statsInflight.get(file.abs) === next) statsInflight.delete(file.abs);
+  }).catch(() => {});
+  return next;
+}
+
 /** Full token parses for usage, limited to files updated in the requested window. */
 async function scanAgent(agent: string, sinceMs: number): Promise<ParsedFile[]> {
   const provider = PROVIDERS[agent];
@@ -567,6 +741,7 @@ export async function listAgentSessions(
   const safeLimit = Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : DEFAULT_SESSION_PAGE_SIZE;
   const limit = Math.max(1, Math.min(MAX_SESSION_PAGE_SIZE, safeLimit));
   const sessions: AgentSession[] = [];
+  const sessionFiles: AgentFile[] = [];
   const ids = new Set<string>();
   let index = start;
   // The cursor counts transcript files, not returned rows. Scoped pages may
@@ -579,13 +754,27 @@ export async function listAgentSessions(
       if (roots.length && (!session.cwd || !roots.some((root) => underRoot(session.cwd!, root)))) continue;
       ids.add(session.sessionId);
       sessions.push(session);
+      sessionFiles.push(file);
     } catch {
       /* unreadable or deleted mid-scan — skip */
     }
   }
   const exists = new Map<string, boolean>();
   const checked = await Promise.all(
-    sessions.map(async (s) => {
+    sessions.map(async (session, i) => {
+      // Copy rather than mutate: the session object lives in the parse cache.
+      let s: AgentSession = session;
+      try {
+        const stats = await sessionStats(agent, sessionFiles[i]);
+        s = {
+          ...s,
+          totalTokens: stats.totalTokens ?? s.totalTokens,
+          contextTokens: stats.contextTokens ?? s.contextTokens,
+          model: stats.model ?? s.model,
+        };
+      } catch {
+        /* stats are decoration — keep the head-parsed row */
+      }
       if (!s.cwd) return s;
       let ok = exists.get(s.cwd);
       if (ok === undefined) {
@@ -595,7 +784,6 @@ export async function listAgentSessions(
           .catch(() => false);
         exists.set(s.cwd, ok);
       }
-      // Copy rather than mutate: the session object lives in the parse cache.
       return ok ? s : { ...s, cwdMissing: true as const };
     })
   );

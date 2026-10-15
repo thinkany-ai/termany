@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Swedish — Svenska
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} fördelar ditt meddelande ({attempt}/{total})…",
   "agentGroup.routingTimeout": "Den föregående agentens tidsgräns överskreds. {name} tar över ({attempt}/{total})…",
   "agentGroup.routingFallback": "Den föregående agenten misslyckades. {name} tar över ({attempt}/{total})…",
@@ -47,6 +49,10 @@ export default {
   "common.delete": "Radera",
   "common.edit": "Redigera",
   "common.done": "Klar",
+  "closeConfirm.tab": "Stänga fliken \"{name}\"?",
+  "closeConfirm.page": "Radera sidan \"{name}\" och allt under den?",
+  "closeConfirm.pane": "Stänga panelen \"{name}\"?",
+  "closeConfirm.reason": "Vissa paneler körs fortfarande eller behöver uppmärksamhet. Att stänga stoppar dem.",
   "agentWorkspace.new": "Ny bot",
   "agentWorkspace.newBot": "Ny bot",
   "agentWorkspace.botName": "Botnamn",
@@ -328,6 +334,11 @@ export default {
   "activity.done": "{agent} är klar",
   "activity.working": "{agent} arbetar",
 
+  "notification.done.title": "{agent} är klar",
+  "notification.done.body": "Uppgiften är klar — gå tillbaka för att granska den.",
+  "notification.error.title": "{agent} behöver din uppmärksamhet",
+  "notification.error.body": "Uppgiften stoppade och väntar på dig.",
+
   "agentChat.title": "Vad kan jag hjälpa till med?",
   "agentChat.placeholder": "Ge en uppgift eller fråga vad som helst",
   "agentChat.noModel": "Lägg till en modell i Inställningar för att starta ett samtal",
@@ -392,6 +403,7 @@ export default {
   "about.checking": "Kontrollerar…",
   "about.upToDate": "Allt är uppdaterat ✓",
   "about.checkUpdates": "Sök efter uppdateringar",
+  "about.updateUnavailable": "Automatiska uppdateringar är inte tillgängliga för den här plattformen ännu",
   "about.downloading": "Hämtar…",
   "about.restarting": "Installerad — startar om…",
   "about.waitingForTasks": "Installerad — väntar på att {count} pågående uppgifter ska bli klara…",

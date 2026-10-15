@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import {
   modelLabelFor,
   modelMenuItems,
+  modelSelectItems,
   modelValues,
   shortModelName,
   type AcpConfigOption,
@@ -160,5 +161,37 @@ describe("modelLabelFor", () => {
   test("has nothing to say before any session has reported options", () => {
     assert.deepEqual(modelValues(undefined), []);
     assert.equal(modelLabelFor(undefined, "sonnet"), "sonnet");
+  });
+});
+
+describe("modelSelectItems", () => {
+  test("includes the provider in every grouped model label", () => {
+    const choices = [
+      {
+        id: "local",
+        label: "grouter-local",
+        checked: true,
+        items: [{ id: "local/deepseek", label: "deepseek-v4-flash-vision-exp", checked: true }],
+      },
+      {
+        id: "deepseek",
+        label: "DeepSeek",
+        checked: false,
+        items: [{ id: "deepseek/deepseek", label: "deepseek-v4-flash-vision-exp", checked: false }],
+      },
+    ];
+
+    assert.deepEqual(
+      modelSelectItems(choices).map(({ id, label }) => ({ id, label })),
+      [
+        { id: "local/deepseek", label: "deepseek-v4-flash-vision-exp · grouter-local" },
+        { id: "deepseek/deepseek", label: "deepseek-v4-flash-vision-exp · DeepSeek" },
+      ]
+    );
+  });
+
+  test("keeps an ungrouped agent-managed model unchanged", () => {
+    const choices = [{ id: "sonnet", label: "Sonnet", checked: true }];
+    assert.deepEqual(modelSelectItems(choices), choices);
   });
 });

@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Japanese — 日本語
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} がメッセージを振り分けています（{attempt}/{total}）…",
   "agentGroup.routingTimeout": "前のエージェントがタイムアウトしました。{name} が引き継ぎます（{attempt}/{total}）…",
   "agentGroup.routingFallback": "前のエージェントでエラーが発生しました。{name} が引き継ぎます（{attempt}/{total}）…",
@@ -47,6 +49,10 @@ export default {
   "common.delete": "削除",
   "common.edit": "編集",
   "common.done": "完了",
+  "closeConfirm.tab": "タブ「{name}」を閉じますか?",
+  "closeConfirm.page": "ページ「{name}」と配下のすべてを削除しますか?",
+  "closeConfirm.pane": "ペイン「{name}」を閉じますか?",
+  "closeConfirm.reason": "一部のペインはまだ実行中か、対応が必要です。閉じると停止します。",
   "agentWorkspace.new": "Bot を作成",
   "agentWorkspace.newBot": "Bot を作成",
   "agentWorkspace.botName": "Bot 名",
@@ -328,6 +334,11 @@ export default {
   "activity.done": "{agent} が完了しました",
   "activity.working": "{agent} が作業中です",
 
+  "notification.done.title": "{agent} が完了しました",
+  "notification.done.body": "タスクが完了しました。戻って確認してください。",
+  "notification.error.title": "{agent} が確認を待っています",
+  "notification.error.body": "タスクが停止し、あなたを待っています。",
+
   "agentChat.title": "何かお手伝いできることはありますか？",
   "agentChat.placeholder": "タスクを頼む、または何でも質問する",
   "agentChat.noModel": "設定でモデルを追加すると会話を始められます",
@@ -392,6 +403,7 @@ export default {
   "about.checking": "確認中…",
   "about.upToDate": "最新の状態です ✓",
   "about.checkUpdates": "アップデートを確認",
+  "about.updateUnavailable": "このプラットフォームでは自動更新をまだ利用できません",
   "about.downloading": "ダウンロード中…",
   "about.restarting": "インストール完了 — 再起動中…",
   "about.waitingForTasks": "インストール完了 — 実行中のタスク {count} 件の終了を待っています…",

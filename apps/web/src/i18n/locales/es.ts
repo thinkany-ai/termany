@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Spanish — Español
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} está asignando tu mensaje ({attempt}/{total})…",
   "agentGroup.routingTimeout": "El agente anterior agotó el tiempo de espera. {name} toma el relevo ({attempt}/{total})…",
   "agentGroup.routingFallback": "El agente anterior falló. {name} toma el relevo ({attempt}/{total})…",
@@ -47,6 +49,10 @@ export default {
   "common.delete": "Eliminar",
   "common.edit": "Editar",
   "common.done": "Listo",
+  "closeConfirm.tab": "¿Cerrar la pestaña «{name}»?",
+  "closeConfirm.page": "¿Eliminar la página «{name}» y todo lo que contiene?",
+  "closeConfirm.pane": "¿Cerrar el panel «{name}»?",
+  "closeConfirm.reason": "Algunos paneles siguen en ejecución o necesitan atención. Al cerrar se detendrán.",
   "agentWorkspace.new": "Nuevo bot",
   "agentWorkspace.newBot": "Nuevo bot",
   "agentWorkspace.botName": "Nombre del bot",
@@ -328,6 +334,11 @@ export default {
   "activity.done": "{agent} ha terminado",
   "activity.working": "{agent} está trabajando",
 
+  "notification.done.title": "{agent} ha terminado",
+  "notification.done.body": "La tarea está lista: vuelve para revisarla.",
+  "notification.error.title": "{agent} requiere tu atención",
+  "notification.error.body": "La tarea se detuvo y te está esperando.",
+
   "agentChat.title": "¿En qué puedo ayudarte?",
   "agentChat.placeholder": "Asigna una tarea o pregunta lo que quieras",
   "agentChat.noModel": "Añade un modelo en Ajustes para iniciar una conversación",
@@ -392,6 +403,7 @@ export default {
   "about.checking": "Comprobando…",
   "about.upToDate": "Todo está actualizado ✓",
   "about.checkUpdates": "Buscar actualizaciones",
+  "about.updateUnavailable": "Las actualizaciones automáticas aún no están disponibles para esta plataforma",
   "about.downloading": "Descargando…",
   "about.restarting": "Instalado: reiniciando…",
   "about.waitingForTasks": "Instalado: esperando a que terminen {count} tarea(s) en curso…",

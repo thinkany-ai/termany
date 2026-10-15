@@ -4,6 +4,21 @@ import { requestGroupDecision, requestGroupDecisionWithFailover } from "./agentG
 import { groupControllerSessionId } from "./agentGroupChat";
 import type { AgentConversation } from "./state/store";
 
+test("internal group dispatch carries summaries without personality instructions or Skill bodies", async () => {
+  const members = ["a", "b"].map((id) => ({ id, kind: "leaf", title: id, createdAt: 0, updatedAt: 0,
+    agentDescription: `Summary ${id}`, agentInstructions: "PRIVATE_PERSONALITY_RULE",
+    agentSkills: [{ skillId: "private-skill", revision: "a".repeat(64) }],
+  } as AgentConversation));
+  let request: any;
+  await requestGroupDecision({ ...base, group: { name: "Advisors", members }, fetcher: async (_url, init) => {
+    request = JSON.parse(String(init?.body));
+    return stream(events('{"mode":"single","memberIds":["a"],"triggerMessageIds":["u"]}'));
+  } });
+  assert.match(JSON.stringify(request), /Summary a/);
+  assert.doesNotMatch(JSON.stringify(request), /PRIVATE_PERSONALITY_RULE|private-skill/);
+  assert.equal(request.botIdentity, undefined);
+});
+
 const group = { name: "讨论", members: ["a", "b"].map((id): AgentConversation => ({
   id, kind: "leaf", title: id === "a" ? "张三" : "李四", createdAt: 1, updatedAt: 1,
 })) };

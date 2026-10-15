@@ -6,7 +6,7 @@ import { useI18n } from "../i18n";
 import { useImeGuard } from "../imeGuard";
 import { agentSessionPanes, focusedCwdSession, useStore } from "../state/store";
 import { queueCommand } from "../terminal/manager";
-import { AgentIcon, HistoryIcon } from "./icons";
+import { AgentIcon, HistoryIcon, TerminalIcon } from "./icons";
 
 type Translate = ReturnType<typeof useI18n>["t"];
 
@@ -18,6 +18,8 @@ interface AgentSession {
   totalTokens: number | null;
   contextTokens: number | null;
   gitBranch: string | null;
+  /** Model of the latest turn; absent from servers that predate it. */
+  model?: string | null;
   /** The session's cwd no longer exists (a deleted worktree, usually). */
   cwdMissing?: true;
 }
@@ -153,6 +155,7 @@ export function AgentHistory({ autoFocus = false }: { autoFocus?: boolean }) {
   }, [autoFocus]);
 
   const agentName = agents.find((a) => a.id === agentId)?.name ?? agentId;
+  const agentIcon = agents.find((a) => a.id === agentId)?.icon;
 
   // Resolve the scope once: repo worktrees first, plain directory as fallback.
   useEffect(() => {
@@ -359,43 +362,68 @@ export function AgentHistory({ autoFocus = false }: { autoFocus?: boolean }) {
   const renderRow = (s: AgentSession, idx: number, inWorktreeGroup: boolean) => {
     const isOpen = openPanes.has(`${agentId}|${s.sessionId}`);
     const isLive = !isOpen && Date.now() - s.mtimeMs < ACTIVE_WINDOW_MS;
-    const meta = [
+    // The group header already names the branch and path; repeat them only elsewhere.
+    const sub = [
       relativeTime(s.mtimeMs, t),
-      s.totalTokens !== null ? t("history.meta.tokens", { n: formatTokens(s.totalTokens) }) : null,
-      s.contextTokens !== null ? t("history.meta.ctx", { n: formatTokens(s.contextTokens) }) : null,
-      // The group header already names the branch; repeat it only elsewhere.
-      !inWorktreeGroup && s.gitBranch ? s.gitBranch : null,
-      s.cwd && !inWorktreeGroup ? tildify(s.cwd) : null,
+      s.model,
+      !inWorktreeGroup ? s.gitBranch : null,
+      !inWorktreeGroup && s.cwd ? tildify(s.cwd) : null,
     ].filter(Boolean);
     return (
       <button
         key={s.sessionId}
         data-idx={idx}
-        className={`search-row pane ${idx === selected ? "active" : ""}`}
+        className={`history-row ${idx === selected ? "active" : ""}`}
         onMouseEnter={() => setSelected(idx)}
         onClick={() => resume(s)}
       >
-        <span className="search-row-main">
-          <span className="search-row-label">{s.preview || t("history.emptySession")}</span>
-          <span className={`search-row-breadcrumb ${s.cwdMissing ? "history-gone" : ""}`}>
-            {meta.join(" · ")}
+        {agentIcon ? (
+          <img className="history-row-icon" src={agentIcon} alt="" aria-hidden="true" />
+        ) : (
+          <span className="history-row-icon fallback">
+            <AgentIcon />
           </span>
+        )}
+        <span className="history-row-main">
+          <span className="history-row-title">{s.preview || t("history.emptySession")}</span>
+          <span className={`history-row-sub ${s.cwdMissing ? "history-gone" : ""}`}>{sub.join(" · ")}</span>
         </span>
-        {isOpen && (
-          <span className="history-badge open" title={t("history.badge.openTitle")}>
-            {t("history.badge.open")}
+        {(isOpen || isLive || s.cwdMissing) && (
+          <span className="history-row-badges">
+            {isOpen && (
+              <span className="history-badge open" title={t("history.badge.openTitle")}>
+                {t("history.badge.open")}
+              </span>
+            )}
+            {isLive && (
+              <span className="history-badge live" title={t("history.badge.activeTitle")}>
+                {t("history.badge.active")}
+              </span>
+            )}
+            {s.cwdMissing && (
+              <span className="history-badge stale" title={t("history.badge.staleTitle")}>
+                {t("history.badge.stale")}
+              </span>
+            )}
           </span>
         )}
-        {isLive && (
-          <span className="history-badge live" title={t("history.badge.activeTitle")}>
-            {t("history.badge.active")}
+        {(s.totalTokens !== null || s.contextTokens !== null) && (
+          <span className="history-row-stats">
+            {s.totalTokens !== null && (
+              <span className="history-row-total">
+                {t("history.meta.tokens", { n: formatTokens(s.totalTokens) })}
+              </span>
+            )}
+            {s.contextTokens !== null && (
+              <span className="history-row-ctx">
+                {t("history.meta.ctx", { n: formatTokens(s.contextTokens) })}
+              </span>
+            )}
           </span>
         )}
-        {s.cwdMissing && (
-          <span className="history-badge stale" title={t("history.badge.staleTitle")}>
-            {t("history.badge.stale")}
-          </span>
-        )}
+        <span className="history-row-go" aria-hidden="true">
+          <TerminalIcon />
+        </span>
       </button>
     );
   };
@@ -470,7 +498,7 @@ export function AgentHistory({ autoFocus = false }: { autoFocus?: boolean }) {
           ))}
         </div>
 
-        <div className="search-results" ref={listRef}>
+        <div className="search-results history-results" ref={listRef}>
           {error && (
             <div className="search-empty">{t(stale ? "server.stale" : "history.error")}</div>
           )}
@@ -492,7 +520,7 @@ export function AgentHistory({ autoFocus = false }: { autoFocus?: boolean }) {
             ? (() => {
                 let idx = 0;
                 return groups.map((g) => (
-                  <div key={g.key}>
+                  <div key={g.key} className="history-group-block">
                     <div className="history-group">
                       <span className="history-group-branch">{g.label}</span>
                       {g.path && <span className="history-group-path">{g.path}</span>}
@@ -500,11 +528,15 @@ export function AgentHistory({ autoFocus = false }: { autoFocus?: boolean }) {
                         {t("history.group.count", { n: g.sessions.length })}
                       </span>
                     </div>
-                    {g.sessions.map((s) => renderRow(s, idx++, g.key !== "|gone"))}
+                    <div className="history-card">
+                      {g.sessions.map((s) => renderRow(s, idx++, g.key !== "|gone"))}
+                    </div>
                   </div>
                 ));
               })()
-            : rows.map((s, idx) => renderRow(s, idx, false))}
+            : rows.length > 0 && (
+                <div className="history-card">{rows.map((s, idx) => renderRow(s, idx, false))}</div>
+              )}
           {!error && Array.isArray(sessions) && page?.nextCursor && (
             <button className="history-load-more" disabled={page.loadingMore} onClick={loadMore}>
               {t(page.loadingMore ? "history.loadingMore" : "history.loadMore")}

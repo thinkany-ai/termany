@@ -98,3 +98,51 @@ test("confirming an already-working task changes nothing", () => {
   assert.equal(t.snapshot().s1.status, "working");
   assert.equal(changes(), before, "no change event for a no-op confirmation");
 });
+
+/**
+ * Spinner-based agents (e.g. traex) never emit a working/done word or the
+ * OSC 778 status sequence; they animate the window title with a leading
+ * Braille frame while busy and drop it when the turn ends. These pin that
+ * inference: a spinner title starts a task, the frame disappearing finishes
+ * it, and a plain shell retitling its window fabricates nothing.
+ */
+
+// OSC 0 window-title sequence, framed the way a PTY delivers it.
+const title = (text: string) => `\x1b]0;${text}\x07`;
+
+test("a spinner-animated title starts and finishes a task", () => {
+  const { tracker: t } = tracker();
+  t.noteOutput("s1", title("\u280b introduce yourself | tool_platform"));
+  assert.equal(t.snapshot().s1.status, "working", "leading spinner frame means busy");
+
+  // Later frames keep it working; the spinner just animates.
+  t.noteOutput("s1", title("\u2839 introduce yourself | tool_platform"));
+  assert.equal(t.snapshot().s1.status, "working");
+
+  // Frame gone -> the turn settled.
+  t.noteOutput("s1", title("Configure AGENTS.md instructions | tool_platform"));
+  assert.equal(t.snapshot().s1.status, "done");
+});
+
+test("a plain shell retitling its window is not treated as an agent", () => {
+  const { tracker: t } = tracker();
+  t.noteOutput("s1", title("~/Projects/tool_platform"));
+  assert.equal(t.snapshot().s1, undefined, "no spinner was ever seen");
+});
+
+test("an idle title before any spinner never fabricates a completion", () => {
+  const { tracker: t } = tracker();
+  t.noteOutput("s1", title("some static title"));
+  t.noteOutput("s1", title("another static title"));
+  assert.equal(t.snapshot().s1, undefined);
+});
+
+test("spinner completion is independent of the built-in agent name list", () => {
+  // traex is not in detectedAgent()/BUILTIN_AGENT_COMMANDS, yet its turn must
+  // still be tracked purely from the spinner animation.
+  const { tracker: t } = tracker();
+  t.noteOutput("s1", title("\u28b9 building the feature | my-workspace"));
+  assert.equal(t.snapshot().s1.status, "working");
+  t.noteOutput("s1", title("done building | my-workspace"));
+  assert.equal(t.snapshot().s1.status, "done");
+});

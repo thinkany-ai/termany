@@ -1,6 +1,10 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // English (source locale — every other dictionary falls back to this one)
 
 export default {
+  ...botBehaviorEnglish,
+
+
   "agentGroup.routingAttempt": "{name} is routing your message ({attempt}/{total})…",
   "agentGroup.routingTimeout": "Previous agent timed out. {name} is taking over ({attempt}/{total})…",
   "agentGroup.routingFallback": "Previous agent failed. {name} is taking over ({attempt}/{total})…",
@@ -40,6 +44,10 @@ export default {
   "common.delete": "Delete",
   "common.edit": "Edit",
   "common.done": "Done",
+  "closeConfirm.tab": "Close tab \"{name}\"?",
+  "closeConfirm.page": "Delete page \"{name}\" and everything under it?",
+  "closeConfirm.pane": "Close pane \"{name}\"?",
+  "closeConfirm.reason": "Some panes are still running or need attention. Closing will stop them.",
   "agentWorkspace.new": "New bot",
   "agentWorkspace.newBot": "New bot",
   "agentWorkspace.botName": "Bot name",
@@ -324,6 +332,11 @@ export default {
   "activity.done": "{agent} finished",
   "activity.working": "{agent} is working",
 
+  "notification.done.title": "{agent} finished",
+  "notification.done.body": "The task is done — switch back to review it.",
+  "notification.error.title": "{agent} needs attention",
+  "notification.error.body": "The task stopped and is waiting on you.",
+
   "agentChat.title": "What can I do for you?",
   "agentChat.placeholder": "Assign a task or ask anything",
   "agentChat.noModel": "Add a model in Settings to start a conversation",
@@ -392,6 +405,7 @@ export default {
   "about.checking": "Checking…",
   "about.upToDate": "You're up to date ✓",
   "about.checkUpdates": "Check for updates",
+  "about.updateUnavailable": "Automatic updates aren't available for this platform yet.",
   "about.downloading": "Downloading…",
   "about.restarting": "Installed — restarting…",
   "about.waitingForTasks": "Installed — waiting for {count} running task(s) to finish…",

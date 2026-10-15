@@ -21,7 +21,7 @@ test("typing at the live edge releases the history lock before its echo", () => 
 });
 
 test("paste, committed IME text and terminal control keys resume following", () => {
-  for (const data of ["pasted text", "\x1b[200~paste\x1b[201~", "\u4f60\u597d", "\r", "\x03"]) {
+  for (const data of ["pasted text", "\x1b[200~paste\x1b[201~", "\u4f60\u597d", "\r", "\x1b\r", "\x03"]) {
     const state = readingHistory();
     assert.equal(resumeOutputOnInput(state, data, true), true);
     assert.equal(state.followOutput, true);

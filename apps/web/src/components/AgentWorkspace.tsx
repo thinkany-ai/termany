@@ -1,3 +1,6 @@
+import { botIdentityForConversation } from "../botProfile";
+import { behaviorDraft, type BotBehaviorDraft } from "../botBehaviorForm";
+import { BotBehaviorEditor, BotBehaviorForm, validateBehavior } from "./BotBehaviorForm";
 import { textInputProps } from "../textInputProps";
 import { isAgentAvailableForBot } from "../agentAvailability";
 import { botNameAfterAgentSelection } from "../agentBotName";
@@ -135,6 +138,7 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
   const renameTopic = useStore((s) => s.renameAgentTopic);
   const deleteTopic = useStore((s) => s.deleteAgentTopic);
   const setConversationMeta = useStore((s) => s.setAgentConversationMeta);
+  const setAgentRuntime = useStore((s) => s.setAgentRuntime);
   const workspace = useStore((s) => s.workspaces.find((item) => item.id === workspaceId));
   const addConversationFolder = useStore((s) => s.addAgentConversationFolder);
   const renameConversationFolder = useStore((s) => s.renameAgentConversationFolder);
@@ -159,6 +163,12 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
   const [dialogStage, setDialogStage] = useState<AgentDialogStage | null>(() =>
     conversations.length === 0 ? "picker" : null
   );
+  const [composerAvatar, setComposerAvatar] = useState("");
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [composerBehavior, setComposerBehavior] = useState<BotBehaviorDraft>(() => behaviorDraft({}));
+  const [composerSaving, setComposerSaving] = useState(false);
+  const [composerError, setComposerError] = useState("");
+  const createGeneration = useRef(0);
   const [composerName, setComposerName] = useState("");
   const [composerRuntime, setComposerRuntime] = useState("");
   const [runtimeSelectOpen, setRuntimeSelectOpen] = useState(false);
@@ -289,7 +299,7 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
       }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || document.querySelector("dialog.skill-picker[open]")) return;
       event.preventDefault();
       event.stopPropagation();
       setRuntimeSelectOpen(false);
@@ -347,8 +357,10 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
     return () => cancelAnimationFrame(frame);
   }, [runtimeSelectId, runtimeSelectIndex, runtimeSelectOpen]);
 
+  const needsRuntimeChoices = dialogStage === "create" || (inspectorOpen && inspectorView === "settings");
+
   useEffect(() => {
-    if (dialogStage !== "create") return;
+    if (!needsRuntimeChoices) return;
     let live = true;
     // Hide first, then opt in only after the server confirms a usable default;
     // stale state must not offer Chat mode after its model was removed.
@@ -363,14 +375,14 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
     return () => {
       live = false;
     };
-  }, [dialogStage]);
+  }, [needsRuntimeChoices]);
 
   const runtimeSignature = configuredRuntimes
     .map((agent) => `${agent.id}:${agent.enabled}:${agentCommand(agent)}:${JSON.stringify(agent.runtime)}`)
     .join("|");
 
   useEffect(() => {
-    if (dialogStage !== "create") return;
+    if (!needsRuntimeChoices) return;
     let live = true;
     setDetectedRuntimes(null);
     setRuntimeDetectionFailed(false);
@@ -396,9 +408,10 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
     // screen must refresh rather than trusting the previous detection result.
     // While the screen is open, re-detect when enablement or runtime identity changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runtimeSignature, dialogStage]);
+  }, [runtimeSignature, needsRuntimeChoices]);
 
   useEffect(() => {
+    createGeneration.current++;
     setDialogStage(conversations.length === 0 ? "picker" : null);
     setComposerName("");
     setComposerRuntime("");
@@ -421,7 +434,7 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
     };
     const close = () => setContextMenu(null);
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || document.querySelector("dialog.skill-picker[open]")) return;
       event.stopPropagation();
       setContextMenu(null);
     };
@@ -444,7 +457,7 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
     };
     const close = () => setFolderMenu(null);
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || document.querySelector("dialog.skill-picker[open]")) return;
       event.stopPropagation();
       setFolderMenu(null);
     };
@@ -467,7 +480,7 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
     };
     const close = () => setTopicMenu(null);
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || document.querySelector("dialog.skill-picker[open]")) return;
       event.stopPropagation();
       setTopicMenu(null);
     };
@@ -489,7 +502,7 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
       if (!filterMenuRef.current?.contains(event.target as Node)) setFilterOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || document.querySelector("dialog.skill-picker[open]")) return;
       event.stopPropagation();
       setFilterOpen(false);
     };
@@ -565,10 +578,24 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
   ];
   const activeFilterLabel = filterOptions.find((option) => option.id === inboxFilter)?.label ?? filterOptions[0].label;
   const active = conversations.find((conversation) => conversation.id === activeId) ?? conversations[0];
+  const inspectorRuntimeChoiceId = active?.agentRuntime === ""
+    ? TERMANY_RUNTIME_ID
+    : active?.agentRuntime ?? defaultRuntime ?? "";
+  const inspectorRuntimeChoice = runtimeChoices.find((choice) => choice.id === inspectorRuntimeChoiceId);
+  const inspectorRuntimeChoices = inspectorRuntimeChoice || !inspectorRuntimeChoiceId
+    ? runtimeChoices
+    : [{
+      id: inspectorRuntimeChoiceId,
+      name: inspectorRuntimeChoiceId === TERMANY_RUNTIME_ID
+        ? TERMANY_RUNTIME_NAME
+        : agents.find((agent) => agent.id === inspectorRuntimeChoiceId)?.name ?? inspectorRuntimeChoiceId,
+      icon: inspectorRuntimeChoiceId === TERMANY_RUNTIME_ID
+        ? termanyIcon
+        : agents.find((agent) => agent.id === inspectorRuntimeChoiceId)?.icon,
+      hint: "",
+    }, ...runtimeChoices];
+  const inspectorRuntimeChanging = Boolean(active && streamingIds.has(active.id));
   const inspectorRuntimeId = active?.agentGroup ? active.agentGroup.runtimeId : active?.agentRuntime;
-  const inspectorAgentName = inspectorRuntimeId === ""
-    ? TERMANY_RUNTIME_NAME
-    : agents.find((agent) => agent.id === (inspectorRuntimeId ?? defaultRuntime))?.name ?? TERMANY_RUNTIME_NAME;
   useEffect(() => {
     setEditingConversationNameId(null);
     setConversationNameDraft("");
@@ -621,6 +648,8 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
   const botRecipients = ordered.filter((conversation) => !conversation.agentGroup).map((conversation) => ({
     id: conversation.id,
     title: displayTitle(conversation, t),
+    description: conversation.agentDescription,
+    skillCount: conversation.agentSkills?.length ?? 0,
     avatar: conversation.agentAvatar,
     icon: runtimeIcon(conversation.agentRuntime),
     lastMessageAt: lastConversationTime(conversation),
@@ -636,10 +665,10 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
     setVisibleTopicCount(TOPIC_PAGE_SIZE);
   }, [active?.id]);
 
-  const createConversation = (runtimeId: string, title: string) => {
+  const createConversation = (runtimeId: string, title: string, behavior: BotBehaviorDraft) => {
     const name = title.trim();
     if (!runtimeId || !name) return;
-    const created = addConversation(runtimeId === TERMANY_RUNTIME_ID ? "" : runtimeId, name);
+    const created = addConversation(runtimeId === TERMANY_RUNTIME_ID ? "" : runtimeId, name, { ...behavior, agentAvatar: composerAvatar });
     setActiveId(created);
     setQuery("");
     setComposerName("");
@@ -653,18 +682,38 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
   };
 
   const openCreateDialog = () => {
+    createGeneration.current++;
+    setComposerBehavior(behaviorDraft({}));
+    setComposerAvatar("");
+    setAvatarUploading(false);
+    setComposerError("");
+    setComposerSaving(false);
     setComposerName("");
     setComposerRuntime("");
     setRuntimeSelectOpen(false);
     setDialogStage("create");
   };
 
-  const closeDialog = () => setDialogStage(null);
+  const closeDialog = () => { createGeneration.current++; setDialogStage(null); };
 
-  const submitConversation = (event: FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    if (dialogStage !== "create") {
+      createGeneration.current++;
+      setComposerSaving(false);
+    }
+  }, [dialogStage]);
+
+  const submitConversation = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!composerRuntimeAvailable) return;
-    createConversation(composerRuntime, composerName);
+    if (!composerRuntimeAvailable || !composerName.trim() || composerSaving || avatarUploading) return;
+    const generation = createGeneration.current;
+    setComposerSaving(true); setComposerError("");
+    try {
+      await validateBehavior(composerName.trim(), composerBehavior);
+      if (generation !== createGeneration.current) return;
+      createConversation(composerRuntime, composerName, composerBehavior);
+    } catch (error) { if (generation === createGeneration.current) setComposerError(String(error)); }
+    finally { if (generation === createGeneration.current) setComposerSaving(false); }
   };
 
   const openRuntimeSettings = (agentId?: string) => {
@@ -1519,7 +1568,7 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
                         topicId={topic.id}
                         focused={visible && selected}
                         appearance="messenger"
-                        botIdentity={{ name: displayTitle(conversation, t), description: conversation.agentDescription }}
+                        botIdentity={botIdentityForConversation(conversation, displayTitle(conversation, t))}
                         botLabels={conversation.agentTags}
                         peers={agentGroup ? [] : peersFor(conversation)}
                         group={agentGroup ? { name: displayTitle(conversation, t), description: conversation.agentDescription,
@@ -1658,18 +1707,33 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
                   <>
                     <div className="agent-inspector-agent-field">
                       <span>{t("agentChat.modeAgent")}</span>
+                      <div className="agent-inspector-runtime-picker">
+                        <AgentAvatar icon={inspectorRuntimeChoice?.icon ?? runtimeIcon(inspectorRuntimeId)} className="agent-launcher-avatar" />
+                        <select
+                          value={inspectorRuntimeChoiceId}
+                          aria-label={t("agentWorkspace.selectAgent")}
+                          disabled={detectedRuntimes === null || termanyModel === null || !runtimeChoices.length || inspectorRuntimeChanging}
+                          onChange={(event) => {
+                            const id = event.target.value;
+                            setAgentRuntime(active.id, id === TERMANY_RUNTIME_ID ? "" : id);
+                          }}
+                        >
+                          {!inspectorRuntimeChoiceId && <option value="">{t("agentWorkspace.selectAgent")}</option>}
+                          {inspectorRuntimeChoices.map((choice) => <option key={choice.id} value={choice.id}>{choice.name}</option>)}
+                        </select>
+                        <ChevronIcon dir="down" />
+                      </div>
                       <button
                         type="button"
-                        className="agent-inspector-agent-identity"
-                        title={t("agents.settings")}
-                        aria-label={t("agents.settings")}
+                        className="agent-inspector-agent-manage"
                         onClick={() => openRuntimeSettings(inspectorRuntimeId === "" ? undefined : inspectorRuntimeId ?? defaultRuntime)}
                       >
-                        <AgentAvatar icon={runtimeIcon(inspectorRuntimeId)} className="agent-launcher-avatar" />
-                        <span>{inspectorAgentName}</span>
+                        <GearIcon />
+                        <span>{t("agentChat.manageAgents")}</span>
                       </button>
                     </div>
                     <div className="agent-inspector-model-slot" ref={setModelSettingsContainer} />
+                    <BotBehaviorEditor key={active.id} conversation={active} />
                   </>
                 )}
               </section>
@@ -1994,7 +2058,7 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
                   type="button"
                   title={t("common.cancel")}
                   aria-label={t("common.cancel")}
-                  onClick={() => setDialogStage("picker")}
+                  onClick={() => { createGeneration.current++; setDialogStage("picker"); }}
                 >
                   <ChevronIcon dir="left" />
                 </button>
@@ -2009,11 +2073,14 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
                 </button>
               </header>
               <div className="agent-create-content">
+                <div className="agent-create-identity">
+                <AgentAvatarEditor key={createGeneration.current} avatar={composerAvatar} icon={composerRuntime ? runtimeIcon(composerRuntime) : undefined} compact disabled={composerSaving} onUploadingChange={setAvatarUploading} onAvatarChange={setComposerAvatar} />
                 <label className="agent-create-name">
                   <span>{t("agentWorkspace.botName")}</span>
                   <input
                     {...textInputProps}
                     {...nameIme.props}
+                    disabled={composerSaving}
                     ref={composerNameInputRef}
                     autoFocus
                     value={composerName}
@@ -2028,7 +2095,8 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
                     }}
                   />
                 </label>
-
+                </div>
+                <p className="agent-create-avatar-hint">{t("agentWorkspace.changeAvatar")} · {t("botBehavior.avatarHint")}{composerAvatar && <button type="button" className="agent-avatar-reset" disabled={composerSaving || avatarUploading} onClick={() => setComposerAvatar("")}>{t("agentWorkspace.resetAvatar")}</button>}</p>
                 <fieldset className="agent-runtime-fieldset">
                   <legend>
                     <span className="agent-runtime-legend">
@@ -2054,7 +2122,7 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
                       aria-expanded={runtimeSelectOpen}
                       aria-controls={`${runtimeSelectId}-listbox`}
                       aria-activedescendant={runtimeSelectOpen ? `${runtimeSelectId}-option-${runtimeSelectIndex}` : undefined}
-                      disabled={detectedRuntimes === null || termanyModel === null || runtimeChoices.length === 0}
+                      disabled={composerSaving || detectedRuntimes === null || termanyModel === null || runtimeChoices.length === 0}
                       onClick={() => {
                         const selected = runtimeChoices.findIndex((choice) => choice.id === composerRuntime);
                         setRuntimeSelectIndex(selected >= 0 ? selected : 0);
@@ -2124,21 +2192,23 @@ export function AgentWorkspace({ workspaceId, visible = true }: { workspaceId: s
                     )}
                   </div>
                 </fieldset>
+                <BotBehaviorForm value={composerBehavior} onChange={setComposerBehavior} name={composerName} disabled={composerSaving} />
+                {composerError && <p role="alert" className="bot-behavior-error">{composerError}</p>}
               </div>
               <div className="agent-create-actions">
                 <button
                   type="button"
                   className="agent-create-cancel"
-                  onClick={() => setDialogStage("picker")}
+                  onClick={() => { createGeneration.current++; setDialogStage("picker"); }}
                 >
                   {t("common.cancel")}
                 </button>
                 <button
                   type="submit"
                   className="agent-create-submit"
-                  disabled={!composerRuntimeAvailable || !composerName.trim()}
+                  disabled={composerSaving || avatarUploading || !composerRuntimeAvailable || !composerName.trim()}
                 >
-                  {t("workspace.create")}
+                  {t(composerSaving ? "botBehavior.saving" : "workspace.create")}
                 </button>
               </div>
             </form>

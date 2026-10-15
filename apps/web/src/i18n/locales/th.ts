@@ -1,7 +1,9 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Thai — ไทย (developer terms like Git, SSH, PID, token stay in Latin script,
 // which is how Thai developers read and write them)
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} กำลังจัดสรรข้อความของคุณ ({attempt}/{total})…",
   "agentGroup.routingTimeout": "เอเจนต์ก่อนหน้าหมดเวลา {name} กำลังรับช่วงต่อ ({attempt}/{total})…",
   "agentGroup.routingFallback": "เอเจนต์ก่อนหน้าล้มเหลว {name} กำลังรับช่วงต่อ ({attempt}/{total})…",
@@ -48,6 +50,10 @@ export default {
   "common.delete": "ลบ",
   "common.edit": "แก้ไข",
   "common.done": "เสร็จสิ้น",
+  "closeConfirm.tab": "ปิดแท็บ \"{name}\"?",
+  "closeConfirm.page": "ลบหน้า \"{name}\" และทุกอย่างที่อยู่ข้างใต้?",
+  "closeConfirm.pane": "ปิดบานหน้าต่าง \"{name}\"?",
+  "closeConfirm.reason": "บานหน้าต่างบางส่วนยังทำงานอยู่หรือต้องการความสนใจ การปิดจะหยุดการทำงานเหล่านั้น",
   "agentWorkspace.new": "บอตใหม่",
   "agentWorkspace.newBot": "บอตใหม่",
   "agentWorkspace.botName": "ชื่อบอต",
@@ -329,6 +335,11 @@ export default {
   "activity.done": "{agent} ทำเสร็จแล้ว",
   "activity.working": "{agent} กำลังทำงาน",
 
+  "notification.done.title": "{agent} เสร็จแล้ว",
+  "notification.done.body": "งานเสร็จแล้ว — กลับมาตรวจสอบได้เลย",
+  "notification.error.title": "{agent} ต้องการความสนใจ",
+  "notification.error.body": "งานหยุดลงและกำลังรอคุณอยู่",
+
   "agentChat.title": "มีอะไรให้ช่วยไหม?",
   "agentChat.placeholder": "มอบหมายงาน หรือถามอะไรก็ได้",
   "agentChat.noModel": "เพิ่มโมเดลในการตั้งค่าเพื่อเริ่มบทสนทนา",
@@ -393,6 +404,7 @@ export default {
   "about.checking": "กำลังตรวจสอบ…",
   "about.upToDate": "เป็นเวอร์ชันล่าสุดแล้ว ✓",
   "about.checkUpdates": "ตรวจหาอัปเดต",
+  "about.updateUnavailable": "ยังไม่มีการอัปเดตอัตโนมัติสำหรับแพลตฟอร์มนี้",
   "about.downloading": "กำลังดาวน์โหลด…",
   "about.restarting": "ติดตั้งแล้ว — กำลังเริ่มใหม่…",
   "about.waitingForTasks": "ติดตั้งแล้ว — กำลังรองาน {count} รายการที่ทำงานอยู่ให้เสร็จ…",

@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Chinese (Traditional) — 繁體中文（台灣用語：設定／終端機／檔案／預設）
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} 正在分派訊息（{attempt}/{total}）…",
   "agentGroup.routingTimeout": "上一個 agent 回應逾時，{name} 正在接手（{attempt}/{total}）…",
   "agentGroup.routingFallback": "上一個 agent 分派失敗，{name} 正在接手（{attempt}/{total}）…",
@@ -40,6 +42,10 @@ export default {
   "common.delete": "刪除",
   "common.edit": "編輯",
   "common.done": "完成",
+  "closeConfirm.tab": "關閉分頁「{name}」？",
+  "closeConfirm.page": "刪除頁面「{name}」及其所有子頁面？",
+  "closeConfirm.pane": "關閉窗格「{name}」？",
+  "closeConfirm.reason": "其中一些窗格仍在執行或需要處理，關閉將終止它們。",
   "agentWorkspace.new": "新增 Bot",
   "agentWorkspace.newBot": "新增 Bot",
   "agentWorkspace.botName": "Bot 名稱",
@@ -325,6 +331,11 @@ export default {
   "activity.done": "{agent} 已完成",
   "activity.working": "{agent} 正在執行",
 
+  "notification.done.title": "{agent} 已經完成",
+  "notification.done.body": "任務已完成，切回查看結果。",
+  "notification.error.title": "{agent} 需要你處理",
+  "notification.error.body": "任務已中斷，正在等你處理。",
+
   "agentChat.title": "有什麼可以幫你的？",
   "agentChat.placeholder": "交派任務，或問我任何問題",
   "agentChat.noModel": "請先在設定中新增模型，才能開始對話",
@@ -392,6 +403,7 @@ export default {
   "about.checking": "檢查中…",
   "about.upToDate": "已是最新版本 ✓",
   "about.checkUpdates": "檢查更新",
+  "about.updateUnavailable": "此平台暫未提供自動更新",
   "about.downloading": "下載中…",
   "about.restarting": "安裝完成 — 正在重新啟動…",
   "about.waitingForTasks": "安裝完成 — 正在等待 {count} 個執行中的工作結束…",

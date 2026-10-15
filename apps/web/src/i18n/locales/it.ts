@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Italian — Italiano
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} sta assegnando il messaggio ({attempt}/{total})…",
   "agentGroup.routingTimeout": "Tempo scaduto per l’agente precedente. {name} subentra ({attempt}/{total})…",
   "agentGroup.routingFallback": "L’agente precedente ha riscontrato un errore. {name} subentra ({attempt}/{total})…",
@@ -47,6 +49,10 @@ export default {
   "common.delete": "Elimina",
   "common.edit": "Modifica",
   "common.done": "Fatto",
+  "closeConfirm.tab": "Chiudere la scheda \"{name}\"?",
+  "closeConfirm.page": "Eliminare la pagina \"{name}\" e tutto ciò che contiene?",
+  "closeConfirm.pane": "Chiudere il riquadro \"{name}\"?",
+  "closeConfirm.reason": "Alcuni riquadri sono ancora in esecuzione o richiedono attenzione. Chiudendoli verranno interrotti.",
   "agentWorkspace.new": "Nuovo bot",
   "agentWorkspace.newBot": "Nuovo bot",
   "agentWorkspace.botName": "Nome del bot",
@@ -328,6 +334,11 @@ export default {
   "activity.done": "{agent} ha finito",
   "activity.working": "{agent} sta lavorando",
 
+  "notification.done.title": "{agent} ha finito",
+  "notification.done.body": "L'attività è completata: torna per verificarla.",
+  "notification.error.title": "{agent} richiede attenzione",
+  "notification.error.body": "L'attività si è fermata e ti sta aspettando.",
+
   "agentChat.title": "Come posso aiutarti?",
   "agentChat.placeholder": "Assegna un compito o chiedi qualsiasi cosa",
   "agentChat.noModel": "Aggiungi un modello nelle Impostazioni per avviare una conversazione",
@@ -392,6 +403,7 @@ export default {
   "about.checking": "Controllo in corso…",
   "about.upToDate": "Tutto aggiornato ✓",
   "about.checkUpdates": "Cerca aggiornamenti",
+  "about.updateUnavailable": "Gli aggiornamenti automatici non sono ancora disponibili per questa piattaforma",
   "about.downloading": "Download in corso…",
   "about.restarting": "Installato: riavvio in corso…",
   "about.waitingForTasks": "Installato: in attesa che finiscano {count} attività in corso…",

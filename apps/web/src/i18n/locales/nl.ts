@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Dutch — Nederlands (informal "je", matching the product's tone)
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} wijst je bericht toe ({attempt}/{total})…",
   "agentGroup.routingTimeout": "De vorige agent heeft de tijdslimiet overschreden. {name} neemt het over ({attempt}/{total})…",
   "agentGroup.routingFallback": "De vorige agent is mislukt. {name} neemt het over ({attempt}/{total})…",
@@ -47,6 +49,10 @@ export default {
   "common.delete": "Verwijderen",
   "common.edit": "Bewerken",
   "common.done": "Klaar",
+  "closeConfirm.tab": "Tabblad \"{name}\" sluiten?",
+  "closeConfirm.page": "Pagina \"{name}\" en alles eronder verwijderen?",
+  "closeConfirm.pane": "Deelvenster \"{name}\" sluiten?",
+  "closeConfirm.reason": "Sommige deelvensters zijn nog bezig of vereisen aandacht. Sluiten stopt ze.",
   "agentWorkspace.new": "Nieuwe bot",
   "agentWorkspace.newBot": "Nieuwe bot",
   "agentWorkspace.botName": "Botnaam",
@@ -328,6 +334,11 @@ export default {
   "activity.done": "{agent} is klaar",
   "activity.working": "{agent} is bezig",
 
+  "notification.done.title": "{agent} is klaar",
+  "notification.done.body": "De taak is klaar — ga terug om hem te bekijken.",
+  "notification.error.title": "{agent} heeft aandacht nodig",
+  "notification.error.body": "De taak is gestopt en wacht op jou.",
+
   "agentChat.title": "Wat kan ik voor je doen?",
   "agentChat.placeholder": "Geef een taak of vraag wat je wilt",
   "agentChat.noModel": "Voeg een model toe in Instellingen om een gesprek te starten",
@@ -392,6 +403,7 @@ export default {
   "about.checking": "Controleren…",
   "about.upToDate": "Alles is up-to-date ✓",
   "about.checkUpdates": "Controleren op updates",
+  "about.updateUnavailable": "Automatische updates zijn nog niet beschikbaar voor dit platform",
   "about.downloading": "Downloaden…",
   "about.restarting": "Geïnstalleerd — opnieuw starten…",
   "about.waitingForTasks": "Geïnstalleerd — wachten tot {count} lopende taken klaar zijn…",

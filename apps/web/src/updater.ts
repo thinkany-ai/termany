@@ -3,8 +3,8 @@ import { isTauri } from "./env";
 
 /**
  * Desktop self-update, backed by the Tauri updater plugin. The server side is
- * a static `latest.json` + signed `.app.tar.gz` on cdn.termany.sh, produced by
- * the release pipeline (scripts/release-mac.sh + the site's publish-release.sh).
+ * a static `latest.json` + signed platform artifacts on cdn.termany.sh,
+ * produced by the release pipeline and the site's publish-release.sh.
  * Everything here no-ops in the browser build.
  */
 
@@ -27,6 +27,20 @@ export function countRunningTasks(payload: unknown): number {
   const activities = (payload as ActivityPayload).activities;
   if (!activities || typeof activities !== "object") return 0;
   return Object.values(activities).filter((activity) => activity?.status === "working").length;
+}
+
+/**
+ * The updater plugin reports a missing platform as a low-level manifest error.
+ * Treat that as an unsupported release channel state so the UI can explain it
+ * without exposing Rust/plugin wording such as `windows-x86_64-nsis`.
+ */
+export function isUnsupportedUpdatePlatformError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("None of the fallback platforms") &&
+    message.includes("were found in the response") &&
+    message.includes("platforms")
+  );
 }
 
 export async function runningTaskCount(): Promise<number> {

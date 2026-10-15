@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CloseConfirm } from "./components/CloseConfirm";
 import { FindBar } from "./components/FindBar";
 import { GitDiff } from "./components/GitDiff";
 import { HTabBar } from "./components/HTabBar";
@@ -16,10 +17,13 @@ import { WindowControls } from "./components/WindowControls";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { isTauri } from "./env";
 import { ACTIONS, matchChord } from "./keybindings";
-import { activeHtab, activeNode, focusedCwdSession, leafIds, useStore } from "./state/store";
+import { closeBlockers, isCloseConfirmOpen } from "./closeGuard";
+import { activeHtab, activeNode, findLeaf, focusedCwdSession, leafIds, useStore } from "./state/store";
 import { openNewWindow } from "./state/windows";
 import {
   adjustTerminalFontSize,
+  agentActivitySummaryForSessions,
+  ownedSessionIds,
   clearSession,
   queueCommandWhenShellReady,
   repeatFind,
@@ -124,6 +128,15 @@ export function App() {
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [gitDiffOpen, setGitDiffOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
+  // Cmd+W / palette close on a working or errored pane waits here for the
+  // dialog's verdict instead of closing immediately. The close-X buttons in
+  // HTabBar / TreeSidebar / SplitView each keep their own equivalent.
+  const [pendingPaneClose, setPendingPaneClose] = useState<{
+    id: string;
+    title: string;
+    working: number;
+    error: number;
+  } | null>(null);
   const settingsOpen = settingsSection !== null;
   const focusedPane = htab?.focused;
   const gitSession = useStore(focusedCwdSession);
@@ -216,7 +229,23 @@ export function App() {
   const handlers = useMemo(() => {
     const map: Record<string, (s: ReturnType<typeof useStore.getState>) => void> = {
       newTab: (s) => s.addHTab(),
-      closePane: (s) => s.closeFocusedPane(),
+      closePane: (s) => {
+        // A confirm is already waiting for its verdict — firing another close
+        // behind it would stack a second dialog on top of the first.
+        if (isCloseConfirmOpen()) return;
+        const h = activeHtab(s);
+        if (!h) return;
+        const blockers = closeBlockers(
+          agentActivitySummaryForSessions(ownedSessionIds([h.focused])),
+        );
+        if (blockers) {
+          setPendingPaneClose({
+            id: h.focused,
+            title: findLeaf(h.layout, h.focused)?.title ?? "",
+            ...blockers,
+          });
+        } else s.closeFocusedPane();
+      },
       splitRight: (s) => s.splitFocused("row"),
       splitDown: (s) => s.splitFocused("col"),
       toggleMaximize: (s) => {
@@ -486,6 +515,19 @@ export function App() {
         <SearchPalette onClose={() => setSearchOpen(false)} onRunAction={runAction} />
       )}
       {gitDiffOpen && <GitDiff session={gitSession} onClose={() => setGitDiffOpen(false)} />}
+      {pendingPaneClose && (
+        <CloseConfirm
+          kind="pane"
+          name={pendingPaneClose.title}
+          working={pendingPaneClose.working}
+          error={pendingPaneClose.error}
+          onConfirm={() => {
+            useStore.getState().closePane(pendingPaneClose.id);
+            setPendingPaneClose(null);
+          }}
+          onClose={() => setPendingPaneClose(null)}
+        />
+      )}
       {isTauri && <QuitConfirm />}
     </div>
   );

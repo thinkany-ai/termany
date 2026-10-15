@@ -1,7 +1,9 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Czech — Čeština (counts use a "noun: N" form to sidestep the three Czech
 // plural stems)
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} přiřazuje zprávu ({attempt}/{total})…",
   "agentGroup.routingTimeout": "Předchozímu agentovi vypršel čas. {name} přebírá úkol ({attempt}/{total})…",
   "agentGroup.routingFallback": "Předchozí agent selhal. {name} přebírá úkol ({attempt}/{total})…",
@@ -48,6 +50,10 @@ export default {
   "common.delete": "Smazat",
   "common.edit": "Upravit",
   "common.done": "Hotovo",
+  "closeConfirm.tab": "Zavřít kartu \"{name}\"?",
+  "closeConfirm.page": "Smazat stránku \"{name}\" a vše pod ní?",
+  "closeConfirm.pane": "Zavřít panel \"{name}\"?",
+  "closeConfirm.reason": "Některé panely stále běží nebo potřebují pozornost. Zavřením se ukončí.",
   "agentWorkspace.new": "Nový bot",
   "agentWorkspace.newBot": "Nový bot",
   "agentWorkspace.botName": "Název bota",
@@ -329,6 +335,11 @@ export default {
   "activity.done": "{agent} dokončil práci",
   "activity.working": "{agent} pracuje",
 
+  "notification.done.title": "{agent} skončil",
+  "notification.done.body": "Úkol je hotový — přepněte se zpět a zkontrolujte ho.",
+  "notification.error.title": "{agent} potřebuje pozornost",
+  "notification.error.body": "Úkol se zastavil a čeká na vás.",
+
   "agentChat.title": "Co pro vás mohu udělat?",
   "agentChat.placeholder": "Zadejte úkol nebo se na cokoli zeptejte",
   "agentChat.noModel": "Konverzaci zahájíte přidáním modelu v Nastavení",
@@ -393,6 +404,7 @@ export default {
   "about.checking": "Kontrola…",
   "about.upToDate": "Vše je aktuální ✓",
   "about.checkUpdates": "Zkontrolovat aktualizace",
+  "about.updateUnavailable": "Automatické aktualizace zatím nejsou pro tuto platformu dostupné",
   "about.downloading": "Stahování…",
   "about.restarting": "Nainstalováno — restartuje se…",
   "about.waitingForTasks": "Nainstalováno — čeká se na dokončení běžících úloh: {count}…",

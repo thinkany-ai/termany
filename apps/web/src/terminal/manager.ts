@@ -1,16 +1,27 @@
 import { WebSocketBackend, type ITerminalBackend } from "@termany/core";
 import { getLanguage, translate } from "../i18n";
 import { loadFontConfig } from "../font-config";
+import { CanvasAddon } from "@xterm/addon-canvas";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { loadAgentConfigs } from "../agents";
+import {
+  agentNotificationText,
+  cleanSessionTitle,
+  defaultNotificationBackend,
+  forgetClosedSessions,
+  pendingAgentNotifications,
+  postAgentNotification,
+  type AgentNotificationActivity,
+} from "../agentNotifications";
 import { apiUrl } from "../api";
 import { writeClipboard } from "../clipboard";
 import { applyTextInputProps } from "../textInputProps";
 import { DemoBackend, demoInteracted, isDemo } from "../demo";
+import { IS_MAC } from "../keybindings";
 import {
   agentConfirmationPromptVisible,
   agentInputPromptVisible,
@@ -35,6 +46,12 @@ import { fixWebkitGtkImeComposition } from "./webkitGtkIme";
 import { createGlyphAtlasRepairer, onAtlasPagesMerged } from "./glyphAtlas";
 import { isModifierKeyEvent, registerTerminalKeybindings } from "./keyEvents";
 import { resumeOutputFollow, resumeOutputOnInput } from "./scrollFollow";
+import { isMacWebKit } from "./rendererPlatform";
+import {
+  defaultColorQueryMask,
+  filterDefaultColorReplies,
+  isCodexStartupDefaultColorProbe,
+} from "./defaultColorProbe";
 
 /**
  * The terminal session registry.
@@ -75,6 +92,11 @@ export interface Session {
   contentVersion: number;
   /** Set when this session's shell is an OpenSSH destination. */
   sshTarget?: string;
+  /** Recent PTY output used to recognize Codex's compact startup probe. */
+  defaultColorProbeTail: string;
+  /** OSC 10/11 replies withheld from a one-shot Codex palette probe. */
+  blockedDefaultColorReplies: number;
+  blockedDefaultColorRepliesUntil: number;
 }
 
 /**
@@ -310,6 +332,65 @@ function clearAgentIdleTimer(id: string) {
   agentIdleTimers.delete(id);
 }
 
+/** Finished turns already announced, keyed by session id -> task epoch. */
+const announcedAgentTurns = new Map<string, number>();
+/** Latest OS window title an agent set per session, for notification labels. */
+const sessionTitles = new Map<string, string>();
+const notificationBackend = defaultNotificationBackend();
+
+/** Sessions the user can actually see: attached terminals in the live DOM. */
+function visibleAgentSessionIds(): string[] {
+  const visible: string[] = [];
+  for (const [id, session] of sessions) {
+    const element = session.term.element;
+    if (element?.isConnected && element.offsetParent !== null) visible.push(id);
+  }
+  return visible;
+}
+
+/**
+ * Post an OS notification for turns that finished out of sight. Driven by the
+ * shared activity ledger, so it covers every agent the tracker reports rather
+ * than any single CLI.
+ */
+function announceFinishedAgentTurns(
+  before: Map<string, AgentActivity>,
+  after: Map<string, AgentActivity>,
+) {
+  if (!notificationBackend || isDemo) return;
+
+  const windowFocused =
+    typeof document === "undefined" ||
+    (document.visibilityState === "visible" && document.hasFocus());
+
+  const requests = pendingAgentNotifications(
+    before as Map<string, AgentNotificationActivity>,
+    after as Map<string, AgentNotificationActivity>,
+    {
+      windowFocused,
+      visibleSessionIds: visibleAgentSessionIds(),
+      // A turn that finishes inside a still-open agent TUI is the main case
+      // this exists for, so an active session must not be filtered out here.
+    },
+    announcedAgentTurns,
+  );
+
+  for (const request of requests) {
+    announcedAgentTurns.set(request.sessionId, request.taskEpoch);
+    // The OSC window title is a trustworthy session label. Do not attach the
+    // rendered terminal screen as a body: full-screen TUIs mix model output
+    // with model/context/workspace status chrome, which is misleading detail.
+    const label = cleanSessionTitle(sessionTitles.get(request.sessionId));
+    const text = agentNotificationText(
+      { ...request, label },
+      (agent) => loadAgentConfigs().find((config) => config.id === agent)?.name,
+    );
+    void postAgentNotification(notificationBackend, text);
+  }
+
+  forgetClosedSessions(announcedAgentTurns, after.keys());
+}
+
 function applyAgentActivityPayload(payload: any) {
   if (!payload?.activities || typeof payload.activities !== "object") return;
   if (
@@ -405,10 +486,12 @@ function applyAgentActivityPayload(payload: any) {
       clearAgentIdleTimer(id);
     }
   }
+  const beforeActivities = new Map(agentActivities);
   agentActivities.clear();
   for (const [id, activity] of next) agentActivities.set(id, activity);
   agentActiveSessions.clear();
   for (const id of nextActiveSessions) agentActiveSessions.add(id);
+  announceFinishedAgentTurns(beforeActivities, next);
   notifyAgentActivity();
   for (const [id, activity] of next) {
     if (activity.status === "working" || activity.status === "done") {
@@ -808,11 +891,13 @@ function updateAgentActivityFromOutput(id: string, data: string) {
   }
 }
 
-function noteAgentInput(id: string, data: string) {
+function noteAgentInput(id: string, data: string, isSubmit = true) {
   clearAgentIdleTimer(id);
   agentIdleReports.delete(id);
   if (!isDemo) return;
-  if (!data.includes("\r")) return;
+  // A synthetic newline is never a submit — in demo mode no less, where the
+  // scripted reply still drives the activity animation from its own output.
+  if (!isSubmit || !data.includes("\r")) return;
   const session = sessions.get(id);
   if (!session) return;
   if (agentActivities.has(id) || AGENT_RE.test(sessionVisibleText(id))) {
@@ -839,8 +924,11 @@ function submittedAgentForTerminalInput(
   );
 }
 
-function writeTerminalInput(id: string, session: Session, data: string) {
-  const agent = submittedAgentForTerminalInput(id, data);
+function writeTerminalInput(id: string, session: Session, data: string, isSubmit = true) {
+  // A synthetic newline (Shift+Enter) carries a CR in its bytes but is not a
+  // submit: running submit detection on it would flash the agent "working"
+  // state and hold the bytes behind the activity registration roundtrip.
+  const agent = isSubmit ? submittedAgentForTerminalInput(id, data) : undefined;
   const previous = terminalInputSendChains.get(id);
   if (!agent && !previous) {
     session.backend.write(data);
@@ -873,6 +961,43 @@ function writeTerminalInput(id: string, session: Session, data: string) {
     }
   };
   void run.then(cleanup, cleanup);
+}
+
+/**
+ * Everything xterm emits — plus the synthetic Shift+Enter newline, which
+ * bypasses xterm's encoder — funnels through here: an Enter-containing
+ * keystroke wakes an ended SSH session, every keystroke feeds the agent
+ * activity trackers, and the bytes go to the backend in submit order.
+ *
+ * `isSubmit` carries the keystroke's intent, which the bytes alone cannot:
+ * the synthetic newline shares its CR with a real submit. Only a submit runs
+ * submit detection; a newline skips it and goes straight to the backend
+ * (still ordered behind any in-flight submit chain).
+ */
+function deliverTerminalInput(
+  id: string,
+  session: Session,
+  term: Terminal,
+  sshTarget: string | undefined,
+  data: string,
+  isSubmit = true
+) {
+  if (resumeOutputOnInput(session, data, readScrollState(term).atBottom)) {
+    if (session.deferredFlushTimer !== null) {
+      window.clearTimeout(session.deferredFlushTimer);
+      session.deferredFlushTimer = null;
+    }
+    flushDeferredOutput(id);
+  }
+  if (sshTarget && session.ended) {
+    if (/[\r\n]/.test(data)) {
+      term.write("\r\n");
+      session.restart?.();
+    }
+    return;
+  }
+  noteAgentInput(id, data, isSubmit);
+  writeTerminalInput(id, session, data, isSubmit);
 }
 
 export function subscribeAgentActivity(listener: () => void): () => void {
@@ -923,6 +1048,44 @@ export function agentActivitySummary(ids: string[]): AgentActivitySummary {
     if (activity) summary[activity.status]++;
   }
   return summary;
+}
+
+/**
+ * Like agentActivitySummary, but the ids are already-resolved runtime session
+ * ids (see ownedSessionIds) and must NOT be remapped: a local session's
+ * runtime id equals its pane id, so running it through activeSessionId would
+ * resolve it to whatever SSH session is currently active instead — double-
+ * counting the active session and dropping the background local one.
+ */
+export function agentActivitySummaryForSessions(sessionIds: string[]): AgentActivitySummary {
+  const summary: AgentActivitySummary = { working: 0, done: 0, error: 0 };
+  for (const id of new Set(sessionIds)) {
+    const activity = agentActivities.get(id);
+    if (activity) summary[activity.status]++;
+  }
+  return summary;
+}
+
+/**
+ * Every runtime session id owned by these panes — the mounted one plus any
+ * backgrounded SSH shells a switch left alive. Close guards must summarize
+ * THESE via agentActivitySummaryForSessions, not the pane ids: the plain
+ * agentActivitySummary resolves each pane to its active session only, while
+ * closing the pane disposes everything it owns (see disposePaneSessions), so
+ * a working background session would otherwise close without confirmation.
+ * Badges keep the active-session view.
+ */
+export function ownedSessionIds(paneIds: string[]): string[] {
+  const out = new Set<string>();
+  for (const paneId of paneIds) {
+    const owned = sessionIdsByPane.get(paneId);
+    if (owned?.size) {
+      for (const id of owned) out.add(id);
+    } else {
+      out.add(activeSessionId(paneId));
+    }
+  }
+  return [...out];
 }
 
 export function acknowledgeAgentActivities(ids: string[]) {
@@ -1331,13 +1494,19 @@ function refreshOnSymbolsFontLoad() {
  *  symbols fallback rides along so Nerd Font icons survive any font choice. */
 export function applyFontFamily(family: string) {
   currentFontFamily = family;
-  for (const s of sessions.values()) s.term.options.fontFamily = withSymbolsFallback(family);
+  for (const [id, s] of sessions) {
+    s.term.options.fontFamily = withSymbolsFallback(family);
+    requestAnimationFrame(() => fitSession(id));
+  }
 }
 
 /** Push a font size change to every live terminal + future sessions. */
 export function applyFontSize(size: number) {
   currentFontSize = size;
-  for (const s of sessions.values()) s.term.options.fontSize = size;
+  for (const [id, s] of sessions) {
+    s.term.options.fontSize = size;
+    requestAnimationFrame(() => fitSession(id));
+  }
 }
 
 function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId = id): Session {
@@ -1368,6 +1537,12 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
     theme: inactiveTermTheme(),
   });
 
+  // Capture the OS window title an agent animates so a completion notification
+  // can name the session; the raw value is cleaned in cleanSessionTitle.
+  term.onTitleChange((title) => {
+    if (title) sessionTitles.set(id, title);
+  });
+
   const fit = new FitAddon();
   term.loadAddon(fit);
 
@@ -1380,7 +1555,13 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
   // typing IS the terminal), app shortcuts like ⌘W silently did nothing.
   // Step aside for any key that matches a live user shortcut binding so it
   // reaches the app instead of being typed into the shell.
-  registerTerminalKeybindings(term);
+  registerTerminalKeybindings(term, undefined, IS_MAC, (data) => {
+    const live = sessions.get(id);
+    if (!live) return;
+    // Synthetic newlines bypass xterm's input encoder and its automatic scroll.
+    live.term.scrollToBottom();
+    deliverTerminalInput(id, live, live.term, sshTarget, data, false);
+  });
 
   // Replay the previous run's output tail (server-captured, sanitized) ABOVE
   // the fresh shell, so a reopened pane shows where it left off. The raw replay
@@ -1480,6 +1661,9 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
     connectionState: sshTarget ? "connecting" : undefined,
     contentVersion: 0,
     sshTarget,
+    defaultColorProbeTail: "",
+    blockedDefaultColorReplies: 0,
+    blockedDefaultColorRepliesUntil: 0,
   };
   sessions.set(id, session);
   refreshOnSymbolsFontLoad();
@@ -1487,6 +1671,20 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
 
   const wireBackend = (b: ITerminalBackend) => {
     b.onData((data) => {
+      const probeWindow = (session.defaultColorProbeTail + data).slice(-160);
+      const queryMask = defaultColorQueryMask(data);
+      if (
+        queryMask &&
+        (agentSessionKinds.get(id) === "codex" ||
+          isCodexStartupDefaultColorProbe(probeWindow))
+      ) {
+        // Codex caches this answer for the life of the TUI. Withholding it
+        // makes Codex render against terminal-default colors, which xterm can
+        // safely retint when Termany switches between dark and light themes.
+        session.blockedDefaultColorReplies |= queryMask;
+        session.blockedDefaultColorRepliesUntil = Date.now() + 1_000;
+      }
+      session.defaultColorProbeTail = probeWindow;
       if (sshTarget && session.connectionState !== "connected") {
         session.connectionState = "connected";
         notifyConnectionStatus();
@@ -1564,22 +1762,17 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
 
   term.onData((data) => {
     if (IME_DEBUG) imeLog(`→PTY ${JSON.stringify(data)}`);
-    if (resumeOutputOnInput(session, data, readScrollState(term).atBottom)) {
-      if (session.deferredFlushTimer !== null) {
-        window.clearTimeout(session.deferredFlushTimer);
-        session.deferredFlushTimer = null;
+    if (session.blockedDefaultColorReplies) {
+      if (Date.now() <= session.blockedDefaultColorRepliesUntil) {
+        const filtered = filterDefaultColorReplies(data, session.blockedDefaultColorReplies);
+        session.blockedDefaultColorReplies = filtered.pendingMask;
+        data = filtered.data;
+        if (!data) return;
+      } else {
+        session.blockedDefaultColorReplies = 0;
       }
-      flushDeferredOutput(id);
     }
-    if (sshTarget && session.ended) {
-      if (/[\r\n]/.test(data)) {
-        term.write("\r\n");
-        session.restart?.();
-      }
-      return;
-    }
-    noteAgentInput(id, data);
-    writeTerminalInput(id, session, data);
+    deliverTerminalInput(id, session, term, sshTarget, data);
   });
 
   // Select-to-copy only after an actual selection gesture. The old listener
@@ -1678,22 +1871,6 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
   );
 
   return session;
-}
-
-/**
- * True only inside macOS WKWebView/Safari. The IME workarounds below are
- * corrections for *that* engine's event ordering, and both are actively
- * harmful elsewhere. Linux Tauri renders through WebKitGTK, whose UA is also
- * "AppleWebKit … Safari" with no Chrome token — matching on the UA alone made
- * both fixes run there, where ibus/fcitx emit ordinary composition events and
- * xterm already handles the commit. The extra copy from the beforeinput hook
- * below is what users saw as every committed word arriving twice ("你好今天今天").
- */
-function isMacWebKit() {
-  const ua = navigator.userAgent;
-  const isPureWebKit = ua.includes("AppleWebKit") && !/Chrome|Chromium|Edg\//.test(ua);
-  const isMac = /Mac|iPhone|iPad/.test(navigator.platform) || ua.includes("Macintosh");
-  return isPureWebKit && isMac;
 }
 
 /**
@@ -1833,19 +2010,30 @@ export function attachSession(
   if (!s.opened) {
     s.term.open(s.el); // el is now in the document — renderer initialises correctly
     if (s.term.textarea) applyTextInputProps(s.term.textarea);
-    // GPU renderer: the default DOM renderer repaints character-by-character and
-    // makes echo feel laggy. WebGL must be loaded AFTER open(). If the GPU context
-    // is lost (driver reset / tab backgrounded), dispose so xterm falls back to DOM.
-    try {
-      const webgl = new WebglAddon();
-      webgl.onContextLoss(() => webgl.dispose());
-      // A page merge in the shared atlas rewrites glyph coordinates out from
-      // under every pane that isn't rendering right now, which is what makes
-      // text come back as the wrong characters until the pane is resized.
-      onAtlasPagesMerged(webgl, () => glyphAtlasRepairer.requestRepair());
-      s.term.loadAddon(webgl);
-    } catch {
-      /* no WebGL available — DOM renderer still works */
+    // macOS 26.5+ has a WKWebView/Safari WebGL regression that leaves old
+    // terminal frames composited over new ones. Canvas 2D is xterm's supported
+    // accelerated fallback and also clears transparent theme backgrounds
+    // correctly. Other engines keep the faster WebGL renderer.
+    if (isMacWebKit()) {
+      try {
+        s.term.loadAddon(new CanvasAddon());
+      } catch {
+        /* no Canvas 2D available — DOM renderer still works */
+      }
+    } else {
+      // WebGL must be loaded AFTER open(). If the GPU context is lost (driver
+      // reset / tab backgrounded), dispose so xterm falls back to DOM.
+      try {
+        const webgl = new WebglAddon();
+        webgl.onContextLoss(() => webgl.dispose());
+        // A page merge in the shared atlas rewrites glyph coordinates out from
+        // under every pane that isn't rendering right now, which is what makes
+        // text come back as the wrong characters until the pane is resized.
+        onAtlasPagesMerged(webgl, () => glyphAtlasRepairer.requestRepair());
+        s.term.loadAddon(webgl);
+      } catch {
+        /* no WebGL available — DOM renderer still works */
+      }
     }
     fixWebkitImeDirectInsert(s.term);
     fixAbandonedImeFinalize(s.term);
@@ -1915,6 +2103,14 @@ export function fitSession(id: string) {
   if (s.el.isConnected && (s.el.clientWidth < 5 || s.el.clientHeight < 5)) return;
   try {
     s.fit.fit();
+    // Worksheet decoration follows the rendered rows, including per-pane zoom
+    // and fractional device scaling. No private xterm renderer API is needed.
+    const screen = s.term.element?.querySelector<HTMLElement>(".xterm-screen");
+    const body = s.el.closest<HTMLElement>(".pane-body");
+    const rowHeight = screen ? parseFloat(getComputedStyle(screen).height) / s.term.rows : 0;
+    if (body && Number.isFinite(rowHeight) && rowHeight > 0) {
+      body.style.setProperty("--terminal-row-height", `${rowHeight}px`);
+    }
     s.backend.resize(s.term.cols, s.term.rows);
     if (!s.followOutput && s.lockedViewportY !== null) {
       s.term.scrollToLine(Math.min(s.lockedViewportY, s.term.buffer.active.baseY));
@@ -2227,6 +2423,8 @@ export function disposeSession(id: string) {
   terminalInputSendChains.delete(id);
   commandSendChains.delete(id);
   shellReadyCommands.delete(id);
+  sessionTitles.delete(id);
+  announcedAgentTurns.delete(id);
   const activityChanged = agentActivities.delete(id);
   const presenceChanged = agentActiveSessions.delete(id);
   if (activityChanged || presenceChanged) notifyAgentActivity();

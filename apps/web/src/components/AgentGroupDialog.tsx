@@ -245,6 +245,8 @@ export function AgentGroupDialog({ bots, mode = "create", initialName = "", init
                       <AgentAvatar avatar={bot.avatar} icon={bot.icon} className="agent-launcher-avatar" />
                       <span className="agent-launcher-label">
                         {matchedName(bot.title, query)}
+                        {bot.description && <small className="bot-recipient-description">{bot.description}</small>}
+                        {!!bot.skillCount && <small className="bot-recipient-description">{t("botBehavior.skillCount", { count: bot.skillCount })}</small>}
                         {removing && bot.id === leadMemberId &&
                           <span className="agent-remove-lead">{t("agentGroup.leadMember")}</span>}
                       </span>

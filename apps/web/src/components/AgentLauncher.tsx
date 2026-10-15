@@ -9,6 +9,8 @@ import { CloseIcon, GroupChatIcon, PlusIcon } from "./icons";
 export interface AgentLauncherRecipient {
   id: string;
   title: string;
+  description?: string;
+  skillCount?: number;
   avatar?: string;
   icon?: string;
   members?: AgentAvatarMember[];
@@ -149,7 +151,10 @@ export function AgentLauncher({ bots, groups = [], onNewBot, onNewGroup, onSelec
                     {row.kind === "new-bot" ? <PlusIcon /> : <GroupChatIcon />}
                   </span>
                 )}
-                <span className="agent-launcher-label">{row.label}</span>
+                <span className="agent-launcher-label">{row.label}
+                  {row.recipient?.description && <small className="bot-recipient-description">{row.recipient.description}</small>}
+                  {!!row.recipient?.skillCount && <small className="bot-recipient-description">{t("botBehavior.skillCount", { count: row.recipient.skillCount })}</small>}
+                </span>
               </button>
             </Fragment>
           );

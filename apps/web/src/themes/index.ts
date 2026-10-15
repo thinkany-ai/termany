@@ -14,6 +14,10 @@ import { rosePineDawn } from "./rose-pine-dawn";
 import { solarizedDark } from "./solarized-dark";
 import type { Theme } from "./types";
 import { win98 } from "./win98";
+import { winxp } from "./winxp";
+import { aqua } from "./aqua";
+import { bsod } from "./bsod";
+import { excel } from "./excel";
 
 export type { Theme };
 export { fromCodexTheme, isCodexTheme } from "./codex-import";
@@ -38,6 +42,10 @@ export const THEMES: Theme[] = [
   phosphor,
   codex,
   win98,
+  winxp,
+  aqua,
+  bsod,
+  excel,
 ];
 
 /** The bundled themes, i.e. THEMES minus anything registered at runtime. */

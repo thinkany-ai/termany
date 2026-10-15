@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { migrateBotProfiles, migrateBotProfilesDatabase } from "./botProfileMigration.js";
 
 /**
  * Local store, SQLite — the same shape Wave/Warp use: the backend owns a single
@@ -84,6 +85,9 @@ export function setAgentsRaw(json: string): void {
   setMeta("agents", json);
 }
 
+// Back up before upgrading Bot fields or allowing the live Skill catalog to migrate.
+migrateBotProfilesDatabase(db, path.join(DIR, "backups"));
+
 // --- workspace layout ------------------------------------------------------
 
 export interface AppState {
@@ -137,7 +141,7 @@ export function saveState(state: AppState): void {
     workspaces.forEach((w: any, i) => ins.run(String(w?.id ?? i), i, JSON.stringify(w)));
     setMeta(
       "agentConversations",
-      JSON.stringify(Array.isArray(state.agentConversations) ? state.agentConversations : [])
+      JSON.stringify(migrateBotProfiles(state.agentConversations))
     );
     setMeta("userProfile", JSON.stringify({
       nickname: typeof state.userProfile?.nickname === "string" ? state.userProfile.nickname : "",

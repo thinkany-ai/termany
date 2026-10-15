@@ -36,6 +36,9 @@ interface SessionStreamState {
   /** Bounded raw tail used only to recognize a real interactive agent banner. */
   outputTail: string;
   pendingOsc: string;
+  /** True once a spinner-animated title marked this session busy, so the frame
+   * disappearing can be read as the turn finishing. */
+  sawSpinnerTitle: boolean;
 }
 
 const MAX_INPUT_CHARS = 512;
@@ -48,6 +51,25 @@ const DONE_TITLE_RE =
   /^(?:done|ready|idle|waiting|complete|completed|finished)(?:[.…]+)?$/i;
 const ERROR_TITLE_RE =
   /^(?:error|failed|blocked|action required|needs? input)(?:[.…]+)?$/i;
+
+// A leading Braille spinner frame is how some CLIs (e.g. traex) animate a busy
+// title when they don't spell the state out with a word. The frame's presence
+// is the signal: prefixed => busy, gone => the turn settled.
+const SPINNER_FRAME = "[\\u2800-\\u28ff\\u25e0-\\u25ff\u25cf\u25cb\u25d0\u25d3\u25d1\u25d2]";
+const SPINNER_TITLE_RE = new RegExp(`^\\s*${SPINNER_FRAME}\\s+\\S`, "u");
+
+/**
+ * Status inferred from an animated title, for agents that show "busy" as a
+ * leading spinner frame rather than a keyword. Returns undefined for an empty
+ * title so the keyword path (statusFromTitle) still owns agents that spell the
+ * state out; a non-empty spinner-free title is the idle frame a CLI settles on
+ * once its turn ends.
+ */
+function spinnerStatusFromTitle(title: string): "working" | "idle" | undefined {
+  if (SPINNER_TITLE_RE.test(title)) return "working";
+  if (title.trim()) return "idle";
+  return undefined;
+}
 
 const BUILTIN_AGENT_COMMANDS: Record<string, string> = {
   claude: "claude",
@@ -227,6 +249,25 @@ export class AgentActivityTracker {
       const status = statusFromTitle(title);
       if (status && (this.activities.has(id) || stream.agent)) {
         this.applyOutputTransition(id, status, stream.agent);
+        continue;
+      }
+      // Fallback for agents that animate a spinner instead of naming the
+      // state (e.g. traex prefixes its title with a Braille frame while busy).
+      // A leading spinner frame is itself strong evidence of an interactive
+      // agent — ordinary shells don't animate their window title — so it both
+      // marks the session busy and, when it later disappears, ends the turn.
+      // The idle branch only fires once a spinner was actually seen, so a shell
+      // that merely retitles its window (e.g. "~/project") never fabricates a
+      // task.
+      const spinner = spinnerStatusFromTitle(title);
+      if (spinner === "working") {
+        stream.sawSpinnerTitle = true;
+        this.applyOutputTransition(id, "working", stream.agent);
+      } else if (spinner === "idle" && stream.sawSpinnerTitle) {
+        stream.sawSpinnerTitle = false;
+        if (this.activities.get(id)?.status === "working") {
+          this.applyOutputTransition(id, "done", stream.agent);
+        }
       }
     }
 
@@ -440,6 +481,7 @@ export class AgentActivityTracker {
         input: "",
         outputTail: "",
         pendingOsc: "",
+        sawSpinnerTitle: false,
       };
       this.streams.set(id, stream);
     }

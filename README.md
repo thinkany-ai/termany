@@ -52,6 +52,41 @@ separate system `node` or `npx` installation.
 
 ## Bots that work together
 
+Give each Bot a description and select its Skills from one searchable picker.
+Termany discovers `~/.agents/skills`, `~/.claude/skills`, the effective Codex
+skills directory, and its own download library. Add or disable search directories
+in **Settings → Skill**. Duplicate locations and identical packages are grouped;
+existing bindings keep their original location. Your CLI's other global Skills
+remain available.
+
+Skill details open in a dedicated view; returning preserves your search, scroll
+position, and selection. Use the picker’s top GitHub entry to paste a repository,
+`tree/<ref>/<directory>`, or `blob/<ref>/<directory>/SKILL.md` URL. Successful
+imports appear in the current import list and are selected automatically; confirm
+the selection to apply it to the Bot form.
+
+Local Skills are read in place. Public GitHub Skills are downloaded into
+`~/.termany/skills`; source metadata and bindings live in SQLite. Downloads use
+bounded archives, with a bounded directory-only fallback for precise links into
+oversized repositories. Reimporting the same source updates its current copy for every Bot bound
+to it. There is no version selector. Existing exact snapshot bindings are
+preserved during migration, and old supplemental instructions are merged into
+the description. A consistent database backup is saved before migration.
+
+Prompts contain bound Skill names, descriptions, and reading instructions, not
+the complete Skill bodies. Every binding includes the absolute `SKILL.md` path;
+the selected agent reads that entry and its references with its own file tools.
+Termany does not install a Skill MCP server or inject Skill-reading functions.
+ACP sends a full configuration snapshot on first use, restore, or configuration
+change; unchanged turns carry a short recovery pointer. Unreported automatic
+compaction is not detectable in a portable way.
+
+Configuration applies to private replies, greetings, group-member replies, and
+Bot-to-Bot deliveries. Internal group routing only uses member summaries.
+Updates apply on the next request without clearing conversation history. ACP
+receives this as prompt context, not a portable system-prompt override; ordinary
+terminal panes do not automatically inherit a Bot's configuration.
+
 Turn an agent into a reusable Bot with its own name, avatar, role, model, and working folder.
 Talk to it directly, or put several Bots into a group chat. A lead member coordinates the
 conversation, delegates work, and consolidates the result; `@` mentions route a message to a
@@ -59,10 +94,12 @@ specific member. Topics keep separate tasks from sharing one long transcript, wh
 retains a clear identity in the conversation.
 
 Idle ACP Bot processes are released after five minutes when the agent supports restoring
-sessions. Sending another message restarts the agent and loads the same conversation; this
-first reply may take a little longer to start. Active replies and permission requests stay
-running. Agents without session restore keep their conversations in memory; unused processes
-started only to discover settings can still be released. This does not stop terminal sessions.
+sessions (`loadSession`, or `sessionCapabilities.resume` for agents that restore context
+without replaying the transcript). Sending another message restarts the agent and loads the
+same conversation; this first reply may take a little longer to start. Active replies and
+permission requests stay running. Agents without session restore keep their conversations in
+memory; unused processes started only to discover settings can still be released. This does
+not stop terminal sessions.
 
 ![A group of coding Bots playing a coordinated game in a shared topic](docs/bots.png)
 
@@ -114,7 +151,7 @@ output and cache tokens, a daily chart, and breakdowns by model and by project.
 
 ## Appearance and keys
 
-Fourteen themes ship built in. A theme restyles the whole window, not only the terminal
+Eighteen themes ship built in. A theme restyles the whole window, not only the terminal
 palette: the sidebar, the tab strip, the gap and corner radius of each pane, and the shadow
 under it all come from the theme — far enough that Windows 98 gets its bevels and navy title
 bars back. Step through them with ⌥⌘. and ⌥⌘, or open the picker with ⌥⌘T.
@@ -143,12 +180,17 @@ bars back. Step through them with ⌥⌘. and ⌥⌘, or open the picker with �
   <tr>
     <td align="center"><img src="docs/themes/phosphor.png" alt="The Phosphor theme: a green CRT, flush edge to edge"><br><b>Phosphor</b><br><sub>Dark</sub></td>
     <td align="center"><img src="docs/themes/win98.png" alt="The Windows 98 theme: bevelled gray chrome, a navy title bar, and a black VGA console"><br><b>Windows 98</b><br><sub>Light</sub></td>
-    <td></td>
+    <td align="center"><img src="docs/themes/winxp.png" alt="The Windows XP theme: glossy blue Luna chrome, green selection, and a black console over an original hill landscape"><br><b>Windows XP</b><br><sub>Light</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/themes/aqua.png" alt="The Aqua theme: brushed silver chrome, a quiet source list, pinstriped captions, blue gel tabs, and a white terminal"><br><b>Aqua</b><br><sub>Light</sub></td>
+    <td align="center"><img src="docs/themes/bsod.png" alt="The Blue Screen theme: flat blue surfaces, white text, and a large sad face"><br><b>Blue Screen</b><br><sub>Dark</sub></td>
+    <td align="center"><img src="docs/themes/excel.png" alt="The Spreadsheet theme: green ribbon tabs, a formula bar, and black terminal text on a white cell grid"><br><b>Spreadsheet</b><br><sub>Light</sub></td>
   </tr>
 </table>
 
 Any [CodexThemes](https://codexthemes.ai) pack you install appears in Settings → Appearance
-with its artwork, and applies in one click, next to the fourteen above.
+with its artwork, and applies in one click, next to the eighteen above.
 
 All ~60 actions are rebindable in Settings → Keyboard. The right-hand rail hides the tools
 you do not use. The interface ships in 21 languages.

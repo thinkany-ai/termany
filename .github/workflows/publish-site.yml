@@ -1,10 +1,12 @@
 name: Publish installer to website
 
 # When a release is PUBLISHED (build.yml only creates drafts — publishing the
-# draft is "shipping it"), push its macOS dmg into the marketing-site repo
+# draft is "shipping it"), push its installers into the marketing-site repo
 # (thinkany-ai/termany-tanstack): the site's scripts/publish-release.sh drops
 # the file into public/download/ and rewrites src/config/releases.ts, so the
 # landing page's Download button serves the new version on the next deploy.
+# The same script also writes each signed updater artifact (including Windows
+# NSIS) into the CDN's latest.json platform map.
 #
 # Required secret (repo Settings → Secrets → Actions):
 #   SITE_PUSH_TOKEN — fine-grained PAT with "Contents: read and write" on
@@ -40,7 +42,7 @@ jobs:
           token: ${{ secrets.SITE_PUSH_TOKEN }}
           path: site
 
-      # Uploads the dmg to the R2 bucket (termany-downloads) and rewrites
+      # Uploads installers to the R2 bucket and rewrites
       # src/config/releases.ts. Needs two more repo secrets:
       #   CLOUDFLARE_API_TOKEN  — token with R2 edit permission
       #   CLOUDFLARE_ACCOUNT_ID — the Cloudflare account id
@@ -62,5 +64,5 @@ jobs:
             echo "nothing new to publish"
             exit 0
           fi
-          git commit -m "release: Termany $TAG (macOS arm64)"
+          git commit -m "release: Termany $TAG"
           git push

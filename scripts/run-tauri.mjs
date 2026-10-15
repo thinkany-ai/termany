@@ -19,7 +19,27 @@ import path from "node:path";
 
 const args = process.argv.slice(2);
 const env = process.platform === "darwin" ? macosBuildEnvironment() : { ...process.env };
-const tauri = createRequire(import.meta.url).resolve("@tauri-apps/cli/tauri.js");
+// The Tauri CLI is a devDependency of apps/desktop, not of this scripts/ dir.
+// Under pnpm's strict node_modules layout it is not hoisted to the repo root,
+// so resolving from here alone fails ("Cannot find module @tauri-apps/cli").
+// Resolve from the desktop workspace first, then fall back to this file's own
+// location so a hoisted (npm) layout keeps working.
+const tauri = (() => {
+  const bases = [
+    new URL("../apps/desktop/package.json", import.meta.url),
+    import.meta.url,
+  ];
+  for (const base of bases) {
+    try {
+      return createRequire(base).resolve("@tauri-apps/cli/tauri.js");
+    } catch {
+      // try the next resolution base
+    }
+  }
+  throw new Error(
+    "Tauri CLI not found. Run `pnpm install` (it is a devDependency of apps/desktop).",
+  );
+})();
 const child = spawn(process.execPath, [tauri, ...args], { env, stdio: "inherit" });
 
 child.on("error", (error) => {

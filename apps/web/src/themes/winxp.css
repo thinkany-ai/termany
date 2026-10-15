@@ -1,0 +1,308 @@
+/* Luna chrome. All selectors are scoped above the base stylesheet's specificity.
+   The original landscape is supplied by winxp.ts; documents stay opaque. */
+html[data-theme="winxp"] {
+  --xp-caption: linear-gradient(#79b1ff 0%, #0869f2 12%, #0054df 55%, #1678f0 92%, #003caa);
+  --xp-button: linear-gradient(#fff, #f4f2e7 55%, #e4dec5);
+  --xp-green: linear-gradient(#a3dd76, #63ad36 45%, #36831d 50%, #5eaa34);
+  --xp-task: linear-gradient(#438cf1, #2e75dd 45%, #1f62c9);
+  --xp-task-active: linear-gradient(#154fae, #2365c9);
+  --xp-task-border: #124da9;
+  --xp-highlight: #fff;
+  --xp-toolbar: #ece9d8;
+  --xp-toolbar-ink: #16469a;
+  --xp-hover: #fce8bd;
+  --xp-hover-border: #e5a34d;
+}
+html[data-theme="winxp"] :is(body, #root) {
+  font-family: Tahoma, "Microsoft Sans Serif", Verdana, "PingFang SC", "Hiragino Sans", "Microsoft YaHei", sans-serif;
+}
+html[data-theme="winxp"] ::selection { background: #316ac5; color: #fff; }
+html[data-theme="winxp"] :is(.htabbar, .pane-head) {
+  background: var(--xp-caption);
+  color: #fff;
+  box-shadow: inset 0 1px 0 #a2c8ff;
+}
+html[data-theme="winxp"] .htabbar { border-bottom: 1px solid #003caa; }
+html[data-theme="winxp"] .htab {
+  background: var(--xp-task);
+  color: var(--xp-highlight);
+  border: 1px solid #7ea6dd;
+  border-radius: 3px;
+  align-self: center;
+  height: 29px;
+  box-shadow: inset 0 1px 0 #fff;
+}
+html[data-theme="winxp"] .htab:hover { background: var(--xp-caption); }
+html[data-theme="winxp"] .htab.active,
+html[data-theme="winxp"] .htab.active:hover {
+  background: var(--xp-task-active);
+  color: var(--xp-highlight);
+  border-color: var(--xp-task-border);
+  box-shadow: inset 1px 1px 2px var(--xp-task-border);
+  text-shadow: none;
+}
+html[data-theme="winxp"] :is(.htabbar .bar-btn, .htab-add) { color: #fff; }
+/* Explorer task groups use existing section/tree containers, so collapse,
+   dragging, and scrolling retain their original hit targets. */
+html[data-theme="winxp"] :is(.sidebar, .side-rail) {
+  background: linear-gradient(120deg, #7eaae8, #5d8bd4);
+}
+html[data-theme="winxp"] .sidebar .section-head,
+html[data-theme="winxp"] .sidebar > .section-title {
+  margin: 8px 7px 0;
+  padding: 7px;
+  background: linear-gradient(90deg, #fff, #cee0fc);
+  border: 1px solid #fff;
+  border-radius: 6px 6px 0 0;
+}
+html[data-theme="winxp"] :is(.section-title, .section-toggle) {
+  color: #16469a;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 700;
+}
+html[data-theme="winxp"] .sidebar .tree {
+  margin: 0 7px 8px;
+  padding: 5px;
+  border: 1px solid #fff;
+  border-top: 0;
+  border-radius: 0 0 6px 6px;
+  background: #e5efff;
+}
+html[data-theme="winxp"] .tree-row { color: #16469a; }
+html[data-theme="winxp"] :is(.tree-row:hover, .file-tree-row:hover) { background: #e0ecff; }
+html[data-theme="winxp"] :is(.tree-row.active, .tree-row.active:hover, .file-tree-row.selected, .file-tree-row.selected:hover) {
+  background: #c1d6fa;
+  color: #123775;
+  box-shadow: inset 3px 0 #4c9829;
+}
+html[data-theme="winxp"] .ws-switcher { color: #fff; }
+html[data-theme="winxp"] .ws-avatar { background: #438e26; color: #fff; }
+html[data-theme="winxp"] :is(.pane-slot, .zen-pane) { border: 2px solid #0758d8; background: #fff; }
+html[data-theme="winxp"] .pane-head { height: 30px; border-bottom: 1px solid #003caa; }
+html[data-theme="winxp"] :is(.pane-head-title, .pane-slot.focused .pane-head-title, .pane-head .pane-connection-trigger, .pane-head .pane-connection-trigger > svg) {
+  color: #fff;
+  font-weight: 700;
+  text-shadow: 1px 1px #16408c;
+}
+html[data-theme="winxp"] .pane-card:has(.pane-slot.focused) .pane-slot:not(.focused) .pane-head {
+  background: linear-gradient(#a8c5ee, #5688cb 15%, #4776ba 90%, #2c5eaa);
+}
+html[data-theme="winxp"] .pane-btn {
+  border: 1px solid #e3efff;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #9dcbff, #1f70e0 55%, #1554c0);
+  color: #fff;
+  box-shadow: inset 1px 1px 0 #b4d4ff;
+}
+/* Zen omits Close, so its last action must remain a blue Restore button. */
+html[data-theme="winxp"] .pane-head-actions > [data-pane-action="close"],
+html[data-theme="winxp"] :is(.settings-close, .ssh-manager-close) {
+  color: #fff;
+  border: 1px solid #fff;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #ffb29c, #e95833 50%, #c93314);
+  box-shadow: inset 1px 1px 0 #ffd0bc;
+}
+html[data-theme="winxp"] .pane-btn:hover { filter: brightness(1.15); }
+html[data-theme="winxp"] :is(.pane-btn, .settings-close, .ssh-manager-close):active { filter: brightness(.85); }
+html[data-theme="winxp"] .pane-body { background: #fff; }
+html[data-theme="winxp"] .term-pane { background: #080808; }
+html[data-theme="winxp"] :is(.file-tree-head, .web-toolbar, .agent-tools-header) {
+  background: #ece9d8;
+  border-bottom: 1px solid #b7b3a0;
+}
+html[data-theme="winxp"] .agent-pane { background: #fff; }
+html[data-theme="winxp"] :is(.agent-composer, .agent-tool-detail) {
+  background: #fff;
+  border: 1px solid #7f9db9;
+  border-radius: 3px;
+  box-shadow: inset 1px 1px 2px #d7dce5;
+}
+html[data-theme="winxp"] :is(.agent-permission, .agent-message-user .agent-message-content) {
+  background: #eff4ff;
+  border: 1px solid #abc6ec;
+  border-radius: 5px;
+  color: #172b4d;
+}
+/* Property sheets have their own Luna caption; the existing translated
+   settings heading is moved onto it, preserving the close button behavior. */
+html[data-theme="winxp"] .settings-window { padding: 34px 3px 3px; border: 2px solid #0758d8; }
+html[data-theme="winxp"] .settings-window::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 31px;
+  background: var(--xp-caption);
+  pointer-events: none;
+}
+html[data-theme="winxp"] .settings-nav-title {
+  position: absolute;
+  top: 0;
+  left: 10px;
+  margin: 0;
+  padding: 0;
+  line-height: 31px;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: normal;
+  text-transform: none;
+}
+html[data-theme="winxp"] .settings-close { top: 4px; right: 4px; width: 24px; height: 24px; }
+html[data-theme="winxp"] .settings-nav { background: #e4edfa; }
+html[data-theme="winxp"] .settings-nav-item.active { background: #c1d6fa; color: #123775; }
+html[data-theme="winxp"] :is(.language-setting, .rail-icons-setting, .ms-card, .usage-card) {
+  background: #f8f7f1;
+  border: 1px solid #c4c0ad;
+  box-shadow: inset 0 1px #fff;
+}
+html[data-theme="winxp"] .theme-card.selected .theme-card-name { color: #235d13; font-weight: 700; }
+/* Keep other themes' preview colors intact; only the selected outline is XP. */
+html[data-theme="winxp"] .theme-card.selected .theme-preview { outline: 2px solid #438e26; outline-offset: 2px; }
+html[data-theme="winxp"] * { scrollbar-width: auto; scrollbar-color: auto; }
+html[data-theme="winxp"] .htab-strip { scrollbar-width: none; }
+html[data-theme="winxp"] ::-webkit-scrollbar { width: 17px; height: 17px; }
+html[data-theme="winxp"] ::-webkit-scrollbar-track,
+html[data-theme="winxp"] ::-webkit-scrollbar-corner { background: #f0efe7; }
+html[data-theme="winxp"] ::-webkit-scrollbar-thumb {
+  border: 1px solid #779acf;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #e7f0ff, #b3cef5);
+}
+html[data-theme="winxp"] ::-webkit-scrollbar-thumb:hover { background: #b1d0ff; }
+html[data-theme="winxp"] ::-webkit-scrollbar-thumb:active { background: #8ab3ed; }
+
+/* Shared control coverage, kept in this scoped sheet so the theme is standalone.
+   Portal menus and dialogs need opaque surfaces even when artwork is enabled. */
+html[data-theme="winxp"] :is(.ws-menu, .pop-panel, .pop-sub, .emoji-pop, .agent-menu, .agent-composer-menu, .agent-message-menu-panel, .usage-select-menu, .ws-dialog, .search-palette, .settings-window, .ms-form, .ssh-manager-dialog, .find-bar, .drag-ghost) {
+  background: #ece9d8; color: #172b4d; border: 1px solid #7f9db9; box-shadow: 0 3px 10px #18355e44, inset 0 1px #fff;
+}
+html[data-theme="winxp"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button) {
+  background: var(--xp-button); color: #172b4d; border: 1px solid #003c74; border-radius: var(--radius-sm); box-shadow: inset 0 1px #fff;
+}
+html[data-theme="winxp"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button):hover:not(:disabled) {
+  border-color: #003c74; box-shadow: inset 0 0 0 2px #f4b765;
+}
+html[data-theme="winxp"] :is(.ws-dialog-btn.primary, .ms-btn.primary, .ssh-manager-actions button.primary, .agent-permission-actions button.allow, .agent-send, .agent-enable-toggle button.active, .ssh-auth-switch button.active) {
+  background: var(--xp-green); color: #fff; border: 1px solid #174fa6;
+}
+html[data-theme="winxp"] :is(.ws-dialog-btn.primary, .ms-btn.primary, .ssh-manager-actions button.primary, .agent-permission-actions button.allow, .agent-send, .agent-enable-toggle button.active, .ssh-auth-switch button.active):hover:not(:disabled) {
+  background: var(--xp-green); color: #fff; filter: brightness(1.06); transform: none;
+}
+html[data-theme="winxp"] :is(.ws-dialog-btn, .ms-btn, .font-size-btn, .kb-reset, .kb-chord, .update-btn, .update-check-btn, .agent-refresh-btn, .agent-install-btn, .agent-model-action, .agent-remove-btn, .ssh-manager-action, .ssh-manager-add, .ssh-manager-actions button, .file-open-finder-btn, .history-load-more, .md-code-btn, .usage-select-btn, .agent-permission-actions button, .agent-enable-toggle button, .ssh-auth-switch button, .agent-send):active:not(:disabled) {
+  background: #cdd9ed; color: #172b4d; box-shadow: inset 0 1px 3px #0004;
+}
+html[data-theme="winxp"] :is(.ws-menu-item:hover, .ws-menu-row:hover, .pop-item:hover, .pop-item.active, .search-row.active, .usage-select-item:hover, .usage-select-item.active, .ssh-connection-row:hover, .agent-composer-menu-item:hover, .agent-message-menu-panel button:hover) {
+  background: #316ac5; color: #fff;
+}
+html[data-theme="winxp"] :is(.pop-item:hover, .ws-menu-row:hover, .usage-select-item.active) svg {
+  color: inherit;
+}
+html[data-theme="winxp"] :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), textarea:not(.xterm-helper-textarea), select) {
+  background: #fff; color: #172b4d; border: 1px solid #7f9db9; border-radius: var(--radius-sm);
+}
+html[data-theme="winxp"] :is(input, textarea)::placeholder {
+  color: #5c6b79; opacity: 1;
+}
+html[data-theme="winxp"] :is(input, select) {
+  accent-color: #174fa6;
+}
+html[data-theme="winxp"] .agent-composer textarea {
+  background: transparent; border: 0; box-shadow: none;
+}
+html[data-theme="winxp"] :is(button, [role="button"], input, select, textarea:not(.xterm-helper-textarea)):focus-visible {
+  outline: 2px solid #174fa6; outline-offset: 2px;
+}
+html[data-theme="winxp"] .agent-composer:focus-within {
+  border-color: #174fa6; box-shadow: none;
+}
+html[data-theme="winxp"] .htabbar button:focus-visible {
+  outline-color: #fff;
+}
+html[data-theme="winxp"] .pane-head button:focus-visible {
+  outline-color: #fff;
+}
+html[data-theme="winxp"] .settings-window {
+  border: 2px solid #0758d8;
+}
+html[data-theme="winxp"] :is(button, input, select, textarea):disabled {
+  opacity: .5; cursor: default; filter: none;
+}
+/* White caption/toolbar icons need a blue hover surface, not the pale control
+   hover inherited from the cream property sheets. */
+html[data-theme="winxp"] :is(.htabbar .bar-btn, .htab-add, .pane-head .pane-connection-trigger):hover:not(:disabled) {
+  background: #267be5;
+  color: #fff;
+}
+html[data-theme="winxp"] :is(.htabbar .bar-btn, .htab-add, .pane-head .pane-connection-trigger):active:not(:disabled) {
+  background: #0045b7;
+  color: #fff;
+}
+html[data-theme="winxp"] :is(.settings-close, .ssh-manager-close):hover { filter: brightness(1.1); }
+
+/* Background windows fade as a whole; a lone, unmarked pane stays active. */
+html[data-theme="winxp"] .pane-card:has(.pane-slot.focused) .pane-slot:not(.focused) {
+  border-color: #7b9dca;
+  box-shadow: 0 1px 3px #60799f;
+}
+html[data-theme="winxp"] .pane-card:has(.pane-slot.focused) .pane-slot:not(.focused) .pane-head { border-color: #7b9dca; }
+html[data-theme="winxp"] :is(.ws-dialog, .ssh-manager-dialog, .ms-form) {
+  border: 2px solid #0758d8;
+  border-radius: 8px 8px 3px 3px;
+  background: #ece9d8;
+}
+html[data-theme="winxp"] .ws-dialog { padding-top: 45px; }
+html[data-theme="winxp"] .ws-dialog::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 29px;
+  background: var(--xp-caption);
+  border-radius: 5px 5px 0 0;
+  pointer-events: none;
+}
+html[data-theme="winxp"] .ssh-manager-header {
+  min-height: 31px;
+  padding: 3px 4px 3px 9px;
+  background: var(--xp-caption);
+}
+html[data-theme="winxp"] .ssh-manager-header h2 { color: #fff; font-size: 13px; font-weight: 700; text-shadow: 1px 1px #16408c; }
+html[data-theme="winxp"] .ssh-manager-close { width: 24px; height: 24px; }
+html[data-theme="winxp"] .ms-form-title {
+  margin: -18px -18px 16px;
+  padding: 7px 9px;
+  background: var(--xp-caption);
+  color: #fff;
+  font-size: 13px;
+  text-shadow: 1px 1px #16408c;
+}
+html[data-theme="winxp"] :is(.ssh-manager-list, .ms-model-list, .kb-list) { background: #fff; border: 1px solid #7f9db9; }
+html[data-theme="winxp"] .sidebar-workspace-switcher {
+  background: var(--xp-green);
+  color: #fff;
+  border: 1px solid #367b21;
+  border-radius: 5px 12px 12px 5px;
+  box-shadow: inset 0 1px #dbffc5;
+  font-weight: 700;
+  text-shadow: 0 1px #316b22;
+}
+html[data-theme="winxp"] .sidebar-workspace-switcher > svg { color: #fff; }
+html[data-theme="winxp"] .sidebar-workspace-switcher:hover { background: var(--xp-green); filter: brightness(1.1); }
+
+/* The tool rails are XP toolbars, with cream buttons and amber hover edges. */
+html[data-theme="winxp"] :is(.app-tab-rail, .side-rail) { background: var(--xp-toolbar); }
+html[data-theme="winxp"] :is(.app-tab-button, .side-rail-btn) { color: var(--xp-toolbar-ink); }
+html[data-theme="winxp"] .app-tab-icon { background: var(--xp-button); border-radius: 3px; }
+html[data-theme="winxp"] :is(.app-tab-button.active .app-tab-icon, .side-rail-btn.active) {
+  background: var(--xp-hover); box-shadow: inset 0 0 0 1px var(--xp-hover-border);
+}
+html[data-theme="winxp"] :is(.app-tab-button:hover .app-tab-icon, .side-rail-btn:hover) {
+  background: var(--xp-button); box-shadow: inset 0 0 0 1px var(--xp-hover-border);
+}
+html[data-theme="winxp"] .htab-close { color: inherit; }
+html[data-theme="winxp"] .pane-card:has(.pane-slot.focused) .pane-slot:not(.focused) .pane-btn { filter: saturate(.45); }
+html[data-theme="winxp"] .pane-card:has(.pane-slot.focused) .pane-slot:not(.focused) .pane-btn:hover { filter: none; }
+
+html[data-theme="winxp"] .bot-setting-switch { background: var(--xp-button); border: 1px solid var(--border); border-radius: 3px; }
+html[data-theme="winxp"] .bot-setting-switch[aria-checked="true"] { background: var(--xp-green); }
+html[data-theme="winxp"] .bot-setting-switch::before { border-radius: 2px; background: var(--xp-toolbar); }

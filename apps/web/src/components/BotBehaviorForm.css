@@ -1,0 +1,128 @@
+.bot-behavior { border: 0; padding: 0; margin: 8px 8px 16px; display: flex; flex-direction: column; gap: 20px; min-width: 0; color: var(--fg); font-size: 13px; line-height: 1.5; }
+.bot-behavior label { display: flex; flex-direction: column; gap: 8px; font-weight: 500; }
+.bot-behavior input:not([type=checkbox]), .bot-behavior textarea, .bot-behavior select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 36px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-2); color: var(--fg); padding: 8px 12px; font: inherit; font-weight: 400; }
+.bot-behavior textarea { resize: vertical; line-height: 1.6; }
+.bot-behavior textarea::placeholder, .bot-behavior input::placeholder { color: var(--fg-dim); }
+.bot-behavior small, .bot-behavior-editor > small { display: block; color: var(--fg-dim); font-size: 12px; font-weight: 400; line-height: 1.6; overflow-wrap: anywhere; }
+.bot-behavior button, .bot-behavior-editor > div > button { border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--fg); min-height: 32px; padding: 6px 12px; font: inherit; font-size: 12px; cursor: pointer; }
+.bot-behavior button:hover:not(:disabled) { background: var(--bg-3); border-color: var(--fg-dim); }
+.bot-behavior button:active:not(:disabled) { background: var(--accent-soft); }
+.bot-behavior button:disabled { opacity: .45; cursor: default; }
+.bot-behavior :is(input, textarea, select, button, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bot-behavior-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.bot-behavior-heading strong { font-size: 13px; font-weight: 600; }
+.bot-behavior-heading button { flex-shrink: 0; color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.bot-skill-section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.bot-skill-empty { display: flex; gap: 12px; align-items: center; padding: 16px; border: 1px dashed var(--border); border-radius: 10px; background: var(--bg-2); }
+.bot-skill-empty > span { color: var(--fg-dim); font-size: 24px; }
+.bot-skill-empty strong { font-weight: 500; }
+.bot-skill-library { border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: var(--bg-2); }
+.bot-skill-library[hidden] { display: none; }
+.bot-behavior summary { cursor: pointer; padding: 8px 0; font-weight: 500; list-style: none; display: flex; align-items: center; gap: 8px; }
+.bot-behavior summary::-webkit-details-marker { display: none; }
+.bot-behavior summary::before { content: ''; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); margin: 0 4px 0 2px; flex-shrink: 0; }
+.bot-behavior details[open] > summary::before { transform: rotate(45deg); }
+.bot-instructions, .bot-behavior-advanced { border-top: 1px solid var(--border); padding-top: 8px; }
+.bot-behavior details > *:not(summary) { margin-top: 8px; }
+.bot-behavior pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; font-size: 11px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+.bot-behavior-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bot-behavior-row > input { flex: 1; }
+.bot-skill-binding { border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.bot-skill-binding > strong { overflow-wrap: anywhere; }
+.bot-skill-binding > small, .bot-skill-option small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.bot-skill-binding .bot-behavior-row > button { min-height: 28px; padding: 4px 8px; }
+.bot-skill-options { max-height: 240px; overflow: auto; margin: 12px 0; }
+.bot-skill-option { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.bot-skill-option > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.bot-skill-option > button { flex-shrink: 0; }
+.bot-skill-import { border-top: 1px solid var(--border); padding-top: 4px; }
+.bot-behavior .bot-skill-reference { flex-direction: row; align-items: flex-start; overflow-wrap: anywhere; }
+.bot-behavior-error { color: var(--danger, #c74747); overflow-wrap: anywhere; padding: 12px; border: 1px solid currentColor; border-radius: 8px; font-size: 12px; }
+.bot-behavior-error p { margin: 4px 0 12px; }
+.bot-behavior-editor { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.bot-behavior-editor > .bot-behavior { margin-bottom: 0; }
+.bot-behavior-actions { display: flex; flex-direction: column; gap: 8px; padding: 14px 8px 8px; border-top: 1px solid var(--border); }
+.bot-behavior-save {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 42px !important;
+  border-color: transparent !important;
+  border-radius: 9px !important;
+  background: var(--accent) !important;
+  color: var(--bg) !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+  transition: filter 120ms ease, opacity 120ms ease;
+}
+.bot-behavior-save:hover:not(:disabled) { filter: brightness(1.06); }
+.bot-behavior-save:disabled { opacity: .46; cursor: default; }
+.bot-behavior-saved {
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--fg) !important;
+}
+.agent-create-dialog:has(.bot-behavior) { width: min(620px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); display: flex; flex-direction: column; }
+.agent-create-dialog:has(.bot-behavior) .agent-create-content { overflow-y: auto; min-height: 0; padding: 8px 16px 16px; }
+.agent-create-identity { display: flex; gap: 16px; align-items: center; margin: 0 8px 12px; }
+.agent-create-identity .agent-inspector-portrait { margin: 0; padding: 0; }
+.agent-create-identity .agent-create-name { flex: 1; min-width: 0; margin: 0; }
+.agent-create-avatar-hint { margin: 0 8px 12px; color: var(--fg-dim); font-size: 11px; }
+.bot-recipient-description { display: block; font-size: 11px; line-height: 1.4; color: var(--fg-dim); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.bot-bound-skill { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-2); }
+.bot-bound-skill > strong { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
+.bot-skill-number { color: var(--fg-dim); font-size: 11px; }
+.bot-skill-order { position: relative; }
+.bot-behavior .bot-skill-order > summary { padding: 4px 8px; }
+.bot-behavior .bot-skill-order > summary::before { display: none; }
+.bot-skill-order > div { position: absolute; right: 0; z-index: 2; width: 130px; padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); box-shadow: 0 8px 24px #0002; display: grid; gap: 4px; }
+.skill-picker.bot-behavior { margin: auto; width: min(680px, calc(100vw - 32px)); height: calc(100dvh - 48px); max-height: calc(100dvh - 48px); padding: 20px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 16px; background: var(--bg); color: var(--fg); overflow: hidden; box-shadow: 0 24px 80px #0004; gap: 16px; }
+.skill-picker:not([open]) { display: none; }
+.skill-picker::backdrop { background: #0005; backdrop-filter: blur(3px); }
+.skill-picker > header, .skill-picker-view > .bot-behavior-row, .skill-picker-footer { flex-shrink: 0; }
+/* Keep the shell still; only the keyed list/detail view fades when navigating. */
+.skill-picker-view { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 16px; animation: skill-view-in 160ms ease-out; }
+.skill-picker-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; display: flex; flex-direction: column; gap: 16px; padding: 2px 4px; }
+.skill-picker-body > * { flex-shrink: 0; }
+.skill-picker-results { min-height: 100px; }
+.skill-picker-option { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); padding: 12px 4px; }
+.skill-picker-option > label, .skill-root > label { flex: 1; min-width: 0; display: flex; flex-direction: row; align-items: flex-start; gap: 12px; cursor: pointer; }
+.skill-picker-option input, .skill-root input { margin-top: 4px; accent-color: var(--accent); flex-shrink: 0; }
+.skill-picker-option label > span { min-width: 0; }
+.skill-picker-option small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.skill-picker-option > button { flex-shrink: 0; }
+.skill-source-tag { display: block; max-width: 340px; margin-top: 5px; color: var(--fg-dim); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.skill-picker-footer { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 14px; border-top: 1px solid var(--border); }
+.skill-picker-footer > span { flex: 1; }
+.bot-behavior .skill-primary { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+.skill-unavailable { color: var(--danger, #c74747) !important; }
+.skill-settings { margin: 0; }
+.skill-settings h2 { margin: 0 0 8px; }
+.skill-root { display: flex; gap: 12px; align-items: center; border-bottom: 1px solid var(--border); padding: 12px 0; }
+.skill-root strong { font-size: 12px; overflow-wrap: anywhere; }
+@media (max-width: 480px) { .skill-picker.bot-behavior { padding: 14px; } .skill-picker-option { gap: 6px; } .skill-source-tag { max-width: 170px; } .skill-picker-footer > span { display: none; } }
+
+.settings-backdrop.settings-skills-backdrop { z-index: 120; }
+
+.skill-picker-tabs { display: flex; flex-shrink: 0; gap: 4px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+.skill-picker-tabs button { border-color: transparent; background: transparent; display: flex; align-items: center; gap: 8px; }
+.skill-picker-tabs button[aria-pressed=true] { background: var(--accent-soft); color: var(--accent); }
+.skill-picker-tabs button span { padding: 0 6px; border-radius: 8px; background: var(--bg-2); font-size: 11px; }
+.skill-detail-toolbar { display: flex; flex-shrink: 0; align-items: center; flex-wrap: wrap; gap: 12px; }
+.skill-detail-toolbar > strong { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.skill-detail-toolbar > label { flex-direction: row; align-items: center; }
+.skill-detail-view { min-width: 0; overflow-wrap: anywhere; }
+.skill-detail-view > p { margin: 0 0 8px; }
+.skill-detail-view > .markdown-body { margin-top: 20px; animation: skill-view-in 120ms ease-out; }
+.skill-detail-view .markdown-body img { max-width: 100%; }
+.skill-import-form, .skill-import-results { display: flex; flex-direction: column; gap: 12px; }
+.skill-import-results { border-top: 1px solid var(--border); padding-top: 16px; }
+.skill-entry-options { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.skill-entry-options > button { overflow-wrap: anywhere; text-align: left; }
+@keyframes skill-view-in { from { opacity: .6; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .skill-picker-view, .skill-detail-view > .markdown-body { animation: none; }
+}

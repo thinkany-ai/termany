@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Indonesian — Bahasa Indonesia
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} sedang mengarahkan pesan Anda ({attempt}/{total})…",
   "agentGroup.routingTimeout": "Agen sebelumnya kehabisan waktu. {name} mengambil alih ({attempt}/{total})…",
   "agentGroup.routingFallback": "Agen sebelumnya gagal. {name} mengambil alih ({attempt}/{total})…",
@@ -47,6 +49,10 @@ export default {
   "common.delete": "Hapus",
   "common.edit": "Edit",
   "common.done": "Selesai",
+  "closeConfirm.tab": "Tutup tab \"{name}\"?",
+  "closeConfirm.page": "Hapus halaman \"{name}\" beserta semua isinya?",
+  "closeConfirm.pane": "Tutup panel \"{name}\"?",
+  "closeConfirm.reason": "Beberapa panel masih berjalan atau memerlukan perhatian. Menutup akan menghentikannya.",
   "agentWorkspace.new": "Bot baru",
   "agentWorkspace.newBot": "Bot baru",
   "agentWorkspace.botName": "Nama bot",
@@ -328,6 +334,11 @@ export default {
   "activity.done": "{agent} sudah selesai",
   "activity.working": "{agent} sedang bekerja",
 
+  "notification.done.title": "{agent} selesai",
+  "notification.done.body": "Tugas selesai — kembali untuk memeriksanya.",
+  "notification.error.title": "{agent} perlu perhatian",
+  "notification.error.body": "Tugas berhenti dan menunggu Anda.",
+
   "agentChat.title": "Ada yang bisa saya bantu?",
   "agentChat.placeholder": "Berikan tugas atau tanyakan apa saja",
   "agentChat.noModel": "Tambahkan model di Pengaturan untuk memulai percakapan",
@@ -392,6 +403,7 @@ export default {
   "about.checking": "Memeriksa…",
   "about.upToDate": "Semua sudah terbaru ✓",
   "about.checkUpdates": "Periksa pembaruan",
+  "about.updateUnavailable": "Pembaruan otomatis belum tersedia untuk platform ini",
   "about.downloading": "Mengunduh…",
   "about.restarting": "Terpasang — memulai ulang…",
   "about.waitingForTasks": "Terpasang — menunggu {count} tugas yang berjalan selesai…",

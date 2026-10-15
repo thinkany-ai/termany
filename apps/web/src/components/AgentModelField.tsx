@@ -1,5 +1,5 @@
 import { useId } from "react";
-import type { ModelMenuItem } from "../agentModelMenu";
+import { modelSelectItems, type ModelMenuItem } from "../agentModelMenu";
 import { useI18n } from "../i18n";
 import { ChevronIcon } from "./icons";
 
@@ -17,7 +17,7 @@ export function AgentModelField({ label, value, choices, fallbackLabel, busy, di
 }) {
   const { t } = useI18n();
   const errorId = useId();
-  const values = choices.flatMap((choice) => choice.items ?? [choice]);
+  const values = modelSelectItems(choices);
   return (
     <div className="agent-setting-field agent-model-field">
       <label>
@@ -34,11 +34,9 @@ export function AgentModelField({ label, value, choices, fallbackLabel, busy, di
             {!values.some((choice) => choice.id === value) && (
               <option value={value} disabled>{fallbackLabel}</option>
             )}
-            {choices.map((choice) => choice.items ? (
-              <optgroup key={choice.id} label={choice.label}>
-                {choice.items.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-              </optgroup>
-            ) : <option key={choice.id} value={choice.id}>{choice.label}</option>)}
+            {values.map((choice) => (
+              <option key={choice.id} value={choice.id}>{choice.label}</option>
+            ))}
           </select>
           <ChevronIcon dir="down" />
         </span>

@@ -1,6 +1,8 @@
+import { botBehaviorEnglish } from "../botBehaviorEnglish";
 // Turkish — Türkçe
 
 export default {
+  ...botBehaviorEnglish,
   "agentGroup.routingAttempt": "{name} mesajınızı yönlendiriyor ({attempt}/{total})…",
   "agentGroup.routingTimeout": "Önceki ajan zaman aşımına uğradı. {name} devralıyor ({attempt}/{total})…",
   "agentGroup.routingFallback": "Önceki ajan başarısız oldu. {name} devralıyor ({attempt}/{total})…",
@@ -47,6 +49,10 @@ export default {
   "common.delete": "Sil",
   "common.edit": "Düzenle",
   "common.done": "Bitti",
+  "closeConfirm.tab": "\"{name}\" sekmesini kapat?",
+  "closeConfirm.page": "\"{name}\" sayfasını ve altındaki her şeyi sil?",
+  "closeConfirm.pane": "\"{name}\" bölmesini kapat?",
+  "closeConfirm.reason": "Bazı bölmeler hâlâ çalışıyor veya dikkat gerektiriyor. Kapatma onları durdurur.",
   "agentWorkspace.new": "Yeni bot",
   "agentWorkspace.newBot": "Yeni bot",
   "agentWorkspace.botName": "Bot adı",
@@ -328,6 +334,11 @@ export default {
   "activity.done": "{agent} tamamladı",
   "activity.working": "{agent} çalışıyor",
 
+  "notification.done.title": "{agent} tamamladı",
+  "notification.done.body": "Görev bitti — kontrol etmek için geri dönün.",
+  "notification.error.title": "{agent} ilginizi bekliyor",
+  "notification.error.body": "Görev durdu ve sizi bekliyor.",
+
   "agentChat.title": "Sizin için ne yapabilirim?",
   "agentChat.placeholder": "Bir görev verin ya da dilediğinizi sorun",
   "agentChat.noModel": "Konuşmaya başlamak için Ayarlar'dan bir model ekleyin",
@@ -392,6 +403,7 @@ export default {
   "about.checking": "Denetleniyor…",
   "about.upToDate": "Her şey güncel ✓",
   "about.checkUpdates": "Güncellemeleri denetle",
+  "about.updateUnavailable": "Otomatik güncellemeler henüz bu platformda kullanılamıyor",
   "about.downloading": "İndiriliyor…",
   "about.restarting": "Kuruldu — yeniden başlatılıyor…",
   "about.waitingForTasks": "Kuruldu — çalışan {count} görevin bitmesi bekleniyor…",
