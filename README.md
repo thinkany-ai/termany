@@ -151,7 +151,7 @@ output and cache tokens, a daily chart, and breakdowns by model and by project.
 
 ## Appearance and keys
 
-Eighteen themes ship built in. A theme restyles the whole window, not only the terminal
+Nineteen themes ship built in. A theme restyles the whole window, not only the terminal
 palette: the sidebar, the tab strip, the gap and corner radius of each pane, and the shadow
 under it all come from the theme — far enough that Windows 98 gets its bevels and navy title
 bars back. Step through them with ⌥⌘. and ⌥⌘, or open the picker with ⌥⌘T.
@@ -187,10 +187,13 @@ bars back. Step through them with ⌥⌘. and ⌥⌘, or open the picker with �
     <td align="center"><img src="docs/themes/bsod.png" alt="The Blue Screen theme: flat blue surfaces, white text, and a large sad face"><br><b>Blue Screen</b><br><sub>Dark</sub></td>
     <td align="center"><img src="docs/themes/excel.png" alt="The Spreadsheet theme: green ribbon tabs, a formula bar, and black terminal text on a white cell grid"><br><b>Spreadsheet</b><br><sub>Light</sub></td>
   </tr>
+  <tr>
+    <td align="center"><img src="docs/themes/halloween.png" alt="The Halloween theme: a night-violet window with pumpkin-orange accents and a moonlit graveyard under the sidebar"><br><b>Halloween</b><br><sub>Dark</sub></td>
+  </tr>
 </table>
 
 Any [CodexThemes](https://codexthemes.ai) pack you install appears in Settings → Appearance
-with its artwork, and applies in one click, next to the eighteen above.
+with its artwork, and applies in one click, next to the nineteen above.
 
 All ~60 actions are rebindable in Settings → Keyboard. The right-hand rail hides the tools
 you do not use. The interface ships in 21 languages.

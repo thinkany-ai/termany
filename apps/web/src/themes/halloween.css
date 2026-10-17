@@ -1,0 +1,58 @@
+/* Halloween keeps the app's layout and controls; the tokens color them. These
+   rules only add the decorations: a moonlit graveyard at the foot of the
+   sidebar, a candle glow on the focused pane, and agent status drawn as a
+   ghost (working) or a pumpkin (done) instead of a colored dot. */
+
+/* A full moon, three bats and a graveyard hill, painted under the sidebar's
+   rows. The hill is flush with the bottom so the footer stands on it. */
+html[data-theme="halloween"] .sidebar {
+  background:
+    url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 150'><defs><radialGradient id='g'><stop offset='.55' stop-color='%23ffd9a0' stop-opacity='.16'/><stop offset='1' stop-color='%23ffd9a0' stop-opacity='0'/></radialGradient><path id='b' d='M0 2C-2-1-4-1-5 1C-7-2-10-2-12 1C-10 1-9 3-9 4C-7 3-5 3-4 5C-3 4-1 4 0 5C1 4 3 4 4 5C5 3 7 3 9 4C9 3 10 1 12 1C10-2 7-2 5 1C4-1 2-1 0 2Z'/></defs><circle cx='160' cy='52' r='46' fill='url(%23g)'/><circle cx='160' cy='52' r='26' fill='%23ffd9a0' opacity='.85'/><circle cx='151' cy='45' r='4' fill='%23e3b57a' opacity='.6'/><circle cx='168' cy='61' r='3' fill='%23e3b57a' opacity='.5'/><use href='%23b' fill='%230b0710' transform='translate(150 50) scale(1.1)'/><use href='%23b' fill='%234a3560' transform='translate(70 40) scale(1.5)'/><use href='%23b' fill='%234a3560' transform='translate(108 20) scale(.9)'/><g fill='%230b0710'><path d='M0 150V122Q60 104 120 116T240 112V150Z'/><path d='M40 118v-14a8 8 0 0 1 16 0v14z'/><path d='M62 116v-9a5 5 0 0 1 10 0v9z'/><path d='M194 124v-22h-6v-4h6v-6h4v6h6v4h-6v22z'/><path d='M94 118V88L82 76l2-2 10 10V72l-6-8 2-1 5 7 3-10 2 1-3 12v10l9-8 2 2-11 10v31z'/></g></svg>")
+      no-repeat center bottom / 100% auto,
+    var(--sidebar-bg, #150f1c);
+}
+
+/* Candlelight on the focused pane: the ring stays the accent, with a soft warm
+   glow inside it. Inset, because the pane clips anything drawn outside. */
+html[data-theme="halloween"] .pane-slot.focused.show-focus-ring::after {
+  box-shadow: inset 0 0 14px rgba(255, 117, 24, 0.16);
+}
+
+/* Agent status. A ghost floats while the agent works; a pumpkin marks a reply
+   that is ready. Errors keep the default red dot: it must read at a glance. */
+html[data-theme="halloween"] .agent-dot.working,
+html[data-theme="halloween"] .agent-dot.done {
+  width: 12px;
+  height: 13px;
+  border-radius: 0;
+  box-shadow: none;
+  background: no-repeat center / contain;
+}
+html[data-theme="halloween"] .agent-dot.working {
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 13'><path d='M1.5 12.5V5.5a4.5 4.5 0 0 1 9 0v7l-1.5-1.2-1.5 1.2-1.5-1.2-1.5 1.2-1.5-1.2-1.5 1.2z' fill='%23f6f0ff'/><circle cx='4.5' cy='5.5' r='.9' fill='%23120d18'/><circle cx='7.5' cy='5.5' r='.9' fill='%23120d18'/><ellipse cx='6' cy='8.2' rx='.8' ry='1' fill='%23120d18'/></svg>");
+  animation: halloween-ghost 1.8s ease-in-out infinite;
+}
+html[data-theme="halloween"] .agent-dot.done {
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 13'><path d='M6 3.6c-.3-1 .1-2 1-2.4' stroke='%2356a83a' stroke-width='1.3' fill='none' stroke-linecap='round'/><ellipse cx='6' cy='8.2' rx='5.5' ry='4.4' fill='%23ff7518'/><path d='M6 3.9v8.6M3.3 4.4c-1 2.2-1 5.4 0 7.6M8.7 4.4c1 2.2 1 5.4 0 7.6' stroke='%23c4540a' stroke-width='.6' fill='none'/></svg>");
+}
+@keyframes halloween-ghost {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: translateY(1px) rotate(-8deg);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px) rotate(8deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="halloween"] .agent-dot.working {
+    animation: none;
+  }
+}
+
+html[data-theme="halloween"] ::selection {
+  background: #4a2c5e;
+  color: #fff7ea;
+}
