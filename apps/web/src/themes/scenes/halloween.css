@@ -1,0 +1,486 @@
+/* The Halloween sidebar scene (./halloween.tsx). Every class is prefixed hs-.
+   SVG elements rotate and scale about their own box (transform-box: fill-box),
+   so an origin like "right center" means the element's own right edge. */
+
+.hs {
+  font-family: -apple-system, "SF Pro Text", "Helvetica Neue", "PingFang SC", sans-serif;
+  user-select: none;
+}
+.hs-hit {
+  cursor: pointer;
+}
+.hs-hit:hover {
+  filter: brightness(1.18);
+}
+
+/* Sky ------------------------------------------------------------------- */
+
+.hs-star {
+  fill: #fff4dc;
+  animation: hs-twinkle 4s ease-in-out infinite;
+}
+@keyframes hs-twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.hs-sparkle {
+  fill: #fff7e6;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hs-sparkle 5s ease-in-out infinite;
+}
+@keyframes hs-sparkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.6) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(45deg);
+  }
+}
+/* Moonlight catching the crest of each hill. */
+.hs-rim {
+  fill: none;
+  stroke: #7d68a0;
+  stroke-opacity: 0.35;
+  stroke-width: 0.6;
+}
+.hs-cloud {
+  animation: hs-drift linear infinite;
+}
+@keyframes hs-drift {
+  from {
+    transform: translateX(-60px);
+  }
+  to {
+    transform: translateX(300px);
+  }
+}
+
+/* Bats ------------------------------------------------------------------ */
+
+.hs-bat-fly {
+  animation: hs-fly linear infinite;
+}
+@keyframes hs-fly {
+  from {
+    transform: translateX(-24px);
+  }
+  to {
+    transform: translateX(264px);
+  }
+}
+.hs-bat-bob {
+  animation: hs-bob 1.3s ease-in-out infinite alternate;
+}
+@keyframes hs-bob {
+  to {
+    transform: translateY(-6px);
+  }
+}
+.hs-bat {
+  fill: #07040b;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.hs-bat-eye {
+  fill: #ff9d2e;
+}
+.hs-wing-l,
+.hs-wing-r {
+  transform-box: fill-box;
+  animation: hs-flap-l 0.32s ease-in-out infinite alternate;
+}
+.hs-wing-l {
+  transform-origin: right center;
+}
+.hs-wing-r {
+  transform-origin: left center;
+  animation-name: hs-flap-r;
+}
+@keyframes hs-flap-l {
+  from {
+    transform: rotate(-28deg);
+  }
+  to {
+    transform: rotate(26deg) scaleX(0.82);
+  }
+}
+@keyframes hs-flap-r {
+  from {
+    transform: rotate(28deg);
+  }
+  to {
+    transform: rotate(-26deg) scaleX(0.82);
+  }
+}
+.hs-bat.fled {
+  pointer-events: none;
+  animation: hs-flee 0.8s cubic-bezier(0.5, 0, 0.9, 0.5) forwards;
+}
+.hs-bat.fled .hs-wing-l,
+.hs-bat.fled .hs-wing-r {
+  animation-duration: 0.12s;
+}
+@keyframes hs-flee {
+  to {
+    transform: translate(60px, -90px) scale(0.3);
+    opacity: 0;
+  }
+}
+
+/* Spider ---------------------------------------------------------------- */
+
+.hs-spider {
+  transition: transform 2.8s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.hs-spider.up {
+  transform: translateY(-90px);
+  transition: transform 0.45s cubic-bezier(0.5, 0, 0.8, 0.4);
+}
+.hs-spider-bob {
+  animation: hs-dangle 3.6s ease-in-out infinite alternate;
+}
+@keyframes hs-dangle {
+  to {
+    transform: translateY(9px);
+  }
+}
+.hs-thread {
+  stroke: #b8a6d4;
+  stroke-opacity: 0.45;
+  stroke-width: 0.4;
+}
+.hs-spider-legs path {
+  fill: none;
+  stroke: #07040b;
+  stroke-width: 0.75;
+  stroke-linecap: round;
+}
+.hs-spider-body {
+  fill: #07040b;
+  stroke: #6e5a8a;
+  stroke-width: 0.35;
+}
+.hs-spider-eye {
+  fill: #ff5a4a;
+}
+
+/* House ----------------------------------------------------------------- */
+
+.hs-windows {
+  transition: opacity 0.15s;
+  animation: hs-flicker 6s steps(1) infinite;
+}
+@keyframes hs-flicker {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  41% {
+    opacity: 0.72;
+  }
+  43% {
+    opacity: 1;
+  }
+  44% {
+    opacity: 0.8;
+  }
+  46% {
+    opacity: 1;
+  }
+  83% {
+    opacity: 0.88;
+  }
+  85% {
+    opacity: 1;
+  }
+}
+.hs-door {
+  fill: #2a1708;
+}
+.hs-eyes {
+  fill: #fff0a0;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.hs-house.peek .hs-windows {
+  opacity: 0;
+  animation: none;
+}
+.hs-house.peek .hs-eyes {
+  opacity: 1;
+  transition-delay: 0.35s;
+}
+.hs-house.peek .hs-eyes ellipse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hs-blink 1.1s 0.9s;
+}
+
+/* Owl ------------------------------------------------------------------- */
+
+.hs-owl-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hs-blink 7s infinite;
+}
+@keyframes hs-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.1);
+  }
+}
+.hs-owl-head {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+.hs-owl.hoot .hs-owl-head {
+  animation: hs-turn 1.3s ease-in-out;
+}
+@keyframes hs-turn {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-22deg);
+  }
+  55% {
+    transform: rotate(16deg);
+  }
+  80% {
+    transform: rotate(-6deg);
+  }
+}
+
+/* Graveyard ------------------------------------------------------------- */
+
+.hs-epitaph {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.hs-sign {
+  font: 700 5.4px ui-monospace, "SF Mono", Menlo, monospace;
+  fill: #e9d3b0;
+}
+.hs-ghost {
+  animation: hs-rise 3.6s cubic-bezier(0.3, 0.6, 0.4, 1) both;
+}
+.hs-ghost.still {
+  animation: none;
+  transform: translateY(-25px);
+}
+@keyframes hs-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  18% {
+    opacity: 1;
+    transform: translateY(-26px) rotate(-3deg);
+  }
+  32% {
+    transform: translateY(-22px) rotate(3deg);
+  }
+  46% {
+    transform: translateY(-27px) rotate(-3deg);
+  }
+  60% {
+    transform: translateY(-22px) rotate(3deg);
+  }
+  78% {
+    opacity: 1;
+    transform: translateY(-25px) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+/* Speech bubbles -------------------------------------------------------- */
+
+.hs-bubble {
+  pointer-events: none;
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: hs-say var(--hs-say, 3.4s) ease-out both;
+}
+.hs-bubble.still {
+  animation: none;
+}
+.hs-bubble rect,
+.hs-bubble path {
+  fill: #f7f1ff;
+}
+.hs-bubble text {
+  fill: #1a1024;
+  font: 600 7.5px ui-monospace, "SF Mono", Menlo, monospace;
+}
+@keyframes hs-say {
+  0%,
+  8% {
+    opacity: 0;
+    transform: translateY(3px) scale(0.7);
+  }
+  16% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  86% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-3px) scale(1);
+  }
+}
+
+/* Jack-o'-lantern ------------------------------------------------------- */
+
+.hs-candle,
+.hs-face-glow {
+  animation: hs-candle 2.4s ease-in-out infinite;
+}
+@keyframes hs-candle {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  20% {
+    opacity: 1;
+  }
+  35% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 0.95;
+  }
+  70% {
+    opacity: 0.78;
+  }
+}
+.hs-candle {
+  animation-name: hs-candle-halo;
+}
+@keyframes hs-candle-halo {
+  0%,
+  100% {
+    opacity: 0.18;
+  }
+  20% {
+    opacity: 0.26;
+  }
+  35% {
+    opacity: 0.14;
+  }
+  50% {
+    opacity: 0.24;
+  }
+  70% {
+    opacity: 0.16;
+  }
+}
+.hs-pumpkin > g {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+.hs-pumpkin.cackle > g {
+  animation: hs-cackle 1.1s ease-out;
+}
+.hs-pumpkin.cackle .hs-face-glow {
+  animation: none;
+  opacity: 1;
+}
+@keyframes hs-cackle {
+  0%,
+  100% {
+    transform: none;
+  }
+  12% {
+    transform: scale(1.1, 0.9);
+  }
+  26% {
+    transform: scale(0.94, 1.08) rotate(-4deg);
+  }
+  40% {
+    transform: scale(1.04, 0.97) rotate(4deg);
+  }
+  55% {
+    transform: rotate(-2deg);
+  }
+  70% {
+    transform: rotate(1deg);
+  }
+}
+.hs-embers circle {
+  fill: #ffcf4a;
+  animation: hs-ember 1.3s ease-out both;
+}
+@keyframes hs-ember {
+  from {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy));
+  }
+}
+
+/* Fog ------------------------------------------------------------------- */
+
+.hs-fog {
+  pointer-events: none;
+}
+.hs-fog-a {
+  animation: hs-fog 19s ease-in-out infinite alternate;
+}
+.hs-fog-b {
+  animation: hs-fog 27s ease-in-out infinite alternate-reverse;
+}
+@keyframes hs-fog {
+  from {
+    transform: translateX(-30px);
+  }
+  to {
+    transform: translateX(30px);
+  }
+}
+
+/* Ambient motion stops; click reactions stay, since the user asked for them. */
+@media (prefers-reduced-motion: reduce) {
+  .hs-bat-fly {
+    transform: translateX(var(--hs-rest));
+  }
+  .hs-star,
+  .hs-sparkle,
+  .hs-cloud,
+  .hs-bat-fly,
+  .hs-bat-bob,
+  .hs-wing-l,
+  .hs-wing-r,
+  .hs-spider-bob,
+  .hs-windows,
+  .hs-owl-eyes,
+  .hs-candle,
+  .hs-face-glow,
+  .hs-fog-a,
+  .hs-fog-b {
+    animation: none;
+  }
+}

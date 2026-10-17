@@ -1,8 +1,8 @@
 import type { Theme } from "./types";
-// The moonlit graveyard behind the sidebar, the ghost that floats while an
-// agent works and the pumpkin it leaves when done can't be expressed with the
-// flat color tokens, so they live in a stylesheet scoped to
-// html[data-theme="halloween"] — see applyThemeObject() in ./index.ts.
+// The ghost that floats while an agent works and the pumpkin it leaves when
+// done can't be expressed with the flat color tokens, so they live in a
+// stylesheet scoped to html[data-theme="halloween"] — see applyThemeObject()
+// in ./index.ts. The sidebar's graveyard is a drawn scene: ./scenes/halloween.tsx.
 import "./halloween.css";
 
 // Original Termany theme for Halloween. A night sky in near-black violet,

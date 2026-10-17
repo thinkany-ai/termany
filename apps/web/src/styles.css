@@ -3838,6 +3838,21 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   text-overflow: ellipsis;
 }
 /* Recursive node tree */
+/* A theme's drawn scene at the foot of the sidebar (components/ThemeScene).
+   It keeps its aspect ratio and gives up height first — the SVG crops its sky
+   — when the tree needs the room. */
+.theme-scene {
+  flex: 0 1 auto;
+  aspect-ratio: 6 / 5;
+  max-height: 260px;
+  min-height: 0;
+  overflow: hidden;
+}
+.theme-scene > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
 .tree {
   flex: 1;
   overflow-y: auto;

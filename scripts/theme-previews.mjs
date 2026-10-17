@@ -76,6 +76,30 @@ function readThemes(tmp) {
   return JSON.parse(execFileSync(process.execPath, [bundle], { encoding: "utf8" }));
 }
 
+/**
+ * A theme's drawn sidebar scene (themes/scenes/<id>.tsx), rendered to static
+ * markup in its `still` pose, with its stylesheet. Empty when there is none.
+ */
+function themeScene(id, tmp) {
+  const source = path.join(THEME_DIR, "scenes", `${id}.tsx`);
+  try {
+    readFileSync(source);
+  } catch {
+    return { html: "", css: "" };
+  }
+  const bundle = path.join(tmp, `scene-${id}.cjs`);
+  // Fed on stdin so imports resolve from the app's directory, where react lives.
+  const entry =
+    `import { renderToStaticMarkup } from "react-dom/server";\n` +
+    `import Scene from ${JSON.stringify(source)};\n` +
+    `console.log(renderToStaticMarkup(<Scene still />));\n`;
+  execFileSync(ESBUILD, ["--bundle", "--loader=tsx", "--platform=node", "--format=cjs", "--jsx=automatic", "--loader:.css=empty", `--outfile=${bundle}`, "--log-level=error"], { cwd: THEME_DIR, input: entry });
+  return {
+    html: `<div class="theme-scene">${execFileSync(process.execPath, [bundle], { encoding: "utf8" })}</div>`,
+    css: readFileSync(path.join(THEME_DIR, "scenes", `${id}.css`), "utf8"),
+  };
+}
+
 /** The stylesheet themes/<id>.ts imports, if any. */
 function themeCss(id) {
   const source = path.join(THEME_DIR, `${id}.ts`);
@@ -107,7 +131,7 @@ function readable(on, a, b) {
   return Math.abs(la - base) >= Math.abs(lb - base) ? a : b;
 }
 
-function card(t) {
+function card(t, scene = { html: "", css: "" }) {
   const c = t.colors;
   const term = { ...XTERM_DEFAULTS, ...t.term };
   const topBar = t.chrome?.topBar ?? c.bg2;
@@ -120,6 +144,8 @@ function card(t) {
   const paneRadius = t.chrome?.paneRadius ?? t.radius.lg;
   const paneBorder = t.chrome?.paneBorder ?? c.border;
   const paneShadow = t.chrome?.paneShadow ?? "0 2px 10px rgba(0,0,0,0.18)";
+  // A drawn sidebar scene is the point of its theme, so the card widens the
+  // sidebar and keeps two rows to show it near full size.
   // The surface a pane floats on. A theme can repaint it through vars.
   const paneArea = t.vars?.["--pane-area-bg"] ?? t.vars?.["pane-area-bg"] ?? c.bg;
   // The live app paints artwork behind pane gaps and publishes these tokens.
@@ -172,7 +198,7 @@ function card(t) {
   .htab.active { background: ${activeTab}; color: ${c.fg}; }
   .main { flex: 1; display: flex; min-height: 0; }
   .sidebar {
-    width: 150px; flex: none; background: ${sideBg};
+    width: ${scene.html ? 236 : 150}px; flex: none; background: ${sideBg};
     border-right: 1px solid ${sideBorder}; padding: 12px 8px;
     display: flex; flex-direction: column;
   }
@@ -213,6 +239,11 @@ function card(t) {
   .cur { background: ${term.cursor}; color: ${term.background}; }
 </style>
 <style>${themeCss(t.id)}</style>
+<style>
+  .theme-scene { margin: auto -8px -12px; aspect-ratio: 6 / 5; min-height: 0; overflow: hidden; }
+  .theme-scene > svg { display: block; width: 100%; height: 100%; }
+  ${scene.css}
+</style>
 <body>
 <div id="root" class="app">
   <div class="htabbar">
@@ -226,9 +257,10 @@ function card(t) {
       <div class="tree">
         <div class="tree-row">termany</div>
         <div class="tree-row active">agent<span class="tree-dot"></span></div>
-        <div class="tree-row">remote_dev</div>
+${scene.html ? "" : `        <div class="tree-row">remote_dev</div>
         <div class="tree-row">local_dev</div>
-      </div>
+`}      </div>
+      ${scene.html}
     </div>
     <div class="pane-card">
       <div class="pane-slot focused">
@@ -263,7 +295,7 @@ try {
   for (const t of themes) {
     const html = path.join(tmp, `${t.id}.html`);
     const png = path.join(OUT_DIR, `${t.id}.png`);
-    writeFileSync(html, card(t));
+    writeFileSync(html, card(t, themeScene(t.id, tmp)));
     execFileSync(CHROME, [
       "--headless=new",
       "--disable-gpu",
