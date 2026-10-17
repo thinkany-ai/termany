@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CloseConfirm } from "./components/CloseConfirm";
 import { FindBar } from "./components/FindBar";
 import { GitDiff } from "./components/GitDiff";
+import { ThemeEffect } from "./components/ThemeEffect";
 import { HTabBar } from "./components/HTabBar";
 import { AgentWorkspace } from "./components/AgentWorkspace";
 import { AppTabRail, type AppTab } from "./components/AppTabRail";
@@ -458,6 +459,7 @@ export function App() {
 
   return (
     <div className={`app${isTauri ? " tauri" : ""}${botEnabled ? "" : " bot-disabled"}`}>
+      <ThemeEffect />
       {isTauri && <WindowControls />}
       {isTauri && <ResizeHandles />}
       {botEnabled && <AppTabRail active={appTab} workspaceId={activeWorkspaceId} onChange={handleAppTabChange} />}

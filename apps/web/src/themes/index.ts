@@ -18,6 +18,7 @@ import { winxp } from "./winxp";
 import { aqua } from "./aqua";
 import { bsod } from "./bsod";
 import { excel } from "./excel";
+import { lightsOut } from "./lights-out";
 
 export type { Theme };
 export { fromCodexTheme, isCodexTheme } from "./codex-import";
@@ -46,6 +47,7 @@ export const THEMES: Theme[] = [
   aqua,
   bsod,
   excel,
+  lightsOut,
 ];
 
 /** The bundled themes, i.e. THEMES minus anything registered at runtime. */

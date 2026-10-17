@@ -151,7 +151,7 @@ output and cache tokens, a daily chart, and breakdowns by model and by project.
 
 ## Appearance and keys
 
-Eighteen themes ship built in. A theme restyles the whole window, not only the terminal
+Nineteen themes ship built in. A theme restyles the whole window, not only the terminal
 palette: the sidebar, the tab strip, the gap and corner radius of each pane, and the shadow
 under it all come from the theme — far enough that Windows 98 gets its bevels and navy title
 bars back. Step through them with ⌥⌘. and ⌥⌘, or open the picker with ⌥⌘T.
@@ -187,10 +187,18 @@ bars back. Step through them with ⌥⌘. and ⌥⌘, or open the picker with �
     <td align="center"><img src="docs/themes/bsod.png" alt="The Blue Screen theme: flat blue surfaces, white text, and a large sad face"><br><b>Blue Screen</b><br><sub>Dark</sub></td>
     <td align="center"><img src="docs/themes/excel.png" alt="The Spreadsheet theme: green ribbon tabs, a formula bar, and black terminal text on a white cell grid"><br><b>Spreadsheet</b><br><sub>Light</sub></td>
   </tr>
+  <tr>
+    <td align="center"><img src="docs/themes/lights-out.png" alt="The Lights Out theme: a near-black window with a pixel-art jack-o'-lantern under the sidebar, real eyeballs in its eye holes"><br><b>Lights Out</b><br><sub>Dark · Halloween</sub></td>
+  </tr>
 </table>
 
+Lights Out is the Halloween theme, drawn in pixel art. Eyeballs in the jack-o'-lantern and in
+a garland above the panes follow the mouse, and turn red to watch a pane while its agent works.
+Leave the window idle for two minutes and the lights go out; move the mouse for a flashlight,
+press any key to turn them back on.
+
 Any [CodexThemes](https://codexthemes.ai) pack you install appears in Settings → Appearance
-with its artwork, and applies in one click, next to the eighteen above.
+with its artwork, and applies in one click, next to the nineteen above.
 
 All ~60 actions are rebindable in Settings → Keyboard. The right-hand rail hides the tools
 you do not use. The interface ships in 21 languages.
