@@ -77,27 +77,37 @@ function readThemes(tmp) {
 }
 
 /**
- * A theme's drawn sidebar scene (themes/scenes/<id>/index.tsx), rendered to
- * static markup in its `still` pose, with the stylesheets it imports (esbuild
- * writes them next to the bundle). Empty when there is none.
+ * A theme's drawn sidebar scene (themes/scenes/<id>/index.tsx). It may draw
+ * with WebGL, so it can't be rendered to markup: the card gets an empty
+ * .theme-scene and a bundled script that mounts the scene there in its
+ * `still` pose, plus the stylesheets it imports (esbuild writes them next to
+ * the bundle). Empty when the theme has no scene.
  */
 function themeScene(id, tmp) {
   const source = path.join(THEME_DIR, "scenes", id, "index.tsx");
   try {
     readFileSync(source);
   } catch {
-    return { html: "", css: "" };
+    return { html: "", css: "", script: "" };
   }
-  const bundle = path.join(tmp, `scene-${id}.cjs`);
+  const bundle = path.join(tmp, `scene-${id}.js`);
   // Fed on stdin so imports resolve from the app's directory, where react lives.
   const entry =
-    `import { renderToStaticMarkup } from "react-dom/server";\n` +
+    `import { createRoot } from "react-dom/client";\n` +
     `import Scene from ${JSON.stringify(source)};\n` +
-    `console.log(renderToStaticMarkup(<Scene still />));\n`;
-  execFileSync(ESBUILD, ["--bundle", "--loader=tsx", "--platform=node", "--format=cjs", "--jsx=automatic", `--outfile=${bundle}`, "--log-level=error"], { cwd: THEME_DIR, input: entry });
+    // Headless Chrome has no focused window; the scene would hold still.
+    `document.hasFocus = () => true;\n` +
+    `createRoot(document.querySelector(".theme-scene")).render(<Scene still />);\n`;
+  execFileSync(
+    ESBUILD,
+    ["--bundle", "--loader=tsx", "--platform=browser", "--format=iife", "--jsx=automatic", "--minify", `--define:process.env.NODE_ENV="production"`, `--outfile=${bundle}`, "--log-level=error"],
+    { cwd: THEME_DIR, input: entry },
+  );
   return {
-    html: `<div class="theme-scene">${execFileSync(process.execPath, [bundle], { encoding: "utf8" })}</div>`,
-    css: readFileSync(bundle.replace(/\.cjs$/, ".css"), "utf8"),
+    html: `<div class="theme-scene"></div>`,
+    css: readFileSync(bundle.replace(/\.js$/, ".css"), "utf8"),
+    // Inlined into a <script>, so no "</script" may appear inside it.
+    script: readFileSync(bundle, "utf8").replace(/<\/script/gi, "<\\/script"),
   };
 }
 
@@ -132,7 +142,7 @@ function readable(on, a, b) {
   return Math.abs(la - base) >= Math.abs(lb - base) ? a : b;
 }
 
-function card(t, scene = { html: "", css: "" }) {
+function card(t, scene = { html: "", css: "", script: "" }) {
   const c = t.colors;
   const term = { ...XTERM_DEFAULTS, ...t.term };
   const topBar = t.chrome?.topBar ?? c.bg2;
@@ -281,7 +291,8 @@ ${prompt} <span class="cur">&nbsp;</span></pre>
       </div>
     </div>
   </div>
-</div>`;
+</div>
+${scene.script ? `<script>${scene.script}</script>` : ""}`;
 }
 
 const tmp = mkdtempSync(path.join(os.tmpdir(), "termany-themes-"));
@@ -299,7 +310,10 @@ try {
     writeFileSync(html, card(t, themeScene(t.id, tmp)));
     execFileSync(CHROME, [
       "--headless=new",
-      "--disable-gpu",
+      // WebGL scenes render on SwiftShader; give their async setup time.
+      "--use-angle=swiftshader",
+      "--enable-unsafe-swiftshader",
+      "--virtual-time-budget=4000",
       "--hide-scrollbars",
       `--force-device-scale-factor=${SCALE}`,
       `--screenshot=${png}`,

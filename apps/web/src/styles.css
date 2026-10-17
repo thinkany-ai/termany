@@ -3842,7 +3842,7 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
    The page tree always comes first: it keeps its full height (and still grows
    to fill spare room, which stays a drop target), and the scene takes only
    what is left — its huge flex-shrink makes it give way before the tree does.
-   When it shrinks, the SVG crops its sky from the top. */
+   When it shrinks, the scene crops its sky from the top. */
 .sidebar:has(> .theme-scene) > .tree {
   flex: 1 1 auto;
 }
@@ -3855,14 +3855,14 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 56px);
   mask-image: linear-gradient(to bottom, transparent, #000 56px);
 }
-.theme-scene > svg {
+.theme-scene > * {
   display: block;
   width: 100%;
   height: 100%;
 }
 /* A sliver of scene reads as a glitch, so below this it is not drawn. */
 @container (max-height: 72px) {
-  .theme-scene > svg {
+  .theme-scene > * {
     display: none;
   }
 }
