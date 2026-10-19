@@ -1,14 +1,6 @@
 {
- "size": [
-  60,
-  48
- ],
- "origin": [
-  0,
-  0
- ],
- "frames": {
-  "night": 0
- },
+ "size": [60, 48],
+ "origin": [0, 0],
+ "frames": {"night": 0},
  "tags": []
 }

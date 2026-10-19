@@ -1,14 +1,6 @@
 {
- "size": [
-  24,
-  5
- ],
- "origin": [
-  0,
-  0
- ],
- "frames": {
-  "segment": 0
- },
+ "size": [24, 5],
+ "origin": [0, 0],
+ "frames": {"segment": 0},
  "tags": []
 }

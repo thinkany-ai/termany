@@ -1,14 +1,6 @@
 {
- "size": [
-  46,
-  39
- ],
- "origin": [
-  7,
-  7
- ],
- "frames": {
-  "body": 0
- },
+ "size": [46, 39],
+ "origin": [7, 7],
+ "frames": {"body": 0},
  "tags": []
 }

@@ -1,85 +1,10 @@
 {
- "size": [
-  32,
-  28
- ],
- "origin": [
-  14,
-  18
- ],
- "frames": {
-  "mid": 0,
-  "left": 32,
-  "right": 64,
-  "dim": 96,
-  "flare": 128
- },
+ "size": [32, 28],
+ "origin": [14, 18],
+ "frames": {"mid": 0, "left": 32, "right": 64, "dim": 96, "flare": 128},
  "tags": [
-  {
-   "name": "idle",
-   "loop": true,
-   "steps": [
-    {
-     "frame": "mid",
-     "ms": 420
-    },
-    {
-     "frame": "left",
-     "ms": 260
-    },
-    {
-     "frame": "mid",
-     "ms": 300
-    },
-    {
-     "frame": "right",
-     "ms": 240
-    },
-    {
-     "frame": "mid",
-     "ms": 520
-    },
-    {
-     "frame": "dim",
-     "ms": 220
-    },
-    {
-     "frame": "mid",
-     "ms": 360
-    },
-    {
-     "frame": "left",
-     "ms": 200
-    },
-    {
-     "frame": "right",
-     "ms": 280
-    },
-    {
-     "frame": "mid",
-     "ms": 400
-    }
-   ]
-  },
-  {
-   "name": "alert",
-   "loop": true,
-   "steps": [
-    {
-     "frame": "flare",
-     "ms": 1000
-    }
-   ]
-  },
-  {
-   "name": "still",
-   "loop": true,
-   "steps": [
-    {
-     "frame": "mid",
-     "ms": 1000
-    }
-   ]
-  }
+  {"name": "idle", "loop": true, "steps": [{"frame": "mid", "ms": 420}, {"frame": "left", "ms": 260}, {"frame": "mid", "ms": 300}, {"frame": "right", "ms": 240}, {"frame": "mid", "ms": 520}, {"frame": "dim", "ms": 220}, {"frame": "mid", "ms": 360}, {"frame": "left", "ms": 200}, {"frame": "right", "ms": 280}, {"frame": "mid", "ms": 400}]},
+  {"name": "alert", "loop": true, "steps": [{"frame": "flare", "ms": 1000}]},
+  {"name": "still", "loop": true, "steps": [{"frame": "mid", "ms": 1000}]}
  ]
 }
