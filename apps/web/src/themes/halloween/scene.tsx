@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { isDemo } from "../../demo";
 import { subscribeAgentActivity } from "../../terminal/manager";
 import { Director, gazeToward, showcasePose, type Gaze, type Mood, type Pose } from "./player";
 import { CSS_PX, EYES, SCENE_H, SCENE_W, SHEETS, STRING_H, WIRE_X, type SheetName } from "./sheets";
@@ -154,7 +155,9 @@ export default function HalloweenScene() {
         const { mood, target } = watch.read(canvas);
         watching = target !== null;
         const idleFor = now - lastInput;
-        resting = !document.hasFocus() || idleFor >= REST_AFTER_MS;
+        // The demo lives in an iframe on termany.sh and has no focus until a
+        // click, so there only the idle timer counts.
+        resting = (!isDemo && !document.hasFocus()) || idleFor >= REST_AFTER_MS;
         pose = director!.pose(now, mood, target, reducedQuery.matches || resting);
         // Wake again when the rest timer runs out.
         if (!resting) pose.next = Math.min(pose.next, REST_AFTER_MS - idleFor);
