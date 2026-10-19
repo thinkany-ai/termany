@@ -4,8 +4,9 @@ import { Director, gazeToward, showcasePose, type Gaze, type Mood, type Pose } f
 import { CSS_PX, EYES, SCENE_H, SCENE_W, SHEETS, STRING_H, WIRE_X, type SheetName } from "./sheets";
 
 // The Halloween scene at the foot of the sidebar: a light string over a
-// jack-o'-lantern. Frames are composed at art resolution (60x64) and shown
-// at a whole number of device pixels per art pixel, with no smoothing. The
+// jack-o'-lantern. The canvas holds the art at its own resolution (60x64);
+// CSS shows it 4x with `image-rendering: pixelated`, which is a whole number
+// of device pixels per art pixel at every ratio a Mac uses (4, 6, 8). The
 // code only stacks layers and picks frames (./player.ts); every pixel comes
 // from the sheets. It wakes only when a frame is due, never on every display
 // refresh, and sleeps while the window is hidden.
@@ -19,11 +20,6 @@ function showcaseParam(): number | "loop" | null {
   if (v === "loop") return "loop";
   if (v !== null && /^\d+$/.test(v)) return Number(v);
   return null;
-}
-
-/** Device pixels per art pixel: 4 CSS px rounded to whole device pixels. */
-function devicePerArt(): number {
-  return Math.max(1, Math.round(CSS_PX * devicePixelRatio));
 }
 
 async function loadImages(): Promise<Record<SheetName, HTMLImageElement>> {
@@ -86,33 +82,39 @@ class AgentWatch {
   }
 }
 
+/**
+ * The scene rests (holds the still pose, as with reduced motion) while the
+ * window is not focused or nobody has touched it for this long. Every frame
+ * change costs a compositor commit (about 0.6% of a core per change per
+ * second, measured in the packaged app), so an unwatched scene should not
+ * flicker. Alerts still show while resting, as the held flare and the
+ * turned eyes.
+ */
+const REST_AFTER_MS = 30_000;
+
 export default function HalloweenScene() {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = ref.current!;
-    const ctx = canvas.getContext("2d")!;
-    const art = document.createElement("canvas");
-    art.width = SCENE_W;
-    art.height = SCENE_H;
-    const actx = art.getContext("2d")!;
+    canvas.width = SCENE_W;
+    canvas.height = SCENE_H;
+    canvas.style.width = `${SCENE_W * CSS_PX}px`;
+    canvas.style.height = `${SCENE_H * CSS_PX}px`;
+    const actx = canvas.getContext("2d")!;
     const showcase = showcaseParam();
     const reducedQuery = matchMedia("(prefers-reduced-motion: reduce)");
     let images: Record<SheetName, HTMLImageElement> | null = null;
     let director: Director | null = null;
     let timer = 0;
     let lastKey = "";
-    let k = 0;
     let disposed = false;
     const watch = new AgentWatch();
-
-    const layout = () => {
-      k = devicePerArt();
-      canvas.width = SCENE_W * k;
-      canvas.height = SCENE_H * k;
-      canvas.style.width = `${(SCENE_W * k) / devicePixelRatio}px`;
-      canvas.style.height = `${(SCENE_H * k) / devicePixelRatio}px`;
-      lastKey = "";
+    let lastInput = performance.now();
+    let resting = false;
+    const onInput = () => {
+      lastInput = performance.now();
+      if (resting) tick();
     };
 
     const blit = (name: SheetName, frame: string, x: number, y: number) => {
@@ -122,7 +124,7 @@ export default function HalloweenScene() {
     };
 
     const draw = (pose: Pose) => {
-      const key = [pose.flame, pose.pupils, pose.lids, ...pose.bulbs, k].join();
+      const key = [pose.flame, pose.pupils, pose.lids, ...pose.bulbs].join();
       if (key === lastKey) return;
       lastKey = key;
       // Readable by tests and the showcase export: which frame each layer shows.
@@ -137,9 +139,6 @@ export default function HalloweenScene() {
       blit("pupils", pose.pupils, 0, STRING_H);
       blit("lids", pose.lids, 0, STRING_H);
       blit("body", "body", 0, STRING_H);
-      ctx.imageSmoothingEnabled = false;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(art, 0, 0, SCENE_W * k, SCENE_H * k);
     };
 
     const tick = () => {
@@ -147,32 +146,33 @@ export default function HalloweenScene() {
       if (disposed || !images || document.hidden) return;
       const now = performance.now();
       let pose: Pose;
+      let watching = false;
       if (showcase !== null) {
         pose = showcasePose(SHEETS, showcase === "loop" ? now : showcase);
         if (showcase !== "loop") pose.next = Infinity;
       } else {
         const { mood, target } = watch.read(canvas);
-        pose = director!.pose(now, mood, target, reducedQuery.matches);
+        watching = target !== null;
+        const idleFor = now - lastInput;
+        resting = !document.hasFocus() || idleFor >= REST_AFTER_MS;
+        pose = director!.pose(now, mood, target, reducedQuery.matches || resting);
+        // Wake again when the rest timer runs out.
+        if (!resting) pose.next = Math.min(pose.next, REST_AFTER_MS - idleFor);
       }
       draw(pose);
-      // While an agent is busy or waiting, look again at least every 500 ms
-      // so the gaze follows the pane even when no frame is due.
-      const next = showcase === null ? Math.min(pose.next, 500) : pose.next;
+      // While the eyes follow a pane, look again at least every 500 ms in
+      // case the pane moved. Otherwise agent activity wakes the scene.
+      const next = watching ? Math.min(pose.next, 500) : pose.next;
       if (next !== Infinity) timer = window.setTimeout(tick, Math.max(16, next));
     };
 
-    layout();
-    let dprQuery = matchMedia(`(resolution: ${devicePixelRatio}dppx)`);
-    const onDpr = () => {
-      dprQuery.removeEventListener("change", onDpr);
-      dprQuery = matchMedia(`(resolution: ${devicePixelRatio}dppx)`);
-      dprQuery.addEventListener("change", onDpr);
-      layout();
-      tick();
-    };
-    dprQuery.addEventListener("change", onDpr);
     reducedQuery.addEventListener("change", tick);
     document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", onInput);
+    window.addEventListener("blur", tick);
+    for (const type of ["keydown", "pointermove", "pointerdown", "wheel"] as const) {
+      window.addEventListener(type, onInput, { capture: true, passive: true });
+    }
     const unsubscribe = subscribeAgentActivity(tick);
     loadImages()
       .then((imgs) => {
@@ -186,9 +186,13 @@ export default function HalloweenScene() {
     return () => {
       disposed = true;
       window.clearTimeout(timer);
-      dprQuery.removeEventListener("change", onDpr);
       reducedQuery.removeEventListener("change", tick);
       document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", onInput);
+      window.removeEventListener("blur", tick);
+      for (const type of ["keydown", "pointermove", "pointerdown", "wheel"] as const) {
+        window.removeEventListener(type, onInput, { capture: true });
+      }
       unsubscribe();
     };
   }, []);
