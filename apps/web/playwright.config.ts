@@ -13,6 +13,8 @@ export default defineConfig({
   snapshotPathTemplate: "{testDir}/__screenshots__/{projectName}/{arg}{ext}",
   expect: { toHaveScreenshot: { maxDiffPixels: 0 } },
   fullyParallel: true,
+  // One retry in CI only: Playwright still reports a test that needed it as flaky.
+  retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL: `http://localhost:${PORT}`,
