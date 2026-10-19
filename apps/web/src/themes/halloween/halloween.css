@@ -1,0 +1,29 @@
+/* The Halloween scene at the foot of the sidebar (./scene.tsx).
+   The page tree comes first and keeps its height; the scene takes what is
+   left, up to its full 256 px (64 art px x 4). When it gets less, the canvas
+   stays bottom-aligned and its top rows are cut off: cropped, never scaled
+   (PX-2 in art/PALETTE.md). The sky is the sidebar's own N1, so the cut edge
+   does not show. Below 80 px a sliver would read as a glitch, so it hides. */
+html[data-theme="halloween"] .sidebar:has(> .theme-scene) > .tree {
+  flex: 1 1 auto;
+}
+html[data-theme="halloween"] .theme-scene {
+  flex: 0 1000 256px;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  container-type: size;
+  pointer-events: none;
+}
+html[data-theme="halloween"] .halloween-scene {
+  display: block;
+  flex: none;
+  image-rendering: pixelated;
+}
+@container (max-height: 79px) {
+  html[data-theme="halloween"] .halloween-scene {
+    display: none;
+  }
+}

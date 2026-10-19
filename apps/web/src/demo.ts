@@ -1,5 +1,9 @@
 import type { ITerminalBackend } from "@termany/core";
 import type { HTab, Pane, TreeNode, Workspace } from "./state/store";
+// Real screens, captured from Claude Code v2.1.303 and Codex v0.163.0 at
+// 58x38 (TERM=xterm-256color, no COLORTERM), with local paths replaced.
+import showcaseClaude from "./themes/halloween/showcase/claude-permission.ansi?raw";
+import showcaseCodex from "./themes/halloween/showcase/codex-start.ansi?raw";
 
 /**
  * Demo mode — a browser-only build of the web app for the marketing site
@@ -11,6 +15,15 @@ import type { HTab, Pane, TreeNode, Workspace } from "./state/store";
  * Build with:  VITE_DEMO=1 vite build --base=/demo/
  */
 export const isDemo = import.meta.env.VITE_DEMO === "1";
+
+/**
+ * `?showcase=…` (see themes/halloween/scene.tsx) is the fixed pose for
+ * screenshots and the share video. The agent panes then open on real
+ * captured screens instead of the scripted welcome, so the picture shows the
+ * actual Claude Code permission prompt, the same every time.
+ */
+const isShowcase = isDemo && typeof location !== "undefined" && new URLSearchParams(location.search).has("showcase");
+const SHOWCASE_SCREEN: Record<"claude" | "codex", string> = { claude: showcaseClaude, codex: showcaseCodex };
 
 // The demo lives in an iframe on the landing page — grabbing focus on load
 // would hijack the visitor's keyboard/scroll. Gate auto-focus on a first click.
@@ -128,7 +141,10 @@ export class DemoBackend implements ITerminalBackend {
     // Panes pre-registered by demoState() boot straight into their agent —
     // the landing page's "one agent per pane" pitch, visible on load.
     const agent = sessionId ? AGENT_BOOT.get(sessionId) : undefined;
-    if (agent) {
+    if (agent && isShowcase) {
+      this.mode = agent;
+      this.out(`\x1b[2J\x1b[H${SHOWCASE_SCREEN[agent].replace(/\n/g, "\r\n")}`);
+    } else if (agent) {
       this.out(`${PROMPT}${agent}\r\n`);
       this.enterAgent(agent);
       this.out(this.prompt());
@@ -427,7 +443,10 @@ export function demoState(): {
   activeWorkspace: string;
   activeNodes: Record<string, string>;
 } {
-  const api = node("api", [htabSplit("agents", "claude", "codex"), htab("server")]);
+  // In the showcase the agent waiting for you (claude) sits on the right,
+  // unfocused, where the sidebar pumpkin looks.
+  const agents = isShowcase ? htabSplit("agents", "codex", "claude") : htabSplit("agents", "claude", "codex");
+  const api = node("api", [agents, htab("server")]);
   const landing = node("landing", [htab("dev")]);
   const web = node("web", [htab("shell")], [api, landing]);
   const desktop = node("app", [htab("shell")]);

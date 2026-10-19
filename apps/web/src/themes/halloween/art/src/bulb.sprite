@@ -1,8 +1,9 @@
 // C9 bulbs on a Halloween string: painted glass on a black socket.
 // lit: filament hot spot G5, halo drawn for an N1 background (PAL-6).
 // warm: the 0.2 s an incandescent filament takes to heat or cool.
-// off: dark glass with one moonlit glint. Each bulb goes dark at most once
-// every 4.4 s, so one bulb is far below 3 flashes per second.
+// off: dark glass with one moonlit glint.
+// a/b/c: one 12 s cycle each, dark at 0.8-2.2 s, 4.8-5.7 s and 8.4-10.2 s,
+// so with all three started together only one bulb is dark at a time.
 // show: exactly 6 s, for the looping share video; start each bulb 2 s
 // after the previous one so only one bulb is dark at a time.
 // Origin is relative to one wire segment.
@@ -126,18 +127,18 @@ frame green-off
 ....;....
 .........
 
-tag orange-a loop orange-lit:2600 orange-warm:200 orange-off:1400 orange-warm:200
-tag orange-b loop orange-lit:3800 orange-warm:200 orange-off:900 orange-warm:200
-tag orange-c loop orange-lit:5200 orange-warm:180 orange-off:1800 orange-warm:180
+tag orange-a loop orange-lit:600 orange-warm:200 orange-off:1400 orange-warm:200 orange-lit:9600
+tag orange-b loop orange-lit:4600 orange-warm:200 orange-off:900 orange-warm:200 orange-lit:6100
+tag orange-c loop orange-lit:8200 orange-warm:180 orange-off:1800 orange-warm:180 orange-lit:1640
 tag orange-steady loop orange-lit:1000
 tag orange-show loop orange-lit:4000 orange-warm:200 orange-off:1600 orange-warm:200
-tag purple-a loop purple-lit:2600 purple-warm:200 purple-off:1400 purple-warm:200
-tag purple-b loop purple-lit:3800 purple-warm:200 purple-off:900 purple-warm:200
-tag purple-c loop purple-lit:5200 purple-warm:180 purple-off:1800 purple-warm:180
+tag purple-a loop purple-lit:600 purple-warm:200 purple-off:1400 purple-warm:200 purple-lit:9600
+tag purple-b loop purple-lit:4600 purple-warm:200 purple-off:900 purple-warm:200 purple-lit:6100
+tag purple-c loop purple-lit:8200 purple-warm:180 purple-off:1800 purple-warm:180 purple-lit:1640
 tag purple-steady loop purple-lit:1000
 tag purple-show loop purple-lit:4000 purple-warm:200 purple-off:1600 purple-warm:200
-tag green-a loop green-lit:2600 green-warm:200 green-off:1400 green-warm:200
-tag green-b loop green-lit:3800 green-warm:200 green-off:900 green-warm:200
-tag green-c loop green-lit:5200 green-warm:180 green-off:1800 green-warm:180
+tag green-a loop green-lit:600 green-warm:200 green-off:1400 green-warm:200 green-lit:9600
+tag green-b loop green-lit:4600 green-warm:200 green-off:900 green-warm:200 green-lit:6100
+tag green-c loop green-lit:8200 green-warm:180 green-off:1800 green-warm:180 green-lit:1640
 tag green-steady loop green-lit:1000
 tag green-show loop green-lit:4000 green-warm:200 green-off:1600 green-warm:200

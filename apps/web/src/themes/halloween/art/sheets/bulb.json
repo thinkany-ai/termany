@@ -25,7 +25,7 @@
    "steps": [
     {
      "frame": "orange-lit",
-     "ms": 2600
+     "ms": 600
     },
     {
      "frame": "orange-warm",
@@ -38,6 +38,10 @@
     {
      "frame": "orange-warm",
      "ms": 200
+    },
+    {
+     "frame": "orange-lit",
+     "ms": 9600
     }
    ]
   },
@@ -47,7 +51,7 @@
    "steps": [
     {
      "frame": "orange-lit",
-     "ms": 3800
+     "ms": 4600
     },
     {
      "frame": "orange-warm",
@@ -60,6 +64,10 @@
     {
      "frame": "orange-warm",
      "ms": 200
+    },
+    {
+     "frame": "orange-lit",
+     "ms": 6100
     }
    ]
   },
@@ -69,7 +77,7 @@
    "steps": [
     {
      "frame": "orange-lit",
-     "ms": 5200
+     "ms": 8200
     },
     {
      "frame": "orange-warm",
@@ -82,6 +90,10 @@
     {
      "frame": "orange-warm",
      "ms": 180
+    },
+    {
+     "frame": "orange-lit",
+     "ms": 1640
     }
    ]
   },
@@ -123,7 +135,7 @@
    "steps": [
     {
      "frame": "purple-lit",
-     "ms": 2600
+     "ms": 600
     },
     {
      "frame": "purple-warm",
@@ -136,6 +148,10 @@
     {
      "frame": "purple-warm",
      "ms": 200
+    },
+    {
+     "frame": "purple-lit",
+     "ms": 9600
     }
    ]
   },
@@ -145,7 +161,7 @@
    "steps": [
     {
      "frame": "purple-lit",
-     "ms": 3800
+     "ms": 4600
     },
     {
      "frame": "purple-warm",
@@ -158,6 +174,10 @@
     {
      "frame": "purple-warm",
      "ms": 200
+    },
+    {
+     "frame": "purple-lit",
+     "ms": 6100
     }
    ]
   },
@@ -167,7 +187,7 @@
    "steps": [
     {
      "frame": "purple-lit",
-     "ms": 5200
+     "ms": 8200
     },
     {
      "frame": "purple-warm",
@@ -180,6 +200,10 @@
     {
      "frame": "purple-warm",
      "ms": 180
+    },
+    {
+     "frame": "purple-lit",
+     "ms": 1640
     }
    ]
   },
@@ -221,7 +245,7 @@
    "steps": [
     {
      "frame": "green-lit",
-     "ms": 2600
+     "ms": 600
     },
     {
      "frame": "green-warm",
@@ -234,6 +258,10 @@
     {
      "frame": "green-warm",
      "ms": 200
+    },
+    {
+     "frame": "green-lit",
+     "ms": 9600
     }
    ]
   },
@@ -243,7 +271,7 @@
    "steps": [
     {
      "frame": "green-lit",
-     "ms": 3800
+     "ms": 4600
     },
     {
      "frame": "green-warm",
@@ -256,6 +284,10 @@
     {
      "frame": "green-warm",
      "ms": 200
+    },
+    {
+     "frame": "green-lit",
+     "ms": 6100
     }
    ]
   },
@@ -265,7 +297,7 @@
    "steps": [
     {
      "frame": "green-lit",
-     "ms": 5200
+     "ms": 8200
     },
     {
      "frame": "green-warm",
@@ -278,6 +310,10 @@
     {
      "frame": "green-warm",
      "ms": 180
+    },
+    {
+     "frame": "green-lit",
+     "ms": 1640
     }
    ]
   },

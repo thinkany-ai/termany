@@ -52,10 +52,12 @@ The light string is separate. It sits over the top of the pane area:
 | flame | `idle` | 10 steps, 200–520 each, 3.2 s loop | normal |
 | flame | `alert` | `flare` held | an agent waits for the user |
 | flame | `still` | `mid` held | reduced motion |
-| lids | `blink` | half 70, shut 110, half 70 | one blink |
+| lids | `blink` | half 70, shut 110, half 70 | one blink, after an alert ends |
+| lids | `blinks` | open 2.9–6.1 s between blinks | idle rhythm |
 | lids | `open` | `open` held | default |
+| pupils | `wander` | c, l, c, ur, c, r over 8.4 s | idle gaze |
 | pupils | `still` | `c` held | reduced motion |
-| bulb | `<color>-a/b/c` | lit 2.6–5.2 s, warm 0.2 s, off 0.9–1.8 s | normal twinkle |
+| bulb | `<color>-a/b/c` | one shared 12 s cycle; dark at 0.8–2.2, 4.8–5.7, 8.4–10.2 s | normal twinkle |
 | bulb | `<color>-show` | lit 4.0, warm 0.2, off 1.6, warm 0.2 = 6.0 s | share video loop |
 | bulb | `<color>-steady` | lit held | reduced motion |
 
@@ -68,17 +70,26 @@ The light string is separate. It sits over the top of the pane area:
   This keeps the face region at one light-dark pair for that moment.
 - **SPR-4** A gaze change MUST cut straight to the next pupil frame. A real
   saccade takes 30–50 ms, so in-between frames would look slower than an eye.
-- **SPR-5** WHEN an agent starts waiting for the user, the player MUST switch
-  the pupils to the frame that faces that pane and the flame to `alert`.
+- **SPR-5** WHEN an agent in a pane the user is not focused on stops working
+  (its dot goes from working to done or error), the player MUST switch the
+  pupils to the frame that faces that pane and the flame to `alert`.
+- **SPR-5a** WHEN the user focuses that pane or its agent starts working
+  again, the alert MUST end. A pane that was already done when the scene
+  appeared MUST NOT raise an alert.
 - **SPR-6** WHERE reduced motion is on, the player MUST use `still`, `open`,
   `still` and `<color>-steady`. The alert state MUST then show as the `flare`
   frame held, with no other motion.
-- **SPR-7** In the share loop, the three bulbs MUST start their `show` tags
-  2 s apart, so only one bulb is dark at a time and the loop closes at 6 s.
+- **SPR-7** At most one bulb MUST be dark at any time. In the share loop the
+  three `show` tags start 2 s apart and the loop closes at 6 s; live, the
+  a/b/c tags share one 12 s cycle.
 
-## Not done in this step
+## Player
 
-- The player and the app integration (step 3).
+`apps/web/src/themes/halloween/player.ts` picks frames; `scene.tsx` draws
+them. `player.test.ts` checks SPR-1, 2, 3, 6 and 7.
+
+## Not done yet
+
 - A measured WCAG flash analysis and a PEAT run on a recording (step 4).
   The 180 ms floor above is a design limit, not a measurement.
 - A check that the art survives X's H.264 encoding.

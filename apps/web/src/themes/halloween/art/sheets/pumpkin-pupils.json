@@ -16,6 +16,36 @@
  },
  "tags": [
   {
+   "name": "wander",
+   "loop": true,
+   "steps": [
+    {
+     "frame": "c",
+     "ms": 2400
+    },
+    {
+     "frame": "l",
+     "ms": 1800
+    },
+    {
+     "frame": "c",
+     "ms": 2200
+    },
+    {
+     "frame": "ur",
+     "ms": 1600
+    },
+    {
+     "frame": "c",
+     "ms": 2600
+    },
+    {
+     "frame": "r",
+     "ms": 1400
+    }
+   ]
+  },
+  {
    "name": "still",
    "loop": true,
    "steps": [

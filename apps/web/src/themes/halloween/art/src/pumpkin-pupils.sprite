@@ -1,5 +1,6 @@
 // Pupils of the thing inside the pumpkin, one frame per gaze: c centre,
 // l left, r right, ur up-right, dr down-right. Both eyes look the same way.
+// wander: where the eyes rest while no agent needs anything (8.4 s loop).
 // Gaze changes cut straight to the next frame, as a real saccade does
 // (30-50 ms), so there are no in-between frames. Pixels that fall on the
 // rind are hidden by the body layer, which is how the socket clips them.
@@ -51,4 +52,5 @@ frame dr
 ......##....................##..
 ................................
 
+tag wander loop c:2400 l:1800 c:2200 ur:1600 c:2600 r:1400
 tag still loop c:1000
