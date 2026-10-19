@@ -1,0 +1,49 @@
+{
+ "size": [
+  32,
+  7
+ ],
+ "origin": [
+  14,
+  18
+ ],
+ "frames": {
+  "open": 0,
+  "half": 32,
+  "shut": 64
+ },
+ "tags": [
+  {
+   "name": "blink",
+   "loop": false,
+   "steps": [
+    {
+     "frame": "half",
+     "ms": 70
+    },
+    {
+     "frame": "shut",
+     "ms": 110
+    },
+    {
+     "frame": "half",
+     "ms": 70
+    },
+    {
+     "frame": "open",
+     "ms": 1
+    }
+   ]
+  },
+  {
+   "name": "open",
+   "loop": true,
+   "steps": [
+    {
+     "frame": "open",
+     "ms": 1000
+    }
+   ]
+  }
+ ]
+}

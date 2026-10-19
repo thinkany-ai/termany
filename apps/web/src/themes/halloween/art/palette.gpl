@@ -25,7 +25,7 @@ Columns: 6
 255 179  61	G3
 255 223 122	G4
 255 247 214	G5
-# S: the dried stem and the wire of the light string.
+# S: the dried stem. S1 is also the wire of the light string.
  26  26  14	S0
  53  49  24	S1
  90  82  38	S2

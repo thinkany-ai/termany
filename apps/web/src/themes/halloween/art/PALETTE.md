@@ -29,8 +29,8 @@ darkest step.
 | G3 | `#ffb33d` | Inner flesh, bright. Lit orange bulb core. |
 | G4 | `#ffdf7a` | Flesh next to the flame. |
 | G5 | `#fff7d6` | Flame core. The filament hot spot of every lit bulb. |
-| S0 | `#1a1a0e` | Stem shadow. Light-string wire. |
-| S1 | `#353118` | Stem mid tone. |
+| S0 | `#1a1a0e` | Stem shadow. |
+| S1 | `#353118` | Stem mid tone. Light-string wire (S0 is too close to N1 to read as a line). |
 | S2 | `#5a5226` | Stem, lit. |
 | P1 | `#8a3ad0` | Lit purple bulb body. |
 | P2 | `#c98cff` | Lit purple bulb core. |
