@@ -1,0 +1,38 @@
+GIMP Palette
+Name: Termany Halloween
+Columns: 6
+#
+# Locked palette for every Halloween sprite. Aseprite loads this file as is.
+# Each name is <ramp><step>; step 0 is the darkest. PALETTE.md gives the role
+# of every step. Sprites use these 25 colors only: no alpha, no blends.
+#
+# N: night. Sky, hills, outlines, bulb sockets, the cool moon rim, stars.
+  8   6  13	N0
+ 17  12  24	N1
+ 27  20  38	N2
+ 42  32  57	N3
+ 67  54  90	N4
+111  99 144	N5
+# R: the pumpkin rind, lit only by bounce light. R3 is also the deepest cut wall.
+ 28  10  11	R0
+ 51  17  14	R1
+ 82  26  16	R2
+122  42  18	R3
+# G: candlelight, from the cut wall to the flame core.
+192  54  12	G0
+234  90  15	G1
+255 138  31	G2
+255 179  61	G3
+255 223 122	G4
+255 247 214	G5
+# S: the dried stem and the wire of the light string.
+ 26  26  14	S0
+ 53  49  24	S1
+ 90  82  38	S2
+# P: purple bulb. Unlit and halo reuse N3. P1 lit body, P2 lit core.
+138  58 208	P1
+201 140 255	P2
+# E: green bulb. E0 unlit and halo, E1 lit body, E2 lit core.
+ 15  42  34	E0
+ 79 208 154	E1
+196 255 216	E2
