@@ -188,11 +188,11 @@ bars back. Step through them with ⌥⌘. and ⌥⌘, or open the picker with �
     <td align="center"><img src="docs/themes/excel.png" alt="The Spreadsheet theme: green ribbon tabs, a formula bar, and black terminal text on a white cell grid"><br><b>Spreadsheet</b><br><sub>Light</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/themes/lights-out.png" alt="The Lights Out theme: a near-black window with a pixel-art jack-o'-lantern under the sidebar, real eyeballs in its eye holes"><br><b>Lights Out</b><br><sub>Dark · Halloween</sub></td>
+    <td align="center"><img src="docs/themes/halloween.png" alt="The Halloween theme: a near-black window with a pixel-art jack-o'-lantern under the sidebar, real eyeballs in its eye holes"><br><b>Halloween</b><br><sub>Dark</sub></td>
   </tr>
 </table>
 
-Lights Out is the Halloween theme, drawn in pixel art. Eyeballs in the jack-o'-lantern and in
+Halloween is drawn in pixel art. Eyeballs in the jack-o'-lantern and in
 a garland above the panes follow the mouse, and turn red to watch a pane while its agent works.
 Leave the window idle for two minutes and the lights go out; move the mouse for a flashlight,
 press any key to turn them back on.

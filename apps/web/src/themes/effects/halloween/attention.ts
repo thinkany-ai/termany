@@ -1,4 +1,4 @@
-// Where every eye in the Lights Out theme looks: the sidebar's jack-o'-lantern,
+// Where every eye in the Halloween theme looks: the sidebar's jack-o'-lantern,
 // the garland, and the eyes in the dark all read from here.
 //
 // The mouse wins while it moves. When it rests and an agent is working, the

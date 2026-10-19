@@ -1,14 +1,14 @@
 import type { Theme } from "./types";
-// The pixel art lives in ./scenes/lights-out (the sidebar's jack-o'-lantern) and
-// ./effects/lights-out (the garland and the dark); this stylesheet makes room.
-import "./lights-out.css";
+// The pixel art lives in ./scenes/halloween (the sidebar's jack-o'-lantern) and
+// ./effects/halloween (the garland and the dark); this stylesheet makes room.
+import "./halloween.css";
 
 // Original Termany theme for Halloween, in pixel art. Near-black everywhere,
 // so the only light in the window is the text, the jack-o'-lantern and the
 // eyes. Amber is the one accent: the cursor, the focus ring, the eyes.
-export const lightsOut: Theme = {
-  id: "lights-out",
-  name: "Lights Out",
+export const halloween: Theme = {
+  id: "halloween",
+  name: "Halloween",
   appearance: "dark",
   colors: {
     bg: "#0c0a0e",

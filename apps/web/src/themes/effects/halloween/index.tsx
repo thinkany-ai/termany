@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react";
-import { SCALE } from "../../scenes/lights-out/art";
+import { SCALE } from "../../scenes/halloween/art";
 import { pointer, trackPointer } from "./attention";
 import Garland from "./garland";
-import "./lights-out.css";
+import "./halloween.css";
 
-// The Lights Out theme's full-window effects: the garland above the panes
+// The Halloween theme's full-window effects: the garland above the panes
 // (./garland.tsx), and the dark.
 //
 // After the user is idle for a while, the lights go out. The dark dissolves in
@@ -57,7 +57,7 @@ function sizeOf(e: Eyes, now: number): number {
   return age < 4000 ? 0 : age < 10000 ? 1 : 2;
 }
 
-export default function LightsOut() {
+export default function HalloweenEffects() {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -231,7 +231,7 @@ export default function LightsOut() {
   return (
     <>
       <Garland />
-      <canvas ref={ref} className="lights-out-dark" aria-hidden="true" />
+      <canvas ref={ref} className="halloween-dark" aria-hidden="true" />
     </>
   );
 }

@@ -1,4 +1,4 @@
-// Pixel art for the Lights Out sidebar: a carved jack-o'-lantern with a real
+// Pixel art for the Halloween sidebar: a carved jack-o'-lantern with a real
 // eyeball in each eye hole, on a night hillside. Everything is painted into a
 // small logical grid (one array entry per art pixel) and scaled up by a whole
 // number with no smoothing (./index.tsx), so every pixel is placed on purpose.

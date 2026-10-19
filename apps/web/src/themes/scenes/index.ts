@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import LightsOutScene from "./lights-out";
+import HalloweenScene from "./halloween";
 
 /**
  * Themes whose look includes a drawn, interactive scene, keyed by theme id.
@@ -8,5 +8,5 @@ import LightsOutScene from "./lights-out";
  * here; scripts/theme-previews.mjs finds it by the same directory name.
  */
 export const THEME_SCENES: Record<string, ComponentType<{ still?: boolean }>> = {
-  "lights-out": LightsOutScene,
+  halloween: HalloweenScene,
 };

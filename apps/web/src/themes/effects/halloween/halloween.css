@@ -1,19 +1,19 @@
-/* The Lights Out effects (see ./index.tsx). Both canvases are pixel art scaled
+/* The Halloween effects (see ./index.tsx). Both canvases are pixel art scaled
    up with no smoothing, and neither takes the pointer. */
-.lights-out-garland,
-.lights-out-dark {
+.halloween-garland,
+.halloween-dark {
   position: fixed;
   pointer-events: none;
   image-rendering: pixelated;
 }
-.lights-out-garland {
+.halloween-garland {
   z-index: 5;
 }
-.lights-out-dark {
+.halloween-dark {
   left: 0;
   top: 0;
   z-index: 2147483000;
 }
-html.tauri .lights-out-dark {
+html.tauri .halloween-dark {
   border-radius: var(--window-radius, 10px);
 }

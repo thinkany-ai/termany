@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { attention, trackPointer } from "../../effects/lights-out/attention";
+import { attention, trackPointer } from "../../effects/halloween/attention";
 import { EYE, GROUND, paint, PUMPKIN, SCALE, STILL, type Pose } from "./art";
 
 /** Art rows the whole pumpkin needs, from the stem's tip to the bottom edge. */
@@ -14,7 +14,7 @@ const ROWS = GROUND + PUMPKIN.halfH * 2 + PUMPKIN.stem - 2;
 
 const TICK_MS = 80;
 
-export default function LightsOutScene({ still = false }: { still?: boolean }) {
+export default function HalloweenScene({ still = false }: { still?: boolean }) {
   const box = useRef<HTMLDivElement>(null);
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -33,7 +33,8 @@ export default function LightsOutScene({ still = false }: { still?: boolean }) {
 
     const layout = () => {
       // Round up to an even width so the pumpkin's halves mirror exactly.
-      scale = Math.max(2, Math.min(SCALE, Math.floor(host.clientHeight / ROWS)));
+      // Leave a strip of sky above the stem for the fade at the top edge.
+      scale = Math.max(2, Math.min(SCALE, Math.floor((host.clientHeight - 28) / ROWS)));
       W = Math.ceil(host.clientWidth / scale / 2) * 2;
       H = Math.ceil(host.clientHeight / scale);
       canvas.width = W;

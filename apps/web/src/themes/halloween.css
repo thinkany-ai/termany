@@ -1,0 +1,37 @@
+/* Halloween: room for the pixel scenes. The jack-o'-lantern at the foot of
+   the sidebar is themes/scenes/halloween; the garland and the dark are
+   themes/effects/halloween. */
+
+/* The jack-o'-lantern keeps its own room at the foot of the sidebar, however
+   many pages there are: the page tree scrolls instead of squeezing it. The
+   scene picks its pixel size from this height (scenes/halloween/index.tsx). */
+html[data-theme="halloween"] .theme-scene {
+  flex: none;
+  height: clamp(150px, 32vh, 260px);
+  /* A shorter fade than the default, so the stem's tip stays solid. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 28px);
+  mask-image: linear-gradient(to bottom, transparent, #000 28px);
+}
+html[data-theme="halloween"] .sidebar:has(> .theme-scene) > .tree {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* The pixel scene sits on the bottom edge, centred, cropped at the sides. */
+html[data-theme="halloween"] .pixel-scene {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+html[data-theme="halloween"] .pixel-scene canvas {
+  flex: none;
+  image-rendering: pixelated;
+}
+
+/* Room above the panes for the garland: 12 art rows at 4 px each. Set here
+   rather than in chrome.paneGap, because --pane-gap feeds calc() elsewhere and
+   must stay a single length. */
+html[data-theme="halloween"] .pane-area {
+  padding-top: 48px;
+}

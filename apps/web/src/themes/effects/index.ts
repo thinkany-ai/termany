@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import LightsOut from "./lights-out";
+import HalloweenEffects from "./halloween";
 
 /**
  * Themes that come with a full-window effect, keyed by theme id. The effect is
@@ -7,5 +7,5 @@ import LightsOut from "./lights-out";
  * the app, above it, or both.
  */
 export const THEME_EFFECTS: Record<string, ComponentType> = {
-  "lights-out": LightsOut,
+  halloween: HalloweenEffects,
 };
