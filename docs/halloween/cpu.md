@@ -68,6 +68,10 @@ and nobody typing.
   rest.
 - **Many panes, or agents working.** Neither was measured.
 
-To fill these in, run the variants with the test window in front. The
-scripts used are described above. They need a Mac where the test window can
-stay uncovered for 90 s.
+To fill these in, keep the test window in front and run:
+
+    bash scripts/halloween-cpu.sh            # rested (the case CPU-1 is about)
+    bash scripts/halloween-cpu.sh --active   # animating, pointer moving over the window
+
+The script builds both variants in isolation, asks you to bring each window
+forward, and prints the two numbers to add to the table above.

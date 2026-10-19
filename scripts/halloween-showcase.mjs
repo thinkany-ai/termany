@@ -6,6 +6,7 @@
 //   node --import tsx scripts/halloween-showcase.mjs          # PNG at 2.5 s
 //   node --import tsx scripts/halloween-showcase.mjs --at 0   # PNG at 0 s
 //   node --import tsx scripts/halloween-showcase.mjs --video  # 6 s MP4
+//   ... --at 2500 --viewport 960x540 --dpr 2 --query "&panes=1" --out cover-a2.png
 //
 // The page is 1280x720 CSS px at device pixel ratio 1.5, so the output is
 // exactly 1920x1080 and one art pixel is exactly 6 device pixels (PX-1).
@@ -29,6 +30,11 @@ const URL = process.env.URL ?? "http://localhost:15173";
 const CHROME = process.env.CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const FFMPEG = process.env.FFMPEG ?? "ffmpeg";
 
+const args = process.argv.slice(2);
+const opt = (name, fallback) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback);
+const [VW, VH] = opt("--viewport", "1280x720").split("x").map(Number);
+const DPR = Number(opt("--dpr", "1.5"));
+
 function shoot(ms, file) {
   const profile = mkdtempSync(path.join(os.tmpdir(), "halloween-chrome-"));
   try {
@@ -37,11 +43,11 @@ function shoot(ms, file) {
       "--disable-gpu",
       "--hide-scrollbars",
       `--user-data-dir=${profile}`,
-      "--window-size=1280,720",
-      "--force-device-scale-factor=1.5",
+      `--window-size=${VW},${VH}`,
+      `--force-device-scale-factor=${DPR}`,
       "--virtual-time-budget=4000",
       `--screenshot=${file}`,
-      `${URL}/?theme=halloween&showcase=${ms}`,
+      `${URL}/?theme=halloween&showcase=${ms}${opt("--query", "")}`,
     ], { stdio: "ignore" });
   } finally {
     rmSync(profile, { recursive: true, force: true });
@@ -53,7 +59,6 @@ const sheet = (name) =>
 const sheets = { flame: sheet("pumpkin-flame"), pupils: sheet("pumpkin-pupils"), lids: sheet("pumpkin-lids"), bulb: sheet("bulb") };
 
 mkdirSync(OUT, { recursive: true });
-const args = process.argv.slice(2);
 
 if (args.includes("--video")) {
   const dir = mkdtempSync(path.join(os.tmpdir(), "halloween-frames-"));
@@ -78,9 +83,8 @@ if (args.includes("--video")) {
   rmSync(dir, { recursive: true, force: true });
   console.log(`wrote ${path.relative(ROOT, mp4)}`);
 } else {
-  const i = args.indexOf("--at");
-  const ms = i >= 0 ? Number(args[i + 1]) : 2500;
-  const file = path.join(OUT, `showcase-${ms}.png`);
+  const ms = Number(opt("--at", "2500"));
+  const file = path.join(OUT, opt("--out", `showcase-${ms}.png`));
   shoot(ms, file);
   console.log(`wrote ${path.relative(ROOT, file)}`);
 }

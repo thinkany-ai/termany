@@ -455,7 +455,13 @@ export function demoState(): {
 } {
   // In the showcase the agent waiting for you (claude) sits on the right,
   // unfocused, where the sidebar pumpkin looks.
-  const agents = isShowcase ? htabSplit("agents", "codex", "claude") : htabSplit("agents", "claude", "codex");
+  // `&panes=1` gives the showcase one wide claude pane, for small framings.
+  const single = isShowcase && new URLSearchParams(location.search).get("panes") === "1";
+  const agents = single
+    ? htab("claude")
+    : isShowcase
+      ? htabSplit("agents", "codex", "claude")
+      : htabSplit("agents", "claude", "codex");
   const api = node("api", [agents, htab("server")]);
   const landing = node("landing", [htab("dev")]);
   const web = node("web", [htab("shell")], [api, landing]);
