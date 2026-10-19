@@ -79,6 +79,11 @@ The light string is separate. It sits over the top of the pane area:
 - **SPR-6** WHERE reduced motion is on, the player MUST use `still`, `open`,
   `still` and `<color>-steady`. The alert state MUST then show as the `flare`
   frame held, with no other motion.
+- **SPR-8** WHILE the window is not focused, or nobody has typed, clicked or
+  moved the pointer in it for 30 s, the player MUST hold the still pose
+  (as with reduced motion). An alert MUST still show, as the held flare and
+  the turned eyes. Reason: each frame change costs about 0.6% of a core per
+  change per second in the packaged app (docs/halloween/cpu.md).
 - **SPR-7** At most one bulb MUST be dark at any time. In the share loop the
   three `show` tags start 2 s apart and the loop closes at 6 s; live, the
   a/b/c tags share one 12 s cycle.
