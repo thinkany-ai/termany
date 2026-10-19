@@ -7,6 +7,7 @@ import { useI18n } from "../i18n";
 import { useImeGuard } from "../imeGuard";
 import { withShortcut } from "../keybindings";
 import { closeBlockers } from "../closeGuard";
+import { ThemeScene } from "./ThemeScene";
 import { activePageId, activeWorkspace, HTAB_DRAG_MIME, useStore, type TreeNode } from "../state/store";
 import {
   acknowledgeAgentActivities,
@@ -583,6 +584,7 @@ export function TreeSidebar() {
             />
           ))}
       </div>
+      <ThemeScene />
     </div>
   );
 }
