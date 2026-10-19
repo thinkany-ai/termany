@@ -489,7 +489,10 @@ export function demoState(): {
     id: uid(),
     title: "code",
     icon: "📦",
-    roots: [termany, shipany, cconline, ...extraPages()],
+    // Screenshots and the share video use neutral project names.
+    roots: isShowcase
+      ? [termany, node("blog", [htab("shell")], [node("site", [htab("shell")]), node("admin", [htab("shell")])]), node("dotfiles", [htab("shell")]), ...extraPages()]
+      : [termany, shipany, cconline, ...extraPages()],
   };
 
   const scratch = node("scratch", [htab("shell")]);
