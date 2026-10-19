@@ -8,7 +8,12 @@
 // lays the frames side by side. It computes no shading and no in-betweens.
 //
 //   node scripts/halloween-sprites.mjs           build sheets + JSON
-//   node scripts/halloween-sprites.mjs --check   validate only, exit 1 on error
+//   node scripts/halloween-sprites.mjs --check   audit only (CI), exit 1 on error
+//
+// The audit (--check) fails when a source uses a character outside the
+// legend, when a committed sheet differs from what its source builds (someone
+// edited a PNG by hand, or forgot to rebuild), or when any pixel of a
+// committed sheet is half-transparent or not a palette color (PAL-1, PAL-2).
 //
 // Output, per sprite: art/sheets/<name>.png (frames in one row, 1 px per art
 // pixel) and art/sheets/<name>.json ({ size, origin, frames: { name: x }, tags }).
@@ -16,7 +21,7 @@
 import { readFileSync, writeFileSync, readdirSync, mkdirSync } from "node:fs";
 import { join, basename, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { deflateSync } from "node:zlib";
+import { deflateSync, inflateSync } from "node:zlib";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ART = join(ROOT, "apps/web/src/themes/halloween/art");
@@ -121,6 +126,57 @@ function png(width, height, rgba) {
   ]);
 }
 
+/** Decode an 8-bit RGBA or RGB, non-interlaced PNG (all this project writes or reads). */
+export function decodePng(buf) {
+  let p = 8, width = 0, height = 0, channels = 4;
+  const idat = [];
+  while (p < buf.length) {
+    const len = buf.readUInt32BE(p), type = buf.toString("ascii", p + 4, p + 8);
+    const data = buf.subarray(p + 8, p + 8 + len);
+    if (type === "IHDR") {
+      width = data.readUInt32BE(0); height = data.readUInt32BE(4);
+      if (data[8] !== 8 || data[12] !== 0 || ![2, 6].includes(data[9])) throw new Error("unsupported PNG format");
+      channels = data[9] === 6 ? 4 : 3;
+    } else if (type === "IDAT") idat.push(data);
+    p += 12 + len;
+  }
+  const raw = inflateSync(Buffer.concat(idat));
+  const stride = width * channels;
+  const out = Buffer.alloc(width * height * 4);
+  const prev = Buffer.alloc(stride), cur = Buffer.alloc(stride);
+  for (let y = 0; y < height; y++) {
+    const f = raw[y * (stride + 1)];
+    raw.copy(cur, 0, y * (stride + 1) + 1, (y + 1) * (stride + 1));
+    for (let i = 0; i < stride; i++) {
+      const a = i >= channels ? cur[i - channels] : 0, b = prev[i], c = i >= channels ? prev[i - channels] : 0;
+      const pa = Math.abs(b - c), pb = Math.abs(a - c), pc = Math.abs(a + b - 2 * c);
+      const pred = f === 1 ? a : f === 2 ? b : f === 3 ? (a + b) >> 1 : f === 4 ? (pa <= pb && pa <= pc ? a : pb <= pc ? b : c) : 0;
+      cur[i] = (cur[i] + pred) & 255;
+    }
+    for (let x = 0; x < width; x++) {
+      const o = (y * width + x) * 4;
+      out[o] = cur[x * channels]; out[o + 1] = cur[x * channels + 1]; out[o + 2] = cur[x * channels + 2];
+      out[o + 3] = channels === 4 ? cur[x * channels + 3] : 255;
+    }
+    cur.copy(prev);
+  }
+  return { width, height, rgba: out };
+}
+
+/** Every pixel fully transparent or fully opaque, and opaque ones in the palette. */
+export function auditPixels({ width, height, rgba }, pal) {
+  const allowed = new Set(Object.values(pal).map(([r, g, b]) => (r << 16) | (g << 8) | b));
+  const problems = [];
+  for (let i = 0; i < width * height; i++) {
+    const a = rgba[i * 4 + 3];
+    const rgb = (rgba[i * 4] << 16) | (rgba[i * 4 + 1] << 8) | rgba[i * 4 + 2];
+    if (a !== 0 && a !== 255) problems.push(`(${i % width},${Math.floor(i / width)}) alpha ${a}`);
+    else if (a === 255 && !allowed.has(rgb)) problems.push(`(${i % width},${Math.floor(i / width)}) #${rgb.toString(16).padStart(6, "0")}`);
+    if (problems.length >= 5) break;
+  }
+  return problems;
+}
+
 export function buildSheet(sprite, pal) {
   const ids = [...sprite.frames.keys()];
   const W = sprite.w * ids.length;
@@ -156,9 +212,20 @@ function main() {
     try {
       const sprite = parseSprite(join(srcDir, f));
       const { png: buf, json } = buildSheet(sprite, pal);
-      if (!check) {
+      const jsonText = JSON.stringify(json, null, 1) + "\n";
+      if (check) {
+        const pngPath = join(outDir, `${sprite.name}.png`), jsonPath = join(outDir, `${sprite.name}.json`);
+        const committed = decodePng(readFileSync(pngPath));
+        const built = decodePng(buf);
+        if (committed.width !== built.width || committed.height !== built.height || !committed.rgba.equals(built.rgba)) {
+          throw new Error(`${pngPath}: does not match ${f}; run node scripts/halloween-sprites.mjs`);
+        }
+        if (readFileSync(jsonPath, "utf8") !== jsonText) throw new Error(`${jsonPath}: does not match ${f}`);
+        const problems = auditPixels(committed, pal);
+        if (problems.length) throw new Error(`${pngPath}: off-palette or half-transparent pixels: ${problems.join(", ")}`);
+      } else {
         writeFileSync(join(outDir, `${sprite.name}.png`), buf);
-        writeFileSync(join(outDir, `${sprite.name}.json`), JSON.stringify(json, null, 1) + "\n");
+        writeFileSync(join(outDir, `${sprite.name}.json`), jsonText);
       }
       console.log(`${check ? "ok" : "built"} ${sprite.name}: ${sprite.w}x${sprite.h}, ${sprite.frames.size} frames, ${sprite.tags.length} tags`);
     } catch (e) {

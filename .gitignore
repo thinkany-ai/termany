@@ -27,3 +27,7 @@ artifacts/
 .env.*
 !.env.example
 apps/web/dist-demo/
+
+# Playwright output
+apps/web/playwright-report/
+apps/web/test-results/

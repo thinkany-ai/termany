@@ -438,6 +438,16 @@ function node(title: string, htabs: HTab[], children: TreeNode[] = []): TreeNode
  * (termany ▸ web ▸ api/landing), with the active page's tab already split
  * into two panes (one agent each).
  */
+/**
+ * `?pages=<n>` (demo only) appends n plain pages to the tree, for tests of a
+ * sidebar whose page list is longer than the window.
+ */
+function extraPages(): TreeNode[] {
+  if (!isDemo || typeof location === "undefined") return [];
+  const n = Math.min(200, Number(new URLSearchParams(location.search).get("pages")) || 0);
+  return Array.from({ length: n }, (_, i) => node(`page ${i + 1}`, [htab("shell")]));
+}
+
 export function demoState(): {
   workspaces: Workspace[];
   activeWorkspace: string;
@@ -473,7 +483,7 @@ export function demoState(): {
     id: uid(),
     title: "code",
     icon: "📦",
-    roots: [termany, shipany, cconline],
+    roots: [termany, shipany, cconline, ...extraPages()],
   };
 
   const scratch = node("scratch", [htab("shell")]);
