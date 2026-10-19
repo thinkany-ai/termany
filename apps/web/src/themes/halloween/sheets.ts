@@ -1,4 +1,4 @@
-// The built sprite sheets (scripts/halloween-sprites.mjs), bundled by Vite.
+// The sprite sheets (art/sheets, see art/README.md), bundled by Vite.
 import backdropJson from "./art/sheets/backdrop.json";
 import backdropPng from "./art/sheets/backdrop.png";
 import bulbJson from "./art/sheets/bulb.json";

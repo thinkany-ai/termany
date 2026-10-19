@@ -11,7 +11,7 @@ v2.1.303 and Codex v0.163.0 screens, with local paths removed.
 
 ```
 (cd apps/web && VITE_DEMO=1 npx vite --port 15173)
-node --import tsx scripts/halloween-showcase.mjs            # showcase-2500.png, 1920x1080
+node --import tsx scripts/halloween-showcase.mjs            # docs/halloween/showcase-2500.png, 1920x1080
 node --import tsx scripts/halloween-showcase.mjs --at 500   # another moment
 node --import tsx scripts/halloween-showcase.mjs --video    # showcase.mp4, 6 s
 ```

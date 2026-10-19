@@ -23,13 +23,11 @@ above it.
 
 | File | What |
 |---|---|
-| `docs/halloween/palette-card.png` | The locked 24-color palette, with the role of each ramp. |
-| `docs/halloween/showcase-2500.png` | The share frame, 1920×1080, inside the app. |
 | `apps/web/src/themes/halloween/art/sheets/*.png` | Every sprite sheet at 1x, importable in Aseprite. |
 | `apps/web/src/themes/halloween/art/README.md` | The palette roles and the rules below, in full. |
 
-We'll attach the 6 s share video (`scripts/halloween-showcase.mjs --video`)
-when we send this.
+We'll attach the share frame and the 6 s share video
+(`scripts/halloween-showcase.mjs`) when we send this.
 
 ## Constraints
 

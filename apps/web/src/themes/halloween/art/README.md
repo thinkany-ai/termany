@@ -3,8 +3,6 @@
 The key words MUST, MUST NOT, SHOULD and MAY in this document are to be
 interpreted as described in RFC 2119.
 
-![palette card](../../../../../../docs/halloween/palette-card.png)
-
 ## Palette
 
 `palette.gpl` is the single source of truth: 24 sRGB colors in six ramps,
@@ -30,7 +28,7 @@ Where the colors come from:
 ## Rules
 
 - **PAL-1** Every opaque sprite pixel MUST be one of the 24 palette colors.
-  `npm test` checks every committed sheet against its source.
+  `npm test` (sheets.test.ts) checks every sheet.
 - **PAL-2** A sprite pixel MUST be fully opaque or fully transparent.
 - **PAL-5** R0 MUST NOT sit on the pumpkin's outer edge: it is only 0.006 in
   lightness from N1, so the silhouette would vanish.
@@ -58,11 +56,15 @@ Where the colors come from:
 
 ## Sprites
 
-Each frame is a character grid in `src/*.sprite`, one character per art
-pixel. `node scripts/halloween-sprites.mjs` builds `sheets/<name>.png` and
-`sheets/<name>.json`. It only maps characters to colors; nothing is
-computed. The right-leaning flame is the left one flipped. Every other frame
-is drawn by hand.
+`sheets/<name>.png` holds the frames of one sprite side by side at 1x, and
+`sheets/<name>.json` gives the frame size, the layer's origin in the scene,
+each frame's x offset and the sequences (tags), with a duration per step.
+These files are the source.
+
+- To edit, open a sheet in Aseprite with `palette.gpl` loaded. Keep the frame
+  size, and update the JSON when frames or timing change.
+- The right-leaning flame is the left one flipped. Every other frame was
+  placed by hand, pixel by pixel.
 
 The scene is 60×64 art px: a 16-row light string over 48 rows of night.
 
