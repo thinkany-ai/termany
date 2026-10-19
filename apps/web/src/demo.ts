@@ -136,6 +136,8 @@ export class DemoBackend implements ITerminalBackend {
   private busy = false;
   /** "shell", or the simulated agent REPL this pane is inside. */
   private mode: "shell" | AgentKind = "shell";
+  /** In the showcase, the captured screen this pane shows (see resize). */
+  private showcaseScreen: string | null = null;
 
   constructor(sessionId?: string) {
     // Panes pre-registered by demoState() boot straight into their agent —
@@ -143,7 +145,8 @@ export class DemoBackend implements ITerminalBackend {
     const agent = sessionId ? AGENT_BOOT.get(sessionId) : undefined;
     if (agent && isShowcase) {
       this.mode = agent;
-      this.out(`\x1b[2J\x1b[H${SHOWCASE_SCREEN[agent].replace(/\n/g, "\r\n")}`);
+      this.showcaseScreen = `\x1b[3J\x1b[2J\x1b[H${SHOWCASE_SCREEN[agent].replace(/\n/g, "\r\n")}`;
+      this.out(this.showcaseScreen);
     } else if (agent) {
       this.out(`${PROMPT}${agent}\r\n`);
       this.enterAgent(agent);
@@ -169,7 +172,10 @@ export class DemoBackend implements ITerminalBackend {
   }
 
   resize(_cols: number, _rows: number): void {
-    /* nothing to tell — there is no PTY */
+    // No PTY to tell. In the showcase, redraw the captured screen at the new
+    // size, so the picture depends only on the final size and not on whether
+    // the first write came before or after the pane was fitted.
+    if (this.showcaseScreen) this.out(this.showcaseScreen);
   }
 
   dispose(): void {
@@ -455,13 +461,7 @@ export function demoState(): {
 } {
   // In the showcase the agent waiting for you (claude) sits on the right,
   // unfocused, where the sidebar pumpkin looks.
-  // `&panes=1` gives the showcase one wide claude pane, for small framings.
-  const single = isShowcase && new URLSearchParams(location.search).get("panes") === "1";
-  const agents = single
-    ? htab("claude")
-    : isShowcase
-      ? htabSplit("agents", "codex", "claude")
-      : htabSplit("agents", "claude", "codex");
+  const agents = isShowcase ? htabSplit("agents", "codex", "claude") : htabSplit("agents", "claude", "codex");
   const api = node("api", [agents, htab("server")]);
   const landing = node("landing", [htab("dev")]);
   const web = node("web", [htab("shell")], [api, landing]);

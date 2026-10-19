@@ -3,7 +3,7 @@
    192 px night with the pumpkin. The pumpkin must stay visible however many
    pages there are, so the scene keeps at least 192 px and the page tree
    scrolls instead, down to 96 px of its own. Only the light string at the
-   top is ever cropped: cut off, never scaled (PX-2 in art/PALETTE.md). The
+   top is ever cropped: cut off, never scaled (PX-2 in art/README.md). The
    sky is the sidebar's own N1, so the cut edge does not show. */
 html[data-theme="halloween"] .sidebar:has(> .theme-scene) > .tree {
   flex: 1 1 0;

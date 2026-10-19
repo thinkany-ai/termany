@@ -5,9 +5,9 @@ import "./halloween/halloween.css";
 
 // Halloween. A night-purple shell around warm parchment text, with the candle
 // orange as the accent. Every surface a sprite sits on is N1 (#110c18) from
-// the locked palette (art/PALETTE.md, PAL-6), so the pixel art has no seam.
+// the locked palette (art/README.md, PAL-6), so the pixel art has no seam.
 // The terminal palette is checked against real Claude Code and Codex output
-// (docs/halloween/contrast.md).
+// (docs/halloween/README.md).
 export const halloween: Theme = {
   id: "halloween",
   name: "Halloween",

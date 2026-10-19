@@ -24,12 +24,12 @@ above it.
 | File | What |
 |---|---|
 | `docs/halloween/palette-card.png` | The locked 24-color palette, with the role of each ramp. |
-| `docs/halloween/frames-4x.png` | Six composed frames at 4x, which is the real on-screen size. |
-| `docs/halloween/frame-a-preview.gif` | The 6 s loop at 4x. |
 | `docs/halloween/showcase-2500.png` | The share frame, 1920×1080, inside the app. |
-| `docs/halloween/showcase.mp4` | The 6 s share video. |
 | `apps/web/src/themes/halloween/art/sheets/*.png` | Every sprite sheet at 1x, importable in Aseprite. |
-| `apps/web/src/themes/halloween/art/PALETTE.md`, `SPRITES.md` | The rules below, in full. |
+| `apps/web/src/themes/halloween/art/README.md` | The palette roles and the rules below, in full. |
+
+We'll attach the 6 s share video (`scripts/halloween-showcase.mjs --video`)
+when we send this.
 
 ## Constraints
 

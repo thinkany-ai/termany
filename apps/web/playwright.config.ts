@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
-// Browser tests against the demo build (no PTY server needed). Locally they
-// can run on the installed Chrome (PW_CHANNEL=chrome); CI installs Chromium.
+// Snapshot tests against the demo build (no PTY server needed). Run by hand:
+//   npx playwright install chromium        # once, or set PW_CHANNEL=chrome
 //   npx playwright test                    # check
 //   npx playwright test --update-snapshots # accept new pictures
 const PORT = 15199;
@@ -13,9 +13,6 @@ export default defineConfig({
   snapshotPathTemplate: "{testDir}/__screenshots__/{projectName}/{arg}{ext}",
   expect: { toHaveScreenshot: { maxDiffPixels: 0 } },
   fullyParallel: true,
-  // One retry in CI only: Playwright still reports a test that needed it as flaky.
-  retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL: `http://localhost:${PORT}`,
     viewport: { width: 1280, height: 720 },
@@ -29,6 +26,6 @@ export default defineConfig({
     command: `npx vite --port ${PORT} --strictPort`,
     env: { VITE_DEMO: "1" },
     port: PORT,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: true,
   },
 });

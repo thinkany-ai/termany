@@ -11,14 +11,12 @@ for?
 
 ## Candidates
 
-All three are exported by `scripts/halloween-showcase.mjs` and are
-reproducible byte for byte:
+Export them with `scripts/halloween-showcase.mjs` (byte-identical every run):
 
-| File | Framing | What differs |
+| File | Command | What differs |
 |---|---|---|
-| `a1.png` | 1280×720 window at 1.5x, 2.5 s | The alert moment: the eyes are on the Claude Code permission prompt and the candle flares. Two panes. |
-| `a2.png` | 960×540 window at 2x, 2.5 s, one pane | Same moment, everything 1.33x larger: a bigger pumpkin and one wide Claude pane. |
-| `a3.png` | 1280×720 at 1.5x, 0.5 s | The idle moment: no alert, the eyes look ahead. Tests whether the "it watches your agents" beat matters. |
+| `a1.png` | `--at 2500 --out blind-test/a1.png` | The alert moment: the eyes are on the Claude Code permission prompt and the candle flares. |
+| `a3.png` | `--at 500 --out blind-test/a3.png` | The idle moment: no alert, the eyes look ahead. Tests whether the "it watches your agents" beat matters. |
 
 ## People
 
@@ -32,16 +30,15 @@ reproducible byte for byte:
 
 1. **Phone-sized display.** Show every image on a phone, or in a 390 px wide
    window. That is how the X timeline shows it.
-2. **One-second look.** Each person sees one of the three frames. Rotate
-   which one (P1 → a1, P2 → a2, P3 → a3, P4 → a1, …), so each frame gets
-   about a third of the people.
+2. **One-second look.** Each person sees one of the two frames. Alternate
+   (P1 → a1, P2 → a3, P3 → a1, …), so each frame gets half of the people.
    - Show it for 1 second, then hide it.
    - Ask: "What did you see?" and "What do you think this is for?" Write the
      answers word for word. Do not hint.
 3. **Second chance.** Show the same frame for 5 seconds. Ask: "Anything you
    missed the first time?"
-4. **Preference.** Show all three side by side, in an order shuffled per
-   person. Ask: "Scrolling past, which would make you stop?" and "Why?"
+4. **Preference.** Show both side by side, with the left/right order
+   switched for every other person. Ask: "Scrolling past, which would make you stop?" and "Why?"
 5. **Last.** Only now explain what the theme does. Ask: "Which frame shows
    that best?"
 
@@ -74,11 +71,11 @@ not a statistical test, and the write-up must say so.
 Copy this for each person.
 
 ```
-Code: P_   Uses a terminal at work: yes / no   Frame shown first: a1 / a2 / a3
+Code: P_   Uses a terminal at work: yes / no   Frame shown first: a1 / a3
 1 s  — what did you see:
 1 s  — what is it for:
 5 s  — anything new:
-Preference (order shown: __ __ __) — pick: __  why:
+Preference (order shown: __ __) — pick: __  why:
 After explanation — which shows it best: __
 Score: Halloween _  Terminal _  Agent _  Reaction _   Reads: yes / no
 ```

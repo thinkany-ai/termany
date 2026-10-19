@@ -6,7 +6,7 @@
 //   node --import tsx scripts/halloween-showcase.mjs          # PNG at 2.5 s
 //   node --import tsx scripts/halloween-showcase.mjs --at 0   # PNG at 0 s
 //   node --import tsx scripts/halloween-showcase.mjs --video  # 6 s MP4
-//   ... --at 2500 --viewport 960x540 --dpr 2 --query "&panes=1" --out cover-a2.png
+//   ... --at 500 --out blind-test/a3.png                       # another moment, another name
 //
 // The page is 1280x720 CSS px at device pixel ratio 1.5, so the output is
 // exactly 1920x1080 and one art pixel is exactly 6 device pixels (PX-1).
@@ -32,8 +32,6 @@ const FFMPEG = process.env.FFMPEG ?? "ffmpeg";
 
 const args = process.argv.slice(2);
 const opt = (name, fallback) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback);
-const [VW, VH] = opt("--viewport", "1280x720").split("x").map(Number);
-const DPR = Number(opt("--dpr", "1.5"));
 
 function shoot(ms, file) {
   const profile = mkdtempSync(path.join(os.tmpdir(), "halloween-chrome-"));
@@ -43,11 +41,11 @@ function shoot(ms, file) {
       "--disable-gpu",
       "--hide-scrollbars",
       `--user-data-dir=${profile}`,
-      `--window-size=${VW},${VH}`,
-      `--force-device-scale-factor=${DPR}`,
+      "--window-size=1280,720",
+      "--force-device-scale-factor=1.5",
       "--virtual-time-budget=4000",
       `--screenshot=${file}`,
-      `${URL}/?theme=halloween&showcase=${ms}${opt("--query", "")}`,
+      `${URL}/?theme=halloween&showcase=${ms}`,
     ], { stdio: "ignore" });
   } finally {
     rmSync(profile, { recursive: true, force: true });

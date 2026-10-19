@@ -1,7 +1,7 @@
 // Decides which frame of each Halloween sprite is on screen at a given time.
 // It only reads the hand-made sequences (tags) in art/sheets/*.json and picks
 // among them; it never computes a color or an in-between frame. No DOM here,
-// so the rules in art/SPRITES.md can be tested directly (player.test.ts).
+// so the rules in art/README.md can be tested directly (player.test.ts).
 
 export type Step = { frame: string; ms: number };
 export type Tag = { name: string; loop: boolean; steps: Step[] };
@@ -56,7 +56,7 @@ export type Sheets = {
 /**
  * Bulb colors along the string, left to right, and the sequence each plays.
  * The a/b/c sequences share one 12 s cycle and go dark at different times,
- * so only one bulb is ever dark (art/SPRITES.md, SPR-7).
+ * so only one bulb is ever dark (art/README.md, SPR-7).
  */
 const BULBS: { color: string; tag: string }[] = [
   { color: "orange", tag: "a" },

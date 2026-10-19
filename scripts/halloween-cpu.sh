@@ -1,5 +1,5 @@
 #!/bin/bash
-# Idle CPU of the packaged macOS app: default theme vs Halloween (docs/halloween/cpu.md).
+# Idle CPU of the packaged macOS app: default theme vs Halloween (docs/halloween/README.md).
 #
 #   bash scripts/halloween-cpu.sh            # rested: measure after the scene rests
 #   bash scripts/halloween-cpu.sh --active   # animating: keep the pointer moving over the window

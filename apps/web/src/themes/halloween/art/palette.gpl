@@ -3,7 +3,7 @@ Name: Termany Halloween
 Columns: 6
 #
 # Locked palette for every Halloween sprite. Aseprite loads this file as is.
-# Each name is <ramp><step>; step 0 is the darkest. PALETTE.md gives the role
+# Each name is <ramp><step>; step 0 is the darkest. art/README.md gives the role
 # of every step. Sprites use these 25 colors only: no alpha, no blends.
 #
 # N: night. Sky, hills, outlines, bulb sockets, the cool moon rim, stars.

@@ -35,7 +35,7 @@ export type SheetName = keyof typeof SHEETS;
 export const SCENE_W = 60;
 export const STRING_H = 16;
 export const SCENE_H = STRING_H + 48;
-/** One art pixel is 4 CSS px (PX-1 in art/PALETTE.md). */
+/** One art pixel is 4 CSS px (PX-1 in art/README.md). */
 export const CSS_PX = 4;
 /** The eyes' midpoint in scene art pixels, used to aim the gaze. */
 export const EYES = { x: 7 + 22.5, y: STRING_H + 7 + 14 };
