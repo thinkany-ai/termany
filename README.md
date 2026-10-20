@@ -236,6 +236,8 @@ stored locally in `~/.termany/termany.db`. No keys live in this repository. Opti
 | Variable            | Default        | Purpose                                  |
 | ------------------- | -------------- | ---------------------------------------- |
 | `TERMANY_PORT`      | `5174` release / `5175` dev | PTY/API server port            |
+| `TERMANY_HOST`      | `127.0.0.1`    | Interface the server binds. Anything non-loopback exposes shells to the network **without authentication** |
+| `TERMANY_ALLOWED_ORIGINS` | —        | Extra comma-separated browser origins allowed to call the server (Tauri and loopback pages are always allowed) |
 | `TERMANY_PASTE_DIR` | system temp    | Where pasted images are written          |
 | `VITE_PTY_URL`      | `ws://localhost:5174` release / `:5175` dev | Web client → PTY WebSocket |
 | `VITE_API_URL`      | follows `VITE_PTY_URL` | Web client → REST API                |

@@ -34,6 +34,7 @@ import { sessionListeningPorts } from "./sessionPorts.js";
 import { KillError, killProcess, readSystemStats } from "./systemStats.js";
 import { listSshConnections, listSshProfiles, saveSshProfileFromTarget, saveSshProfiles, sshArgsForConnection, testSshProfile } from "./ssh.js";
 import { SshPortForwarding } from "./sshPortForwarding.js";
+import { bindHost, createRequestGuard, isLoopbackHost } from "./requestGuard.js";
 import { WebSocketServer, type WebSocket } from "ws";
 import { listConfig, saveConfig } from "./config.js";
 import { gatewayState, saveGatewayRoute, connectGatewayRoute, disconnectGatewayRoute, gatewayConnection, proxyGatewayRequest } from "./modelGateway.js";
@@ -636,8 +637,21 @@ setInterval(flushScroll, 10_000).unref();
 
 // One HTTP server hosts both the WebSocket upgrade (PTY sessions) and a small
 // JSON API (POST /api/theme — AI theme generation, key stays server-side).
+const HOST = bindHost();
+const requestGuard = createRequestGuard();
+
 const http = createServer((req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const rejection = requestGuard.reject(req);
+  if (rejection) {
+    console.warn(`[termany] refused ${req.method} ${req.url}: ${rejection}`);
+    res.writeHead(403).end();
+    return;
+  }
+  const corsOrigin = requestGuard.corsOrigin(req);
+  if (corsOrigin) {
+    res.setHeader("Access-Control-Allow-Origin", corsOrigin);
+    res.setHeader("Vary", "Origin");
+  }
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Image-Type");
 
@@ -1705,8 +1719,14 @@ let listenAttempts = 0;
 
 function tryListen(): void {
   listenAttempts++;
-  http.listen(PORT, () => {
-    console.log(`[termany] PTY server listening on ws://localhost:${PORT}  (shell: ${SHELL})`);
+  http.listen(PORT, HOST, () => {
+    console.log(`[termany] PTY server listening on ws://${HOST}:${PORT}  (shell: ${SHELL})`);
+    if (!isLoopbackHost(HOST)) {
+      console.warn(
+        `[termany] WARNING: TERMANY_HOST=${HOST} exposes shells and files to the network with no authentication. ` +
+          "Only use this on a network you fully trust.",
+      );
+    }
   });
 }
 
@@ -1725,7 +1745,14 @@ http.on("error", (err: NodeJS.ErrnoException) => {
   throw err;
 });
 
-const wss = new WebSocketServer({ server: http });
+const wss = new WebSocketServer({
+  server: http,
+  verifyClient: ({ req }, done) => {
+    const rejection = requestGuard.reject(req);
+    if (rejection) console.warn(`[termany] refused WebSocket ${req.url}: ${rejection}`);
+    done(!rejection, 403);
+  },
+});
 
 let connCount = 0;
 
