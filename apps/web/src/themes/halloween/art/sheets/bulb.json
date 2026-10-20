@@ -1,0 +1,22 @@
+{
+ "size": [9, 11],
+ "origin": [7, 5],
+ "frames": {"orange-lit": 0, "orange-warm": 9, "orange-off": 18, "purple-lit": 27, "purple-warm": 36, "purple-off": 45, "green-lit": 54, "green-warm": 63, "green-off": 72},
+ "tags": [
+  {"name": "orange-a", "loop": true, "steps": [{"frame": "orange-lit", "ms": 600}, {"frame": "orange-warm", "ms": 200}, {"frame": "orange-off", "ms": 1400}, {"frame": "orange-warm", "ms": 200}, {"frame": "orange-lit", "ms": 9600}]},
+  {"name": "orange-b", "loop": true, "steps": [{"frame": "orange-lit", "ms": 4600}, {"frame": "orange-warm", "ms": 200}, {"frame": "orange-off", "ms": 900}, {"frame": "orange-warm", "ms": 200}, {"frame": "orange-lit", "ms": 6100}]},
+  {"name": "orange-c", "loop": true, "steps": [{"frame": "orange-lit", "ms": 8200}, {"frame": "orange-warm", "ms": 180}, {"frame": "orange-off", "ms": 1800}, {"frame": "orange-warm", "ms": 180}, {"frame": "orange-lit", "ms": 1640}]},
+  {"name": "orange-steady", "loop": true, "steps": [{"frame": "orange-lit", "ms": 1000}]},
+  {"name": "orange-show", "loop": true, "steps": [{"frame": "orange-lit", "ms": 4000}, {"frame": "orange-warm", "ms": 200}, {"frame": "orange-off", "ms": 1600}, {"frame": "orange-warm", "ms": 200}]},
+  {"name": "purple-a", "loop": true, "steps": [{"frame": "purple-lit", "ms": 600}, {"frame": "purple-warm", "ms": 200}, {"frame": "purple-off", "ms": 1400}, {"frame": "purple-warm", "ms": 200}, {"frame": "purple-lit", "ms": 9600}]},
+  {"name": "purple-b", "loop": true, "steps": [{"frame": "purple-lit", "ms": 4600}, {"frame": "purple-warm", "ms": 200}, {"frame": "purple-off", "ms": 900}, {"frame": "purple-warm", "ms": 200}, {"frame": "purple-lit", "ms": 6100}]},
+  {"name": "purple-c", "loop": true, "steps": [{"frame": "purple-lit", "ms": 8200}, {"frame": "purple-warm", "ms": 180}, {"frame": "purple-off", "ms": 1800}, {"frame": "purple-warm", "ms": 180}, {"frame": "purple-lit", "ms": 1640}]},
+  {"name": "purple-steady", "loop": true, "steps": [{"frame": "purple-lit", "ms": 1000}]},
+  {"name": "purple-show", "loop": true, "steps": [{"frame": "purple-lit", "ms": 4000}, {"frame": "purple-warm", "ms": 200}, {"frame": "purple-off", "ms": 1600}, {"frame": "purple-warm", "ms": 200}]},
+  {"name": "green-a", "loop": true, "steps": [{"frame": "green-lit", "ms": 600}, {"frame": "green-warm", "ms": 200}, {"frame": "green-off", "ms": 1400}, {"frame": "green-warm", "ms": 200}, {"frame": "green-lit", "ms": 9600}]},
+  {"name": "green-b", "loop": true, "steps": [{"frame": "green-lit", "ms": 4600}, {"frame": "green-warm", "ms": 200}, {"frame": "green-off", "ms": 900}, {"frame": "green-warm", "ms": 200}, {"frame": "green-lit", "ms": 6100}]},
+  {"name": "green-c", "loop": true, "steps": [{"frame": "green-lit", "ms": 8200}, {"frame": "green-warm", "ms": 180}, {"frame": "green-off", "ms": 1800}, {"frame": "green-warm", "ms": 180}, {"frame": "green-lit", "ms": 1640}]},
+  {"name": "green-steady", "loop": true, "steps": [{"frame": "green-lit", "ms": 1000}]},
+  {"name": "green-show", "loop": true, "steps": [{"frame": "green-lit", "ms": 4000}, {"frame": "green-warm", "ms": 200}, {"frame": "green-off", "ms": 1600}, {"frame": "green-warm", "ms": 200}]}
+ ]
+}

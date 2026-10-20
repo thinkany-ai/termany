@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "build:demo": "tsc --noEmit && VITE_DEMO=1 vite build --base=/demo/ --outDir dist-demo",
     "preview": "vite preview",
-    "test": "node --import tsx --test tests/*.test.ts src/*.test.ts src/terminal/*.test.ts src/terminal/*.test.mjs"
+    "test": "node --import tsx --test tests/*.test.ts src/*.test.ts src/terminal/*.test.ts src/terminal/*.test.mjs src/themes/halloween/*.test.ts"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.4",
@@ -41,6 +41,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",

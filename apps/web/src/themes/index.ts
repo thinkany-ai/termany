@@ -6,6 +6,7 @@ import { daylight } from "./daylight";
 import { defaultDark } from "./default-dark";
 import { gruvbox } from "./gruvbox";
 import { gruvboxLight } from "./gruvbox-light";
+import { halloween } from "./halloween";
 import { horizon } from "./horizon";
 import { meadow } from "./meadow";
 import { phosphor } from "./phosphor";
@@ -46,6 +47,7 @@ export const THEMES: Theme[] = [
   aqua,
   bsod,
   excel,
+  halloween,
 ];
 
 /** The bundled themes, i.e. THEMES minus anything registered at runtime. */

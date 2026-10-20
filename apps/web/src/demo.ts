@@ -1,5 +1,9 @@
 import type { ITerminalBackend } from "@termany/core";
 import type { HTab, Pane, TreeNode, Workspace } from "./state/store";
+// Real screens, captured from Claude Code v2.1.303 and Codex v0.163.0 at
+// 58x38 (TERM=xterm-256color, no COLORTERM), with local paths replaced.
+import showcaseClaude from "./themes/halloween/showcase/claude-permission.ansi?raw";
+import showcaseCodex from "./themes/halloween/showcase/codex-start.ansi?raw";
 
 /**
  * Demo mode — a browser-only build of the web app for the marketing site
@@ -11,6 +15,15 @@ import type { HTab, Pane, TreeNode, Workspace } from "./state/store";
  * Build with:  VITE_DEMO=1 vite build --base=/demo/
  */
 export const isDemo = import.meta.env.VITE_DEMO === "1";
+
+/**
+ * `?showcase=…` (see themes/halloween/scene.tsx) is the fixed pose for
+ * screenshots and the share video. The agent panes then open on real
+ * captured screens instead of the scripted welcome, so the picture shows the
+ * actual Claude Code permission prompt, the same every time.
+ */
+const isShowcase = isDemo && typeof location !== "undefined" && new URLSearchParams(location.search).has("showcase");
+const SHOWCASE_SCREEN: Record<"claude" | "codex", string> = { claude: showcaseClaude, codex: showcaseCodex };
 
 // The demo lives in an iframe on the landing page — grabbing focus on load
 // would hijack the visitor's keyboard/scroll. Gate auto-focus on a first click.
@@ -123,12 +136,18 @@ export class DemoBackend implements ITerminalBackend {
   private busy = false;
   /** "shell", or the simulated agent REPL this pane is inside. */
   private mode: "shell" | AgentKind = "shell";
+  /** In the showcase, the captured screen this pane shows (see resize). */
+  private showcaseScreen: string | null = null;
 
   constructor(sessionId?: string) {
     // Panes pre-registered by demoState() boot straight into their agent —
     // the landing page's "one agent per pane" pitch, visible on load.
     const agent = sessionId ? AGENT_BOOT.get(sessionId) : undefined;
-    if (agent) {
+    if (agent && isShowcase) {
+      this.mode = agent;
+      this.showcaseScreen = `\x1b[3J\x1b[2J\x1b[H${SHOWCASE_SCREEN[agent].replace(/\n/g, "\r\n")}`;
+      this.out(this.showcaseScreen);
+    } else if (agent) {
       this.out(`${PROMPT}${agent}\r\n`);
       this.enterAgent(agent);
       this.out(this.prompt());
@@ -153,7 +172,10 @@ export class DemoBackend implements ITerminalBackend {
   }
 
   resize(_cols: number, _rows: number): void {
-    /* nothing to tell — there is no PTY */
+    // No PTY to tell. In the showcase, redraw the captured screen at the new
+    // size, so the picture depends only on the final size and not on whether
+    // the first write came before or after the pane was fitted.
+    if (this.showcaseScreen) this.out(this.showcaseScreen);
   }
 
   dispose(): void {
@@ -422,12 +444,25 @@ function node(title: string, htabs: HTab[], children: TreeNode[] = []): TreeNode
  * (termany ▸ web ▸ api/landing), with the active page's tab already split
  * into two panes (one agent each).
  */
+/**
+ * `?pages=<n>` (demo only) appends n plain pages to the tree, for tests of a
+ * sidebar whose page list is longer than the window.
+ */
+function extraPages(): TreeNode[] {
+  if (!isDemo || typeof location === "undefined") return [];
+  const n = Math.min(200, Number(new URLSearchParams(location.search).get("pages")) || 0);
+  return Array.from({ length: n }, (_, i) => node(`page ${i + 1}`, [htab("shell")]));
+}
+
 export function demoState(): {
   workspaces: Workspace[];
   activeWorkspace: string;
   activeNodes: Record<string, string>;
 } {
-  const api = node("api", [htabSplit("agents", "claude", "codex"), htab("server")]);
+  // In the showcase the agent waiting for you (claude) sits on the right,
+  // unfocused, where the sidebar pumpkin looks.
+  const agents = isShowcase ? htabSplit("agents", "codex", "claude") : htabSplit("agents", "claude", "codex");
+  const api = node("api", [agents, htab("server")]);
   const landing = node("landing", [htab("dev")]);
   const web = node("web", [htab("shell")], [api, landing]);
   const desktop = node("app", [htab("shell")]);
@@ -454,7 +489,10 @@ export function demoState(): {
     id: uid(),
     title: "code",
     icon: "📦",
-    roots: [termany, shipany, cconline],
+    // Screenshots and the share video use neutral project names.
+    roots: isShowcase
+      ? [termany, node("blog", [htab("shell")], [node("site", [htab("shell")]), node("admin", [htab("shell")])]), node("dotfiles", [htab("shell")]), ...extraPages()]
+      : [termany, shipany, cconline, ...extraPages()],
   };
 
   const scratch = node("scratch", [htab("shell")]);
