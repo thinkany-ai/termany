@@ -235,16 +235,16 @@ export function App() {
         if (isCloseConfirmOpen()) return;
         const h = activeHtab(s);
         if (!h) return;
+        // Always confirm, like the tab and page × buttons; the dialog also
+        // lists any agent work that closing would kill.
         const blockers = closeBlockers(
           agentActivitySummaryForSessions(ownedSessionIds([h.focused])),
         );
-        if (blockers) {
-          setPendingPaneClose({
-            id: h.focused,
-            title: findLeaf(h.layout, h.focused)?.title ?? "",
-            ...blockers,
-          });
-        } else s.closeFocusedPane();
+        setPendingPaneClose({
+          id: h.focused,
+          title: findLeaf(h.layout, h.focused)?.title ?? "",
+          ...(blockers ?? { working: 0, error: 0 }),
+        });
       },
       splitRight: (s) => s.splitFocused("row"),
       splitDown: (s) => s.splitFocused("col"),

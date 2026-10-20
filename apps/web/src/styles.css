@@ -2788,12 +2788,38 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
 
 /* Left sidebar */
 .sidebar {
+  position: relative;
   width: 240px;
   flex-shrink: 0;
   background: var(--sidebar-bg);
   border-right: var(--sidebar-border);
   display: flex;
   flex-direction: column;
+}
+/* Drag handle straddling the sidebar's right border (width set inline,
+   clamped in TreeSidebar). The 1px ::before highlights on hover/drag. */
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -4px;
+  width: 7px;
+  z-index: 6;
+  cursor: col-resize;
+}
+.sidebar-resizer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+  background: transparent;
+  transition: background 120ms ease;
+}
+.sidebar-resizer:hover::before,
+.sidebar-resizer:active::before {
+  background: var(--accent);
 }
 
 .workspace-menu-host {

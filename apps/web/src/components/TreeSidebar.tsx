@@ -19,13 +19,40 @@ import {
   subscribeAgentActivity,
   type AgentActivityStatus,
 } from "../terminal/manager";
-import { ChevronIcon, CloseIcon, CollapseAllIcon, PageIcon, PlusIcon } from "./icons";
+import { ChevronIcon, CloseIcon, CollapseAllIcon, EditIcon, PageIcon, PlusIcon, TrashIcon } from "./icons";
 import { CloseConfirm } from "./CloseConfirm";
+import { ContextMenu, contextMenuPos, type ContextMenuPos } from "./ContextMenu";
 
 const DRAG_MIME = "application/x-termany-node";
 const ACTIVITY_STATUSES = ["working", "done", "error"] as const;
 type TreeDropPos = "into" | "before" | "after";
 type NodeDragUi = { id: string; targetId: string | null; pos: TreeDropPos | null; overTree: boolean };
+
+const SIDEBAR_WIDTH_KEY = "termany.sidebarWidth";
+const SIDEBAR_DEFAULT_WIDTH = 240;
+const SIDEBAR_MIN_WIDTH = 180;
+const SIDEBAR_MAX_WIDTH = 480;
+
+function clampSidebarWidth(width: number): number {
+  return Math.round(Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width)));
+}
+
+function loadSidebarWidth(): number {
+  try {
+    const stored = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
+    return stored ? clampSidebarWidth(stored) : SIDEBAR_DEFAULT_WIDTH;
+  } catch {
+    return SIDEBAR_DEFAULT_WIDTH;
+  }
+}
+
+function saveSidebarWidth(width: number) {
+  try {
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
+  } catch {
+    /* localStorage may be blocked; the in-memory width still applies. */
+  }
+}
 
 function paneLeafIds(pane: TreeNode["htabs"][number]["layout"]): string[] {
   return pane.kind === "leaf" ? [pane.id] : pane.children.flatMap(paneLeafIds);
@@ -97,33 +124,83 @@ function ActivityCounts({ activity }: { activity: ReturnType<typeof agentActivit
 /**
  * One row of the ACTIVE section: a page with agent work in its own panes,
  * lifted out of the tree so it's reachable without scrolling a long sidebar.
- * Deliberately not draggable and without the add/delete actions — it's a
- * shortcut to the page, not a second place to reorganize the tree.
+ * Deliberately not draggable and without the inline add/delete buttons — it's
+ * a shortcut to the page, not a second place to reorganize the tree. The one
+ * exception is Close in its context menu, so a finished agent page can be
+ * dismissed without hunting for it in the tree.
  */
 function ActiveItem({ entry }: { entry: ActiveEntry }) {
+  const { t } = useI18n();
   const { node, trail, activity } = entry;
   const activeId = useStore(activePageId);
+  const elsewhere = useStore((s) => s.takenPages.has(node.id));
   const setActiveNode = useStore((s) => s.setActiveNode);
+  const deleteNode = useStore((s) => s.deleteNode);
+  const [menu, setMenu] = useState<ContextMenuPos | null>(null);
+  const [pendingClose, setPendingClose] = useState<{ working: number; error: number } | null>(null);
   const viewedLeafIds = node.htabs
     .filter((tab) => tab.id === node.activeHTab)
     .flatMap((tab) => paneLeafIds(tab.layout));
 
+  // Always confirm: this deletes the page and its children, which the flat
+  // list doesn't show. The dialog also lists any agent work it would kill.
+  const requestClose = () => {
+    setMenu(null);
+    const blockers = closeBlockers(agentActivitySummaryForSessions(ownedSessionIds(subtreeLeafIds(node))));
+    setPendingClose(blockers ?? { working: 0, error: 0 });
+  };
+
   return (
-    <div
-      className={`tree-row active-item ${node.id === activeId ? "active" : ""}`}
-      title={[...trail, node.title].join(" / ")}
-      onClick={() => {
-        setActiveNode(node.id);
-        acknowledgeAgentActivities(viewedLeafIds);
-      }}
-    >
-      <span className="tree-twisty leaf">
-        <PageIcon />
-      </span>
-      <span className="tree-title">{node.title}</span>
-      {trail.length > 0 && <span className="tree-crumb">{trail[trail.length - 1]}</span>}
-      <ActivityCounts activity={activity} />
-    </div>
+    <>
+      <div
+        className={`tree-row active-item ${node.id === activeId ? "active" : ""}`}
+        title={[...trail, node.title].join(" / ")}
+        onClick={() => {
+          setActiveNode(node.id);
+          acknowledgeAgentActivities(viewedLeafIds);
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setMenu(contextMenuPos(e, 1));
+        }}
+      >
+        <span className="tree-twisty leaf">
+          <PageIcon />
+        </span>
+        <span className="tree-title">{node.title}</span>
+        {trail.length > 0 && <span className="tree-crumb">{trail[trail.length - 1]}</span>}
+        <ActivityCounts activity={activity} />
+      </div>
+      {menu && (
+        <ContextMenu pos={menu} onDismiss={() => setMenu(null)}>
+          <button
+            type="button"
+            role="menuitem"
+            className="danger"
+            autoFocus
+            disabled={elsewhere}
+            title={elsewhere ? t("sidebar.openInOtherWindow") : undefined}
+            onClick={requestClose}
+          >
+            <CloseIcon />
+            <span>{t("common.close")}</span>
+          </button>
+        </ContextMenu>
+      )}
+      {pendingClose && (
+        <CloseConfirm
+          kind="page"
+          name={node.title}
+          working={pendingClose.working}
+          error={pendingClose.error}
+          onConfirm={() => {
+            deleteNode(node.id);
+            setPendingClose(null);
+          }}
+          onClose={() => setPendingClose(null)}
+        />
+      )}
+    </>
   );
 }
 
@@ -154,6 +231,7 @@ function TreeItem({
   const moveNode = useStore((s) => s.moveNode);
   const moveHTab = useStore((s) => s.moveHTab);
   const [editing, setEditing] = useState(false);
+  const [menu, setMenu] = useState<ContextMenuPos | null>(null);
   const [pendingClose, setPendingClose] = useState<{ working: number; error: number } | null>(null);
   const ime = useImeGuard();
   // Where a drag over this row would land: nest into it, or reorder as a
@@ -168,6 +246,14 @@ function TreeItem({
     .filter((tab) => tab.id === node.activeHTab)
     .flatMap((tab) => paneLeafIds(tab.layout));
   const activity = agentActivitySummary(allLeafIds);
+
+  // Shared by the × button and the context menu's Delete. Always confirms —
+  // it takes every child page with it; the dialog also lists any agent work
+  // that would be killed.
+  const requestDelete = () => {
+    const blockers = closeBlockers(agentActivitySummaryForSessions(ownedSessionIds(allLeafIds)));
+    setPendingClose(blockers ?? { working: 0, error: 0 });
+  };
 
   return (
     <>
@@ -192,6 +278,10 @@ function TreeItem({
         }}
         onPointerDown={(e) => {
           if (!editing) onNodePointerDown(node.id, e);
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          if (!editing) setMenu(contextMenuPos(e, 2));
         }}
         onDragStart={(e) => {
           e.dataTransfer.setData(DRAG_MIME, node.id);
@@ -297,11 +387,7 @@ function TreeItem({
             title={t("sidebar.deletePageTree")}
             onClick={(e) => {
               e.stopPropagation();
-              const blockers = closeBlockers(
-                agentActivitySummaryForSessions(ownedSessionIds(subtreeLeafIds(node))),
-              );
-              if (blockers) setPendingClose(blockers);
-              else deleteNode(node.id);
+              requestDelete();
             }}
           >
             <CloseIcon />
@@ -327,6 +413,37 @@ function TreeItem({
             consumeSuppressedClick={consumeSuppressedClick}
           />
         ))}
+      {menu && (
+        <ContextMenu pos={menu} onDismiss={() => setMenu(null)}>
+          <button
+            type="button"
+            role="menuitem"
+            autoFocus
+            onClick={() => {
+              setMenu(null);
+              setEditing(true);
+            }}
+          >
+            <EditIcon />
+            <span>{t("common.edit")}</span>
+          </button>
+          <div className="agent-context-menu-separator" />
+          <button
+            type="button"
+            role="menuitem"
+            className="danger"
+            disabled={elsewhere}
+            title={elsewhere ? t("sidebar.openInOtherWindow") : undefined}
+            onClick={() => {
+              setMenu(null);
+              requestDelete();
+            }}
+          >
+            <TrashIcon />
+            <span>{t("common.delete")}</span>
+          </button>
+        </ContextMenu>
+      )}
       {pendingClose && (
         <CloseConfirm
           kind="page"
@@ -357,7 +474,38 @@ export function TreeSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [activeCollapsed, setActiveCollapsed] = useState(false);
   const [nodeDrag, setNodeDrag] = useState<NodeDragUi | null>(null);
+  const [width, setWidth] = useState(loadSidebarWidth);
   const treeRef = useRef<HTMLDivElement>(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+
+  // Drag the right edge to resize; double-click restores the default width.
+  const startResize = (e: ReactPointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const left = sidebarRef.current?.getBoundingClientRect().left ?? 0;
+    let latest = width;
+    const onMove = (ev: PointerEvent) => {
+      latest = clampSidebarWidth(ev.clientX - left);
+      setWidth(latest);
+    };
+    const onUp = () => {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      saveSidebarWidth(latest);
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+  };
+  const resetWidth = () => {
+    setWidth(SIDEBAR_DEFAULT_WIDTH);
+    saveSidebarWidth(SIDEBAR_DEFAULT_WIDTH);
+  };
 
   // Keep the active page on screen. Creating a page (⌘N / ⌘⏎) appends it below
   // everything else, which in a long tree lands outside the scroll viewport —
@@ -492,7 +640,7 @@ export function TreeSidebar() {
   }, [moveNode, ws.id]);
 
   return (
-    <div className="sidebar">
+    <div className="sidebar" ref={sidebarRef} style={{ width }}>
       {!botEnabled && (
         <button className="sidebar-workspace-switcher" title={ws.title} onClick={toggleWorkspaceSwitcher}>
           <span className={`ws-avatar${ws.icon ? " emoji" : ""}`} aria-hidden="true">
@@ -583,6 +731,7 @@ export function TreeSidebar() {
             />
           ))}
       </div>
+      <div className="sidebar-resizer" onPointerDown={startResize} onDoubleClick={resetWidth} />
     </div>
   );
 }

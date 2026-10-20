@@ -19,13 +19,14 @@ import {
   subscribeAgentActivity,
   type AgentActivityStatus,
 } from "../terminal/manager";
-import { ChevronIcon, CloseIcon, PanelIcon, PanelRightIcon, PlusIcon } from "./icons";
+import { ChevronIcon, CloseIcon, EditIcon, PanelIcon, PanelRightIcon, PlusIcon } from "./icons";
 import { CloseConfirm } from "./CloseConfirm";
+import { ContextMenu, contextMenuPos, type ContextMenuPos } from "./ContextMenu";
 
 /**
  * Top tab strip. Notion-style, the workspace controls sit at the very left,
  * before the first tab: collapse the sidebar, then step prev/next workspace.
- * Tabs are double-click-to-rename.
+ * Tabs are double-click-to-rename, and right-click for Rename / Close.
  */
 function leafIds(pane: Pane): string[] {
   return pane.kind === "leaf" ? [pane.id] : pane.children.flatMap(leafIds);
@@ -60,6 +61,7 @@ export function HTabBar() {
     working: number;
     error: number;
   } | null>(null);
+  const [menu, setMenu] = useState<(ContextMenuPos & { id: string }) | null>(null);
   const suppressClickRef = useRef(false);
   const stripRef = useRef<HTMLDivElement>(null);
   const titleBar = useTitleBarGesture();
@@ -178,6 +180,13 @@ export function HTabBar() {
     window.addEventListener("pointercancel", onUp);
   };
 
+  // Closing a tab always asks first; the dialog also lists any agent work in
+  // its panes that closing would kill.
+  const requestClose = (id: string, title: string, ids: string[]) => {
+    const blockers = closeBlockers(agentActivitySummaryForSessions(ownedSessionIds(ids)));
+    setPendingClose({ id, title, ...(blockers ?? { working: 0, error: 0 }) });
+  };
+
   // The bar doubles as the window's title bar: its empty parts drag the window
   // and zoom it on a double-click. Both background elements are marked, so the
   // gesture covers the whole bar minus the tabs and buttons — the strip is
@@ -209,6 +218,10 @@ export function HTabBar() {
               }}
               onDoubleClick={() => setEditing(h.id)}
               onPointerDown={(e) => startTabDrag(h.id, e)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                if (editing !== h.id) setMenu({ id: h.id, ...contextMenuPos(e, 2) });
+              }}
             >
               {ACTIVITY_STATUSES.map((status: AgentActivityStatus) => {
                 const count = activity[status];
@@ -255,11 +268,7 @@ export function HTabBar() {
                     title={withShortcut(t("common.close"), "closePane")}
                     onClick={(e) => {
                       e.stopPropagation();
-                      const blockers = closeBlockers(
-                        agentActivitySummaryForSessions(ownedSessionIds(ids)),
-                      );
-                      if (blockers) setPendingClose({ id: h.id, title: h.title, ...blockers });
-                      else closeHTab(h.id);
+                      requestClose(h.id, h.title, ids);
                     }}
                   >
                     <CloseIcon />
@@ -288,6 +297,39 @@ export function HTabBar() {
       >
         <PanelRightIcon />
       </button>
+      {menu && (() => {
+        const tab = node?.htabs.find((h) => h.id === menu.id);
+        if (!tab) return null;
+        return (
+          <ContextMenu pos={menu} onDismiss={() => setMenu(null)}>
+            <button
+              type="button"
+              role="menuitem"
+              autoFocus
+              onClick={() => {
+                setMenu(null);
+                setEditing(tab.id);
+              }}
+            >
+              <EditIcon />
+              <span>{t("common.edit")}</span>
+            </button>
+            <div className="agent-context-menu-separator" />
+            <button
+              type="button"
+              role="menuitem"
+              className="danger"
+              onClick={() => {
+                setMenu(null);
+                requestClose(tab.id, tab.title, leafIds(tab.layout));
+              }}
+            >
+              <CloseIcon />
+              <span>{t("common.close")}</span>
+            </button>
+          </ContextMenu>
+        );
+      })()}
       {pendingClose && (
         <CloseConfirm
           kind="tab"

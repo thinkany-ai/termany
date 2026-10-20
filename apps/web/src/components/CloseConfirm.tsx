@@ -7,7 +7,9 @@ import { trackCloseConfirmClosed, trackCloseConfirmOpened, type CloseTargetKind 
 
 /**
  * Confirms closing a tab, page, or pane that still holds working (yellow) or
- * errored (red) agent panes. Same shell as the workspace/agent delete
+ * errored (red) agent panes. Page deletes and tab closes from the sidebar and
+ * tab strip always confirm, so both counts can be zero; the reason line is
+ * then left out. Same shell as the workspace/agent delete
  * confirms: backdrop click or Escape cancels, the destructive button stays
  * focused so Enter confirms.
  *
@@ -58,7 +60,7 @@ export function CloseConfirm({
         onClick={(e) => e.stopPropagation()}
       >
         <p className="quit-confirm-text">{t(`closeConfirm.${kind}`, { name })}</p>
-        <p className="close-confirm-reason">
+        {(working > 0 || error > 0) && <p className="close-confirm-reason">
           <span className="close-confirm-counts">
             {working > 0 && (
               <span
@@ -80,7 +82,7 @@ export function CloseConfirm({
             )}
           </span>
           {t("closeConfirm.reason")}
-        </p>
+        </p>}
         <div className="ws-dialog-actions">
           <button className="ws-dialog-btn" onClick={onClose}>
             {t("common.cancel")}
