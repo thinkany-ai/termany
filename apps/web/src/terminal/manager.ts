@@ -21,8 +21,7 @@ import { apiUrl } from "../api";
 import { writeClipboard } from "../clipboard";
 import { applyTextInputProps } from "../textInputProps";
 import { DemoBackend, demoInteracted, isDemo } from "../demo";
-import { ACTIONS, IS_MAC, loadKeybindings, matchChord } from "../keybindings";
-import { isNativePasteShortcut } from "./pasteShortcut";
+import { IS_MAC } from "../keybindings";
 import {
   agentConfirmationPromptVisible,
   agentInputPromptVisible,
@@ -41,11 +40,12 @@ import {
   RESTART_HEALTHY_MS,
   shellExitDisposition,
 } from "./shellExit";
-import { SHIFT_ENTER_DATA, isShiftEnterNewline } from "./shiftEnter";
 import { forgetSessionUrls, noteSessionOutput } from "./servedUrls";
 import { registerWebLinks } from "./webLinks";
 import { fixWebkitGtkImeComposition } from "./webkitGtkIme";
 import { createGlyphAtlasRepairer, onAtlasPagesMerged } from "./glyphAtlas";
+import { isModifierKeyEvent, registerTerminalKeybindings } from "./keyEvents";
+import { resumeOutputFollow, resumeOutputOnInput } from "./scrollFollow";
 import { isMacWebKit } from "./rendererPlatform";
 import {
   defaultColorQueryMask,
@@ -127,9 +127,10 @@ export function noteManualScroll(id: string) {
   // between the wheel gesture and xterm noticing that it left the bottom.
   session.followOutput = false;
   session.lockedViewportY = session.term.buffer.active.viewportY;
+  const scrollUntil = session.manualScrollUntil;
   requestAnimationFrame(() => {
     const latest = sessions.get(id);
-    if (!latest) return;
+    if (latest !== session || latest.manualScrollUntil !== scrollUntil) return;
     const state = readScrollState(latest.term);
     latest.followOutput = state.atBottom;
     latest.lockedViewportY = state.atBottom ? null : latest.term.buffer.active.viewportY;
@@ -981,6 +982,13 @@ function deliverTerminalInput(
   data: string,
   isSubmit = true
 ) {
+  if (resumeOutputOnInput(session, data, readScrollState(term).atBottom)) {
+    if (session.deferredFlushTimer !== null) {
+      window.clearTimeout(session.deferredFlushTimer);
+      session.deferredFlushTimer = null;
+    }
+    flushDeferredOutput(id);
+  }
   if (sshTarget && session.ended) {
     if (/[\r\n]/.test(data)) {
       term.write("\r\n");
@@ -1547,32 +1555,12 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
   // typing IS the terminal), app shortcuts like ⌘W silently did nothing.
   // Step aside for any key that matches a live user shortcut binding so it
   // reaches the app instead of being typed into the shell.
-  term.attachCustomKeyEventHandler((event) => {
-    // Otherwise Ctrl+V can also reach the PTY as SYN (\x16), causing Codex
-    // to read its own image clipboard instead of receiving our paste event.
-    if (isNativePasteShortcut(event, IS_MAC)) return false;
-    if (event.type !== "keydown") return true;
-    const keybindings = loadKeybindings();
-    for (const action of ACTIONS) {
-      if (matchChord(event, keybindings[action.id] ?? action.default)) return false;
-    }
-    // Shift+Enter inserts a newline instead of submitting. xterm encodes it
-    // as a bare CR — byte-identical to Enter — so intercept it here, where
-    // returning false skips xterm's encoding entirely, and send the same
-    // ESC CR bytes Option+Enter already produces (see shiftEnter.ts).
-    // Runs AFTER the shortcut loop so a user rebind of Shift+Enter still wins.
-    if (isShiftEnterNewline(event)) {
-      // Returning false alone only skips xterm's encoding; without
-      // preventDefault the keystroke would also land in xterm's hidden
-      // textarea as a stray newline, and without stopPropagation it would
-      // keep bubbling to the app-level shortcut listener.
-      event.preventDefault();
-      event.stopPropagation();
-      const live = sessions.get(id);
-      if (live) deliverTerminalInput(id, live, live.term, sshTarget, SHIFT_ENTER_DATA, false);
-      return false;
-    }
-    return true;
+  registerTerminalKeybindings(term, undefined, IS_MAC, (data) => {
+    const live = sessions.get(id);
+    if (!live) return;
+    // Synthetic newlines bypass xterm's input encoder and its automatic scroll.
+    live.term.scrollToBottom();
+    deliverTerminalInput(id, live, live.term, sshTarget, data, false);
   });
 
   // Replay the previous run's output tail (server-captured, sanitized) ABOVE
@@ -1984,6 +1972,7 @@ function fixAbandonedImeFinalize(term: Terminal) {
     "keydown",
     (e) => {
       if (!composing || e.target !== ta) return;
+      if (isModifierKeyEvent(e)) return;
       composing = false;
       if (e.keyCode === 229 || MODIFIERS.has(e.keyCode) || e.key === "Enter") return;
       imeLog(`fix:drop-abandoned-composition before ${JSON.stringify(e.key)} ta=${JSON.stringify(ta.value)}`);
@@ -2090,8 +2079,8 @@ export function scrollSessionToBottom(id: string) {
   id = activeSessionId(id);
   const session = sessions.get(id);
   if (!session) return;
-  session.followOutput = true;
-  session.lockedViewportY = null;
+  resumeOutputFollow(session);
+  flushDeferredOutput(id);
   settleSessionAtBottom(id, true);
 }
 
