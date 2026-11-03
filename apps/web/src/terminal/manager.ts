@@ -1386,6 +1386,19 @@ async function uploadClipboardImage(file: File): Promise<string> {
   return String(payload.path);
 }
 
+/** Upload to the SSH pane's remote host; resolves to the path there. */
+async function uploadClipboardImageToRemote(sessionId: string, file: File): Promise<string> {
+  const type = normalizeImageType(file.type) || "image/png";
+  const params = new URLSearchParams({ session: sessionId, type });
+  const res = await fetch(`${apiUrl()}/api/ssh-paste-image?${params}`, {
+    method: "POST",
+    body: file,
+  });
+  const payload = await readJsonResponse(res);
+  if (!res.ok || !payload.path) throw new Error(payload.error ?? `remote upload failed (${res.status})`);
+  return String(payload.path);
+}
+
 function pastedImages(e: ClipboardEvent): File[] {
   const items = Array.from(e.clipboardData?.items ?? []);
   return items
@@ -1818,10 +1831,8 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
     if (sel.trim()) void writeClipboard(sel);
   });
 
-  // Paste image blobs as local file paths only when the active program looks
-  // like an agent/TUI that knows how to turn image paths into image chips.
-  // In a plain shell, inserting the temp path directly is surprising and easy
-  // to submit accidentally.
+  // Paste image blobs as file paths, which agent CLIs turn into image chips.
+  // In an SSH pane the CLI runs on the remote, so the image is uploaded there.
   // Duplicate-fire guard: swallow a second image paste while one is still
   // uploading or within a short cooldown — key auto-repeat on a held ⌘V (and
   // any double-dispatched event) otherwise inserts the same screenshot twice.
@@ -1841,7 +1852,10 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
       if (Date.now() < imagePasteBusyUntil) return;
       imagePasteBusyUntil = Date.now() + 1000;
       void (async () => {
-        const settled = await Promise.allSettled(images.map(uploadClipboardImage));
+        const upload = sshTarget
+          ? (file: File) => uploadClipboardImageToRemote(id, file)
+          : uploadClipboardImage;
+        const settled = await Promise.allSettled(images.map(upload));
         const paths = settled
           .filter((result): result is PromiseFulfilledResult<string> => result.status === "fulfilled")
           .map((result) => result.value);
@@ -1850,15 +1864,8 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
         // receive ONE paste event. Agent CLIs can recognize pasted image paths
         // and render [Image #N] chips instead of echoing raw temp paths.
         if (paths.length) {
-          if (sessionLooksLikeAgentInput(id)) {
-            term.paste(`${paths.join(" ")} `);
-          } else {
-            term.write(
-              `\r\n\x1b[2m[termany] image saved: ${paths.join(" ")} — no TUI input prompt detected here, so the path was not inserted.\x1b[0m\r\n`
-            );
-          }
-        }
-        if (!paths.length) {
+          term.paste(`${paths.join(" ")} `);
+        } else {
           const reason = settled.find(
             (result): result is PromiseRejectedResult => result.status === "rejected"
           )?.reason;

@@ -365,14 +365,18 @@ function normalizeImageType(value: string): string {
   return type;
 }
 
-async function writePastedImage(mime: string, data: Buffer): Promise<{ path: string }> {
+function pastedImageName(mime: string, data: Buffer): string {
   const ext = IMAGE_EXT_BY_MIME[normalizeImageType(mime)];
   if (!ext) throw new Error("unsupported image type");
   if (!data.byteLength) throw new Error("image data is required");
-
-  await fs.promises.mkdir(PASTE_DIR, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const filePath = `${PASTE_DIR}/paste-${stamp}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  return `paste-${stamp}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+}
+
+async function writePastedImage(mime: string, data: Buffer): Promise<{ path: string }> {
+  const fileName = pastedImageName(mime, data);
+  await fs.promises.mkdir(PASTE_DIR, { recursive: true });
+  const filePath = `${PASTE_DIR}/${fileName}`;
   await fs.promises.writeFile(filePath, data);
   return { path: filePath };
 }
@@ -1702,6 +1706,29 @@ const http = createServer((req, res) => {
           return;
         }
         json(200, await writePastedImage(contentType, body));
+      })
+      .catch(fail);
+    return;
+  }
+
+  // The same paste for an SSH pane: the agent CLI reading the path runs on the
+  // remote, so the image goes there, over the pane's own multiplexed
+  // connection — no re-auth, nothing to install remotely.
+  if (req.method === "POST" && reqUrl.pathname === "/api/ssh-paste-image") {
+    const sessionId = reqUrl.searchParams.get("session") ?? "";
+    const contentType = normalizeImageType(
+      reqUrl.searchParams.get("type") ||
+        String(req.headers["content-type"] ?? "").split(";")[0] ||
+        "image/png"
+    );
+    readBuffer(req)
+      .then(async (body) => {
+        try {
+          const fileName = pastedImageName(contentType, body);
+          json(200, { path: await sshPortForwarding.uploadFile(sessionId, fileName, body) });
+        } catch (error) {
+          json(400, { error: error instanceof Error ? error.message : String(error) });
+        }
       })
       .catch(fail);
     return;
