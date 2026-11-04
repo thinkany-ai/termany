@@ -135,3 +135,59 @@ test("does not concatenate unrelated short physical lines", async () => {
   assert.equal(links.length, 1);
   assert.equal(links[0].text, "https://example.com");
 });
+
+const FEISHU_URL =
+  "https://accounts.feishu.cn/oauth/v1/device/verify?flow_id=" +
+  "0ORdRd8SRs4K00000000000SLyoWeU60v3ou-Ks75sJL&user_code=D8DA-EV6L";
+
+test("joins a URL hard-wrapped inside a box narrower than the terminal", async () => {
+  const cols = 100;
+  const width = 58;
+  const rows = [
+    FEISHU_URL.slice(0, width),
+    FEISHU_URL.slice(width, width * 2),
+    FEISHU_URL.slice(width * 2),
+  ].map((row) => new MockLine(`│ ${row.padEnd(width)} │`, cols));
+  const mock = mockTerminal(rows, cols);
+  registerWebLinks(mock.terminal, async () => null);
+
+  for (const y of [1, 2, 3]) {
+    const links = await provide(mock.getProvider(), y);
+    assert.equal(links.length, 1, `line ${y}`);
+    assert.equal(links[0].text, FEISHU_URL);
+    assert.deepEqual(links[0].range.start, { x: 3, y: 1 });
+    assert.deepEqual(links[0].range.end, { x: 2 + FEISHU_URL.length - width * 2, y: 3 });
+  }
+});
+
+test("joins an indented URL continuation wrapped short of the terminal edge", async () => {
+  const cols = 80;
+  const first = "⏺ Open " + FEISHU_URL.slice(0, 70);
+  const mock = mockTerminal(
+    [new MockLine(first, cols), new MockLine("  " + FEISHU_URL.slice(70), cols)],
+    cols
+  );
+  registerWebLinks(mock.terminal, async () => null);
+
+  const links = await provide(mock.getProvider(), 2);
+  assert.equal(links.length, 1);
+  assert.equal(links[0].text, FEISHU_URL);
+  assert.deepEqual(links[0].range.start, { x: 8, y: 1 });
+});
+
+test("does not join a short URL line with the following prose", async () => {
+  const cols = 80;
+  const mock = mockTerminal(
+    [
+      new MockLine("  Visit https://example.com/docs", cols),
+      new MockLine("  then restart the app.", cols),
+    ],
+    cols
+  );
+  registerWebLinks(mock.terminal, async () => null);
+
+  const links = await provide(mock.getProvider(), 1);
+  assert.equal(links.length, 1);
+  assert.equal(links[0].text, "https://example.com/docs");
+  assert.equal((await provide(mock.getProvider(), 2)).length, 0);
+});
