@@ -43,6 +43,7 @@ import {
 import { forgetSessionUrls, noteSessionOutput } from "./servedUrls";
 import { registerWebLinks } from "./webLinks";
 import { fixWebkitGtkImeComposition } from "./webkitGtkIme";
+import { CompositionBoundsAddon } from "./compositionBounds";
 import { createGlyphAtlasRepairer, onAtlasPagesMerged } from "./glyphAtlas";
 import { isModifierKeyEvent, registerTerminalKeybindings } from "./keyEvents";
 import { resumeOutputFollow, resumeOutputOnInput } from "./scrollFollow";
@@ -2016,6 +2017,7 @@ export function attachSession(
   host.appendChild(s.el);
   if (!s.opened) {
     s.term.open(s.el); // el is now in the document — renderer initialises correctly
+    s.term.loadAddon(new CompositionBoundsAddon());
     if (s.term.textarea) applyTextInputProps(s.term.textarea);
     // macOS 26.5+ has a WKWebView/Safari WebGL regression that leaves old
     // terminal frames composited over new ones. Canvas 2D is xterm's supported
