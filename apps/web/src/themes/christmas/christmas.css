@@ -1,24 +1,242 @@
-/* The Christmas scene at the foot of the sidebar (./scene.tsx).
-   The scene is 224 px tall (56 art px x 4). The tree and the snowman must
-   stay visible however many pages there are, so the scene keeps at least
-   192 px and the page tree scrolls instead, down to 96 px of its own. Only
-   the sky at the top is ever cropped: cut off, never scaled. The sky is the
-   sidebar's own background, so the cut edge does not show. */
-html[data-theme="christmas"] .sidebar:has(> .theme-scene) > .tree {
-  flex: 1 1 0;
-  min-height: 96px;
+/* The Christmas theme (see ./backdrop.tsx). The window is a snowy night:
+   the artwork paints behind .app, the sidebar and top bar are frosted glass
+   over it, the pane gutters show it, and the terminals stay opaque cards.
+   Everything is scoped to html[data-theme="christmas"]. */
+
+/* body and #root paint --bg in normal flow, which would cover the artwork
+   (it sits at z-index -1); the page background stays on html. */
+html[data-theme="christmas"] body,
+html[data-theme="christmas"] #root,
+html[data-theme="christmas"] .app {
+  background: transparent;
 }
-html[data-theme="christmas"] .theme-scene {
-  flex: 0 1 224px;
-  min-height: 192px;
+html[data-theme="christmas"] .app {
+  position: relative;
+}
+
+/* ------------------------------------------------------------ the artwork */
+/* z-index -1 inside a non-stacking .app: under every surface, over the page
+   background, and clipped by .app's rounded corners in the desktop shell. */
+.xmas-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+  pointer-events: none;
+  background: #060a1c;
+}
+.xmas-layer {
+  position: absolute;
+  inset: 0;
+}
+.xmas-layer > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.xmas-fore {
+  inset: auto;
+  bottom: 0;
+  transform-origin: 0 100%;
+}
+/* The aurora drifts as a whole layer (a compositor transform, no repaint). */
+.xmas-aurora {
+  mix-blend-mode: screen;
+  will-change: transform;
+  animation: xmas-aurora 26s ease-in-out infinite alternate;
+  transition: filter 1.4s;
+}
+@keyframes xmas-aurora {
+  from { transform: translateX(-40px) scaleY(0.94); opacity: 0.85; }
+  to { transform: translateX(40px) scaleY(1.06); opacity: 1; }
+}
+.xmas-backdrop .tw {
+  animation: xmas-twinkle 4.6s ease-in-out infinite;
+}
+@keyframes xmas-twinkle {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+.xmas-backdrop .bulb {
+  filter: drop-shadow(0 0 2px var(--c)) drop-shadow(0 0 5px var(--c));
+  animation: xmas-bulb 2.6s ease-in-out infinite;
+}
+@keyframes xmas-bulb {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+.xmas-backdrop .star-halo,
+.xmas-backdrop .pathlamp circle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: xmas-halo 4s ease-in-out infinite;
+}
+@keyframes xmas-halo {
+  0%, 100% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+.xmas-backdrop .smoke circle {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: xmas-smoke 7s linear infinite;
+}
+@keyframes xmas-smoke {
+  0% { transform: translate(0, 0) scale(0.5); opacity: 0; }
+  15% { opacity: 0.38; }
+  100% { transform: translate(28px, -70px) scale(2.6); opacity: 0; }
+}
+.xmas-backdrop .window,
+.xmas-backdrop .pool {
+  transition: filter 0.6s, transform 0.8s, opacity 0.8s;
+}
+.xmas-backdrop .pool {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.xmas-backdrop .snowman .arm {
+  transform-box: fill-box;
+  transform-origin: 0% 100%;
+}
+.xmas-backdrop .snowman .eyes {
+  transition: transform 0.3s;
+}
+
+/* An agent is waiting: the aurora turns pink and gold, the tree's lights
+   chase, the star flares, the windows brighten, the snowman waves. */
+html[data-xmas-alert] .xmas-aurora {
+  filter: hue-rotate(185deg) saturate(1.4) brightness(1.15);
+}
+html[data-xmas-alert] .xmas-backdrop .bulb {
+  animation: xmas-bulb-chase 1.2s steps(1) infinite;
+}
+@keyframes xmas-bulb-chase {
+  0% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+html[data-xmas-alert] .xmas-backdrop .star-halo {
+  animation: xmas-halo-alert 1s ease-in-out infinite;
+}
+@keyframes xmas-halo-alert {
+  0%, 100% { transform: scale(1.3); }
+  50% { transform: scale(1.9); }
+}
+html[data-xmas-alert] .xmas-backdrop .window {
+  filter: brightness(1.25) drop-shadow(0 0 6px #ffb24a);
+}
+html[data-xmas-alert] .xmas-backdrop .pool {
+  transform: scale(1.25);
+}
+html[data-xmas-alert] .xmas-backdrop .snowman .arm {
+  animation: xmas-wave 0.8s ease-in-out infinite;
+}
+@keyframes xmas-wave {
+  0%, 100% { transform: rotate(-30deg); }
+  50% { transform: rotate(-58deg); }
+}
+html[data-xmas-alert] .xmas-backdrop .snowman .eyes {
+  transform: translate(1.2px, -0.6px);
+}
+
+/* ------------------------------------------------------------ overlays */
+.xmas-garland {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 64px;
+  z-index: 61;
   pointer-events: none;
 }
-html[data-theme="christmas"] .christmas-scene {
+.xmas-garland > svg {
   display: block;
-  flex: none;
-  image-rendering: pixelated;
+}
+.xmas-garland .g-bulb {
+  filter: drop-shadow(0 0 3px var(--c)) drop-shadow(0 0 8px var(--c));
+  animation: xmas-bulb 3.2s ease-in-out infinite;
+}
+html[data-xmas-alert] .xmas-garland .g-bulb {
+  animation: xmas-bulb-chase 1.2s steps(1) infinite;
+}
+.xmas-fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 60;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------ surfaces */
+/* Frosted at the top of the sidebar, clear at the bottom where the vignette
+   stands. The page list keeps clear of the vignette and scrolls instead. */
+html[data-theme="christmas"] .sidebar {
+  isolation: isolate;
+  background: transparent;
+  padding-bottom: clamp(96px, 34vh, 290px);
+}
+html[data-theme="christmas"] .sidebar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgba(10, 14, 32, 0.6);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  -webkit-mask-image: linear-gradient(to top, transparent 0, transparent clamp(60px, 26vh, 230px), #000 clamp(110px, 36vh, 300px));
+  mask-image: linear-gradient(to top, transparent 0, transparent clamp(60px, 26vh, 230px), #000 clamp(110px, 36vh, 300px));
+  pointer-events: none;
+}
+html[data-theme="christmas"] .htabbar {
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+
+/* Snow on top of every pane card, with a few icicles. It stays within the
+   header's top 12 px, clear of the title. */
+html[data-theme="christmas"] .pane-slot::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 12px;
+  z-index: 9;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='12'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23ffffff'/%3E%3Cstop offset='1' stop-color='%23b9c7ea'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M0 0 H120 V4 Q114 7 108 4.5 Q100 8 92 4 L90 4 L88 11 L86 4 Q78 7 70 4.5 Q62 8 54 4 Q47 7 40 4.5 L38 4.5 L36.5 9 L35 4.5 Q27 8 20 4 Q12 7 6 4.5 Q3 6 0 4 Z' fill='url(%23g)'/%3E%3C/svg%3E") repeat-x top left / 120px 12px;
+}
+
+/* A pane whose agent finished and waits for you: a string of lights runs
+   round its border until you focus it. */
+html[data-theme="christmas"] .pane-slot[data-xmas-waiting]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  border: 3px dotted #ff4d5e;
+  border-radius: var(--pane-slot-radius);
+  box-shadow: 0 0 10px rgba(255, 120, 90, 0.45), inset 0 0 8px rgba(255, 120, 90, 0.25);
+  animation: xmas-pane-lights 1.2s steps(1) infinite;
+}
+@keyframes xmas-pane-lights {
+  0% { border-color: #ff4d5e; }
+  33% { border-color: #ffc24a; }
+  66% { border-color: #5aa8ff; }
+}
+
+/* ------------------------------------------------------------ resting */
+html.xmas-rest .xmas-backdrop *,
+html.xmas-rest .xmas-backdrop,
+html.xmas-rest .xmas-garland *,
+html.xmas-rest[data-theme="christmas"] .pane-slot::after {
+  animation-play-state: paused !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .xmas-backdrop,
+  .xmas-backdrop *,
+  .xmas-garland *,
+  html[data-theme="christmas"] .pane-slot::after {
+    animation: none !important;
+  }
 }

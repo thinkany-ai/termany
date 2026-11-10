@@ -1,5 +1,5 @@
-// Shared by the seasonal sidebar scenes (Halloween, Christmas): which pane, if
-// any, a scene character should look at, read from the pane headers.
+// Shared by the seasonal themes (Halloween, Christmas): which panes have an
+// agent that is working or waiting for the user, read from the pane headers.
 
 type Status = "working" | "done" | "error" | "none";
 
@@ -19,15 +19,11 @@ export class AgentWatch {
   private last = new Map<string, Status>();
   private waiting = new Set<string>();
 
-  /**
-   * `eyeX`/`eyeY` are the viewer's eyes in client px. `target` is the offset
-   * from the eyes to the pane to look at, in client px, or null.
-   */
-  read(eyeX: number, eyeY: number): { mood: Mood; target: { dx: number; dy: number } | null } {
-    const slots = [...document.querySelectorAll<HTMLElement>(".pane-slot[data-pane-id]")];
-    let waitingPane: HTMLElement | undefined;
-    let workingPane: HTMLElement | undefined;
-    for (const slot of slots) {
+  /** Every pane that is waiting for the user, and every pane whose agent works, in DOM order. */
+  scan(): { waiting: HTMLElement[]; working: HTMLElement[] } {
+    const waiting: HTMLElement[] = [];
+    const working: HTMLElement[] = [];
+    for (const slot of document.querySelectorAll<HTMLElement>(".pane-slot[data-pane-id]")) {
       const id = slot.dataset.paneId!;
       const dot = slot.querySelector(".pane-head .agent-dot");
       const status: Status = dot?.classList.contains("working")
@@ -41,10 +37,20 @@ export class AgentWatch {
       if (prev === "working" && (status === "done" || status === "error")) this.waiting.add(id);
       if (status === "working" || status === "none" || slot.classList.contains("focused")) this.waiting.delete(id);
       this.last.set(id, status);
-      if (this.waiting.has(id)) waitingPane ??= slot;
-      if (status === "working") workingPane ??= slot;
+      if (this.waiting.has(id)) waiting.push(slot);
+      if (status === "working") working.push(slot);
     }
-    const pane = waitingPane ?? workingPane;
+    return { waiting, working };
+  }
+
+  /**
+   * `eyeX`/`eyeY` are the viewer's eyes in client px. `target` is the offset
+   * from the eyes to the pane to look at, in client px, or null.
+   */
+  read(eyeX: number, eyeY: number): { mood: Mood; target: { dx: number; dy: number } | null } {
+    const { waiting, working } = this.scan();
+    const waitingPane = waiting[0];
+    const pane = waitingPane ?? working[0];
     if (!pane) return { mood: "idle", target: null };
     const p = pane.getBoundingClientRect();
     const dx = p.left + p.width / 2 - eyeX;
