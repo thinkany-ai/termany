@@ -1,0 +1,24 @@
+/* The Christmas scene at the foot of the sidebar (./scene.tsx).
+   The scene is 224 px tall (56 art px x 4). The tree and the snowman must
+   stay visible however many pages there are, so the scene keeps at least
+   192 px and the page tree scrolls instead, down to 96 px of its own. Only
+   the sky at the top is ever cropped: cut off, never scaled. The sky is the
+   sidebar's own background, so the cut edge does not show. */
+html[data-theme="christmas"] .sidebar:has(> .theme-scene) > .tree {
+  flex: 1 1 0;
+  min-height: 96px;
+}
+html[data-theme="christmas"] .theme-scene {
+  flex: 0 1 224px;
+  min-height: 192px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+html[data-theme="christmas"] .christmas-scene {
+  display: block;
+  flex: none;
+  image-rendering: pixelated;
+}

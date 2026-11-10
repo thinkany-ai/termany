@@ -1,6 +1,7 @@
 import { applyTermTheme } from "../terminal/manager";
 import { aurora } from "./aurora";
 import { charcoal } from "./charcoal";
+import { christmas } from "./christmas";
 import { codex } from "./codex";
 import { daylight } from "./daylight";
 import { defaultDark } from "./default-dark";
@@ -48,6 +49,7 @@ export const THEMES: Theme[] = [
   bsod,
   excel,
   halloween,
+  christmas,
 ];
 
 /** The bundled themes, i.e. THEMES minus anything registered at runtime. */
