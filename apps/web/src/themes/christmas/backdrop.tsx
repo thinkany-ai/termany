@@ -146,7 +146,8 @@ export default function ChristmasBackdrop() {
         { left: p.left - app.left, top: p.top - app.top, width: p.width, height: p.height },
         { sidebarRight: sb ? sb.right - app.left : 0, topBarBottom: top ? top.bottom - app.top : 36 },
       );
-      fx.launch(route);
+      const land = { left: p.left - app.left, right: p.right - app.left, y: p.top - app.top + 3 };
+      fx.launch(route, land);
       wake();
     };
 

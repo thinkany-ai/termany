@@ -293,6 +293,7 @@ function foreground(rnd: () => number): string {
       <radialGradient id="xm-warm-halo"><stop offset="0" stop-color="#fff0b8" stop-opacity="1"/><stop offset=".22" stop-color="#ffcf6a" stop-opacity=".55"/><stop offset="1" stop-color="#ffb24a" stop-opacity="0"/></radialGradient>
       <radialGradient id="xm-tree-glow"><stop offset="0" stop-color="#ffcf7a" stop-opacity=".35"/><stop offset="1" stop-color="#ffcf7a" stop-opacity="0"/></radialGradient>
       <radialGradient id="xm-snowman" cx=".32" cy=".3"><stop offset="0" stop-color="#ffffff"/><stop offset=".65" stop-color="#e6ecfb"/><stop offset="1" stop-color="#9eaad8"/></radialGradient>
+      <radialGradient id="xm-hare" cx=".35" cy=".3"><stop offset="0" stop-color="#e4def0"/><stop offset=".7" stop-color="#b3a9c8"/><stop offset="1" stop-color="#7f7699"/></radialGradient>
       <filter id="xm-smoke-blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3.2"/></filter>
       <linearGradient id="xm-window" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff1b0"/><stop offset="1" stop-color="#ffb24a"/></linearGradient>
     </defs>
@@ -348,6 +349,23 @@ function foreground(rnd: () => number): string {
     ${steps}
     ${pathLamps}
     <g fill="#ffffff">${snowGlints}</g>
+
+    <g class="hare">
+      <ellipse cx="22" cy="317" rx="1.8" ry="1" fill="#8d9ad0" opacity=".5"/><ellipse cx="14" cy="321" rx="1.8" ry="1" fill="#8d9ad0" opacity=".45"/><ellipse cx="6" cy="318" rx="1.8" ry="1" fill="#8d9ad0" opacity=".4"/>
+      <ellipse cx="40" cy="313.5" rx="11" ry="2.2" fill="#4a5590" opacity=".45"/>
+      <ellipse cx="38" cy="306" rx="8.5" ry="6.6" fill="url(#xm-hare)"/>
+      <ellipse cx="34.5" cy="308.5" rx="5.6" ry="4.6" fill="url(#xm-hare)"/>
+      <circle cx="30" cy="305.5" r="2.5" fill="#f4f6ff"/>
+      <g class="ears">
+        <ellipse cx="43.2" cy="291.6" rx="1.7" ry="5.2" transform="rotate(-14 43.2 296)" fill="#a99fbd"/>
+        <ellipse cx="46.2" cy="291.2" rx="1.8" ry="5.4" transform="rotate(10 46.2 296)" fill="#c4bbd6"/>
+        <ellipse cx="46.3" cy="291.6" rx=".8" ry="3.8" transform="rotate(10 46.2 296)" fill="#e7aab8"/>
+      </g>
+      <ellipse cx="45.6" cy="299.4" rx="4.8" ry="4.1" fill="url(#xm-hare)"/>
+      <circle cx="47.6" cy="298.6" r=".95" fill="#1b1a26"/><circle cx="47.9" cy="298.3" r=".3" fill="#ffffff"/>
+      <circle cx="50.2" cy="300" r=".65" fill="#e98a9a"/>
+      <ellipse cx="45.2" cy="311.6" rx="2.6" ry="1.3" fill="#d9d3e6"/>
+    </g>
 
     <g class="snowman">
       <ellipse cx="218" cy="303" rx="22" ry="4.5" fill="#4a5590" opacity=".45"/>

@@ -1,6 +1,7 @@
 // The Christmas theme's moving overlay, drawn on one canvas over the window:
-// falling snow (never over a terminal) and the firework that flies to a pane
-// whose agent has finished. The route maths is pure, so it is tested in node.
+// falling snow and the odd shooting star (never over a terminal), and the
+// firework that flies to a pane whose agent has finished; its embers settle on
+// the snow on top of that pane. The route maths is pure, so it is tested in node.
 
 export type Pt = [number, number];
 export type Rect = { left: number; top: number; width: number; height: number };
@@ -58,8 +59,12 @@ type SparkColor = keyof typeof SPARK_COLORS;
 const PALETTES: [SparkColor, SparkColor][] = [["gold", "red"], ["gold", "blue"], ["red", "white"], ["green", "gold"]];
 
 type Flake = { x: number; y: number; z: number; ph: number };
-type Rocket = { path: Path; d: number; speed: number; trail: Pt[]; palette: [SparkColor, SparkColor] };
+type Rocket = { path: Path; d: number; speed: number; trail: Pt[]; palette: [SparkColor, SparkColor]; land?: Landing };
 type Spark = { x: number; y: number; vx: number; vy: number; life: number; age: number; c: SparkColor; glitter: boolean; trail: Pt[] };
+/** Where a burst's embers come to rest: the snow along a pane's top edge. */
+export type Landing = { left: number; right: number; y: number };
+type Ember = { x: number; y: number; vx: number; vy: number; age: number; life: number; c: SparkColor; land: Landing; landed: boolean };
+type Meteor = { x: number; y: number; vx: number; vy: number; age: number; life: number };
 
 export class Fx {
   private sprites = new Map<string, HTMLCanvasElement>();
@@ -67,6 +72,9 @@ export class Fx {
   private rockets: Rocket[] = [];
   private sparks: Spark[] = [];
   private flashes: { x: number; y: number; t: number }[] = [];
+  private embers: Ember[] = [];
+  private meteors: Meteor[] = [];
+  private nextMeteor = 4 + Math.random() * 6;
   private launches = 0;
   private w = 0;
   private h = 0;
@@ -85,11 +93,12 @@ export class Fx {
 
   /** True while a rocket or its sparks are still in the air. */
   get busy(): boolean {
-    return this.rockets.length > 0 || this.sparks.length > 0 || this.flashes.length > 0;
+    return this.rockets.length + this.sparks.length + this.flashes.length + this.embers.length + this.meteors.length > 0;
   }
 
-  launch(route: Pt[]): void {
-    this.rockets.push({ path: smoothPath(route), d: 0, speed: 0, trail: [], palette: PALETTES[this.launches++ % PALETTES.length] });
+  /** Fires a rocket along `route`. Its embers settle on `land`, if given. */
+  launch(route: Pt[], land?: Landing): void {
+    this.rockets.push({ path: smoothPath(route), d: 0, speed: 0, trail: [], palette: PALETTES[this.launches++ % PALETTES.length], land });
   }
 
   /**
@@ -112,6 +121,22 @@ export class Fx {
       ctx.globalAlpha = 0.3 + f.z * 0.5;
       ctx.drawImage(flake, f.x - s / 2, f.y - s / 2, s, s);
     }
+    if (snow) {
+      this.nextMeteor -= dt;
+      if (this.nextMeteor <= 0) {
+        this.nextMeteor = 7 + Math.random() * 12;
+        // Start where the sky shows, not behind a terminal.
+        for (let k = 0; k < 12; k++) {
+          const x = this.w * Math.random(), y = this.h * (0.03 + Math.random() * 0.3);
+          if (holes.some((r) => x > r.left - 20 && x < r.left + r.width + 20 && y > r.top - 20 && y < r.top + r.height)) continue;
+          // Fall away from the terminals, steeply, so it stays in view.
+          const dir = holes.some((r) => r.left > x) ? -1 : 1, a = (0.55 + Math.random() * 0.2) * Math.PI / 2, sp = 420 + Math.random() * 180;
+          this.meteors.push({ x, y, vx: Math.cos(a) * sp * dir, vy: Math.sin(a) * sp, age: 0, life: 0.6 + Math.random() * 0.4 });
+          break;
+        }
+      }
+    }
+    this.drawMeteors(dt);
     ctx.globalAlpha = 1;
     for (const r of holes) ctx.clearRect(r.left - 1, r.top + 4, r.width + 2, r.height - 3);
 
@@ -132,7 +157,7 @@ export class Fx {
       ctx.globalAlpha = 1;
       ctx.drawImage(this.sprites.get("white")!, x - 9, y - 9, 18, 18);
       if (r.d >= r.path.total) {
-        this.burst(x, y, r.palette);
+        this.burst(x, y, r.palette, r.land);
         this.rockets.splice(i, 1);
       }
     }
@@ -163,11 +188,75 @@ export class Fx {
         ctx.drawImage(this.sprites.get(s.c)!, tx - sz / 2, ty - sz / 2, sz, sz);
       });
     }
+    this.drawEmbers(dt);
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = "source-over";
   }
 
-  private burst(x: number, y: number, palette: [SparkColor, SparkColor]): void {
+  /** A thin streak that fades in, crosses part of the sky and fades out. */
+  private drawMeteors(dt: number): void {
+    const { ctx } = this;
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineCap = "round";
+    for (let i = this.meteors.length - 1; i >= 0; i--) {
+      const m = this.meteors[i];
+      m.age += dt;
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      const k = m.age / m.life;
+      if (k >= 1) { this.meteors.splice(i, 1); continue; }
+      const a = Math.sin(k * Math.PI), sp = Math.hypot(m.vx, m.vy), len = 70 + 90 * a;
+      const tx = m.x - (m.vx / sp) * len, ty = m.y - (m.vy / sp) * len;
+      const g = ctx.createLinearGradient(m.x, m.y, tx, ty);
+      g.addColorStop(0, `rgba(255,250,235,${(0.95 * a).toFixed(3)})`);
+      g.addColorStop(0.25, `rgba(190,215,255,${(0.45 * a).toFixed(3)})`);
+      g.addColorStop(1, "rgba(150,180,255,0)");
+      ctx.strokeStyle = g;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(m.x, m.y);
+      ctx.lineTo(tx, ty);
+      ctx.stroke();
+      ctx.globalAlpha = a;
+      ctx.drawImage(this.sprites.get("white")!, m.x - 5, m.y - 5, 10, 10);
+      ctx.globalAlpha = 1;
+    }
+    ctx.globalCompositeOperation = "source-over";
+  }
+
+  /** Embers arc out of the burst, fall, and glow on the pane's snow a while. */
+  private drawEmbers(dt: number): void {
+    const { ctx } = this;
+    for (let i = this.embers.length - 1; i >= 0; i--) {
+      const e = this.embers[i];
+      e.age += dt;
+      if (!e.landed) {
+        e.vy += 260 * dt;
+        e.x += e.vx * dt;
+        e.y += e.vy * dt;
+        if (e.vy > 0 && e.y >= e.land.y) {
+          if (e.x > e.land.left + 4 && e.x < e.land.right - 4) {
+            e.landed = true;
+            e.y = e.land.y - Math.random() * 2;
+            e.age = 0;
+          } else if (e.y > e.land.y + 40) e.age = e.life;
+        }
+      }
+      if (e.age >= e.life) { this.embers.splice(i, 1); continue; }
+      const k = e.age / e.life;
+      const glow = e.landed ? (1 - k) * (0.7 + 0.3 * Math.sin(e.age * 9 + i)) : 1;
+      const s = e.landed ? 6 + 5 * (1 - k) : 6;
+      if (e.landed) {
+        ctx.globalAlpha = glow * 0.5;
+        ctx.drawImage(this.sprites.get(e.c)!, e.x - s * 1.8, e.y - s, s * 3.6, s * 2);
+      }
+      ctx.globalAlpha = glow;
+      ctx.drawImage(this.sprites.get(e.c)!, e.x - s / 2, e.y - s / 2, s, s);
+      ctx.drawImage(this.sprites.get("white")!, e.x - s / 4, e.y - s / 4, s / 2, s / 2);
+    }
+  }
+
+  private burst(x: number, y: number, palette: [SparkColor, SparkColor], land?: Landing): void {
     this.flashes.push({ x, y, t: 0 });
     for (let i = 0; i < 170; i++) {
       const a = Math.random() * Math.PI * 2, sp = 140 + Math.random() * 230;
@@ -177,6 +266,12 @@ export class Fx {
     for (let i = 0; i < 40; i++) {
       const a = (i / 40) * Math.PI * 2;
       this.sparks.push({ x, y, vx: Math.cos(a) * 95, vy: Math.sin(a) * 80, life: 2.6, age: 0, c: "white", glitter: true, trail: [] });
+    }
+    if (land) {
+      for (let i = 0; i < 44; i++) {
+        const dir = i % 2 ? 1 : -1;
+        this.embers.push({ x, y, vx: dir * (20 + Math.random() * 200), vy: -(50 + Math.random() * 130), age: 0, life: 3 + Math.random() * 2, c: i % 5 === 0 ? "white" : palette[i % 2], land, landed: false });
+      }
     }
   }
 }
