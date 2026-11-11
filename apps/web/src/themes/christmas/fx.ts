@@ -14,9 +14,9 @@ export type Rect = { left: number; top: number; width: number; height: number };
  */
 export function rocketRoute(from: Pt, pane: Rect, layout: { sidebarRight: number; topBarBottom: number }): Pt[] {
   const lane = Math.max(12, layout.topBarBottom / 2);
-  const side = Math.max(from[0] + 4, layout.sidebarRight - 14);
+  const side = Math.max(from[0], layout.sidebarRight - 14);
   const cx = pane.left + pane.width / 2;
-  const pts: Pt[] = [from, [from[0] + 4, from[1] - 60], [side, Math.max(lane + 120, from[1] - 220)], [side, lane + 40], [side + 50, lane]];
+  const pts: Pt[] = [from, [side, from[1] - 60], [side, Math.max(lane + 120, from[1] - 220)], [side, lane + 40], [side + 50, lane]];
   if (pane.top - layout.topBarBottom < 40) {
     pts.push([cx - 60, lane], [cx, lane + 4]);
   } else {

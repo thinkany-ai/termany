@@ -58,3 +58,13 @@ test("a rocket flies round the panes and bursts just above the waiting one", () 
     for (const p of path.pts) for (const r of [left, topRight, bottomRight]) assert.ok(!inside(p, r), `crosses a pane at ${p}`);
   }
 });
+
+test("with the sidebar hidden, a rocket rises in the gap left of the panes", () => {
+  const layout = { sidebarRight: 0, topBarBottom: 36 };
+  const left: Rect = { left: 8, top: 44, width: 600, height: 744 };
+  const right: Rect = { left: 616, top: 44, width: 600, height: 744 };
+  for (const pane of [left, right]) {
+    const path = smoothPath(rocketRoute([4, 788], pane, layout));
+    for (const p of path.pts) for (const r of [left, right]) assert.ok(!inside(p, r), `crosses a pane at ${p}`);
+  }
+});

@@ -106,8 +106,11 @@ export default function ChristmasBackdrop() {
         raf = requestAnimationFrame(frame);
       }
       window.clearTimeout(restTimer);
-      // Look again when the rest timer runs out, so the CSS animations pause too.
-      restTimer = window.setTimeout(() => wake(), REST_AFTER_MS + 50);
+      // Draw one more frame when the rest timer runs out, so the CSS
+      // animations pause too.
+      restTimer = window.setTimeout(() => {
+        if (!raf && !disposed) raf = requestAnimationFrame(frame);
+      }, REST_AFTER_MS + 50);
     };
 
     const onInput = () => {
@@ -141,10 +144,16 @@ export default function ChristmasBackdrop() {
       const p = pane.getBoundingClientRect();
       const top = document.querySelector(".htabbar")?.getBoundingClientRect();
       const sb = sidebarRect();
+      // With the sidebar hidden the snowman is behind the panes, so the rocket
+      // rises from the gap left of them instead.
+      const mainLeft = (document.querySelector(".main")?.getBoundingClientRect().left ?? app.left) - app.left;
+      const from: [number, number] = sb
+        ? [f.left - app.left + HAND[0] * foreScale, f.top - app.top + HAND[1] * foreScale]
+        : [mainLeft + 4, app.height - 12];
       const route = rocketRoute(
-        [f.left - app.left + HAND[0] * foreScale, f.top - app.top + HAND[1] * foreScale],
+        from,
         { left: p.left - app.left, top: p.top - app.top, width: p.width, height: p.height },
-        { sidebarRight: sb ? sb.right - app.left : 0, topBarBottom: top ? top.bottom - app.top : 36 },
+        { sidebarRight: sb ? sb.right - app.left : mainLeft, topBarBottom: top ? top.bottom - app.top : 36 },
       );
       const land = { left: p.left - app.left, right: p.right - app.left, y: p.top - app.top + 3 };
       fx.launch(route, land);
