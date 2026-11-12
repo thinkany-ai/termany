@@ -195,7 +195,7 @@ html[data-xmas-alert] .xmas-garland .g-bulb {
 html[data-theme="christmas"] .sidebar {
   isolation: isolate;
   background: transparent;
-  padding-bottom: min(calc(var(--xmas-fore-h, 346px) - 44px), 46vh);
+  padding-bottom: min(calc(var(--xmas-fore-h, 346px) - 24px), 48vh);
 }
 html[data-theme="christmas"] .sidebar::before {
   content: "";

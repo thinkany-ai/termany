@@ -295,10 +295,12 @@ function fir(tx: number): { defs: string; body: string; lights: string } {
     if (rims) body += `<path d="${rims}" fill="none" stroke="#8fe0b0" stroke-width=".7" opacity=".22" stroke-linecap="round"/>`;
     body += `<path d="${snowShade}" fill="none" stroke="#06231a" stroke-width="1.1" opacity=".26" transform="translate(0 .9)"/>${snow}`;
 
-    // A string of lights swags across the tier.
+    // A string of lights swags across the tier, its ends inside the outline.
     const nb = [10, 9, 7, 6, 4, 0][i];
     if (nb) {
-      const A: Pt = [tx - hw * 0.86, bot - (bot - top) * 0.2], B: Pt = [tx - hw * 0.05, bot + 3], C: Pt = [tx + hw * 0.88, bot - (bot - top) * 0.46];
+      const halfAt = (y: number) => (hw * (y - top)) / (bot - top);
+      const yA = bot - (bot - top) * 0.24, yC = bot - (bot - top) * 0.5;
+      const A: Pt = [tx - halfAt(yA) * 0.9, yA], B: Pt = [tx - hw * 0.08, bot + 1], C: Pt = [tx + halfAt(yC) * 0.86, yC];
       wires += `M${P(A)} Q${P(B)} ${P(C)}`;
       for (let k = 0; k < nb; k++) {
         const t = (k + 0.5) / nb;
@@ -417,7 +419,9 @@ function foreground(rnd: () => number): string {
     return `<circle cx="104" cy="${y}" r="2.6"/><circle cx="200" cy="${y}" r="2.6"/>`;
   }).join("");
   const stones = Array.from({ length: 9 }, (_, i) => `<ellipse cx="${108 + i * 11.2}" cy="${266.5 + (i % 2) * 0.8}" rx="5.6" ry="2.9"/>`).join("");
-  const smoke = [0, 1, 2, 3, 4].map((i) => `<circle cx="189" cy="140" r="${6 + i}" fill="#b4bbe0" style="animation-delay:${-i * 1.4}s"/>`).join("");
+  // The side wall's logs recede to the right, towards the back corner.
+  const sideLogs = Array.from({ length: 8 }, (_, i) => `<line x1="200" x2="232" y1="${n1(220 + i * 6.5)}" y2="${n1(210.5 + i * 6.6)}"/>`).join("");
+  const smoke = [0, 1, 2, 3, 4].map((i) => `<circle cx="203" cy="138" r="${6 + i}" fill="#b4bbe0" style="animation-delay:${-i * 1.4}s"/>`).join("");
   const back = [snowyPine(118, 222, 64), snowyPine(140, 218, 50), snowyPine(230, 226, 72), snowyPine(208, 222, 46), snowyPine(14, 214, 54)];
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${FW}" height="${FH}" viewBox="0 0 ${FW} ${FH}" overflow="visible">
@@ -431,6 +435,7 @@ function foreground(rnd: () => number): string {
       <linearGradient id="xm-wall" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9a4e36"/><stop offset="1" stop-color="#5e2a1f"/></linearGradient>
       <linearGradient id="xm-side-wall" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4f2219"/><stop offset="1" stop-color="#3a1913"/></linearGradient>
       <linearGradient id="xm-roof-snow" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#c9d3f2"/></linearGradient>
+      <linearGradient id="xm-roof-side" gradientUnits="userSpaceOnUse" x1="168" y1="152" x2="232" y2="212"><stop offset="0" stop-color="#dce3f8"/><stop offset=".55" stop-color="#aab6e3"/><stop offset="1" stop-color="#8592c8"/></linearGradient>
       <linearGradient id="xm-gift-shade" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ffffff" stop-opacity=".18"/><stop offset=".5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".32"/></linearGradient>
       <linearGradient id="xm-spill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffc06a" stop-opacity=".75"/><stop offset="1" stop-color="#ffc06a" stop-opacity="0"/></linearGradient>
       <linearGradient id="xm-hat" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3d3d58"/><stop offset=".4" stop-color="#22222f"/><stop offset="1" stop-color="#121219"/></linearGradient>
@@ -454,10 +459,25 @@ function foreground(rnd: () => number): string {
     <path d="${back.map((p) => p.snow).join("")}" fill="#9fb0e4" opacity=".55"/>
 
     <g class="cabin">
-      <path d="M200 222 L238 210 L238 262 L200 270 Z" fill="url(#xm-side-wall)"/>
-      <path d="M196 220 L242 206 L250 212 L200 228 Z" fill="#2b1f2e"/>
-      <path d="M194 218 L242 203 L252 210 C 250 216 246 214 244 212 L200 226 Z" fill="url(#xm-roof-snow)"/>
-      <rect x="182" y="150" width="14" height="34" fill="#4b3a48"/><path d="M182 160 h14 M182 170 h14 M189 160 v10 M185 170 v10 M193 170 v10" stroke="#3a2b38" stroke-width=".8"/><rect x="179" y="145" width="20" height="8" rx="3.5" fill="#f2f6ff"/>
+      <path d="M200 214 L232 204 L232 264 L200 270 Z" fill="url(#xm-side-wall)"/>
+      <g stroke="#2a110c" stroke-width=".9" opacity=".55">${sideLogs}</g>
+      <path d="M200 214 L232 204 L232 213 L200 224 Z" fill="#1d0f0c" opacity=".45"/>
+      <path d="M152 157 L184 147 L250 206 L218 216 Z" fill="url(#xm-roof-side)"/>
+      <path d="M184 147 Q190 150 197 156.6 L250 206" fill="none" stroke="#eef2ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M200 167 q8 1 14 9 M222 188 q6 1 10 7" fill="none" stroke="#f4f7ff" stroke-width="1.2" opacity=".5" stroke-linecap="round"/>
+      <path d="M218 216 L250 206 L250 210.5 L218 221 Z" fill="#2b1f2e"/>
+      <path d="M220 218 l1.4 5 l1.4 -5 M229 215.4 l1.2 6 l1.2 -6 M237 213 l1 4 l1 -4 M244.6 210.6 l1 5 l1 -5" fill="#d6dff8"/>
+      <path d="M152 157 L184 147" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round"/>
+      <path d="M196 151 h12 v34 h-12 Z" fill="#5a4656"/><path d="M208 151 l4 -1.2 v33 l-4 2.2 Z" fill="#3a2b38"/>
+      <path d="M196 160 h12 M196 169 h12 M196 178 h12 M202 151 v9 M199 160 v9 M205 169 v9 M202 178 v7" stroke="#3a2b38" stroke-width=".8"/>
+      <path d="M193 186 q9 -6 21 -3 q-2 4 -10 5 q-7 .4 -11 -2 Z" fill="#e4eaff"/>
+      <path d="M193.6 147 q.4 -3.4 4 -3.6 h11.6 q4 .2 4.4 3.4 q-.6 3 -4 3.4 h-12 q-3.6 -.4 -4 -3.2 Z" fill="#f4f7ff"/>
+      <path d="M196 150.6 h16" stroke="#aab6e2" stroke-width=".8" opacity=".7"/>
+      <g class="woodpile">
+        <path d="M234 276 h16 v-12 q-8 -4 -16 0 Z" fill="#3a1d14"/>
+        <g fill="#b0714c" stroke="#5e2a1f" stroke-width=".6"><circle cx="237" cy="273" r="2.6"/><circle cx="242.4" cy="273" r="2.6"/><circle cx="247.8" cy="273" r="2.6"/><circle cx="239.7" cy="268.4" r="2.6"/><circle cx="245.1" cy="268.4" r="2.6"/></g>
+        <path d="M233 266 q4 -5.4 9.6 -4.6 q5.6 -.6 8.6 4.2 q-4 1.6 -9 .8 q-5.4 1.2 -9.2 -.4 Z" fill="#eef2ff"/>
+      </g>
       <path d="M104 214 L152 172 L200 214 L200 270 L104 270 Z" fill="url(#xm-wall)"/>
       <g stroke="#4a1f17" stroke-width="1" opacity=".5">${logs}</g>
       <g fill="#b0714c" stroke="#5e2a1f" stroke-width=".8">${logEnds}</g>
@@ -510,6 +530,12 @@ function foreground(rnd: () => number): string {
     <g fill="#ffffff">${snowGlints}</g>
     <path d="M-10 ${FH} L-10 338 C 30 330, 80 332, 120 342 C 160 352, 210 346, 275 339 L275 ${FH} Z" fill="url(#xm-drift)"/>
     <path d="M-10 338 C 30 330, 80 332, 120 342 C 160 352, 210 346, 275 339" fill="none" stroke="#ffffff" stroke-width="1.4" opacity=".9"/>
+    <path d="M20 346 C 50 341, 80 344, 104 352 M150 356 C 180 352, 210 351, 240 348" fill="none" stroke="#9aa6dc" stroke-width="2.4" opacity=".35" stroke-linecap="round" filter="url(#xm-soft)"/>
+    <g fill="none" stroke="#6b5a74" stroke-width=".9" stroke-linecap="round" opacity=".8">
+      <path d="M8 335 q-1 -9 -4 -15 M10 334.6 q1 -10 5 -14 M12.4 334.4 q0 -6 2 -9 M6 335.2 q-3 -5 -6.6 -7"/>
+      <path d="M232 344 q1 -8 -1 -13 M234.4 343.6 q2 -7 6 -10 M229.6 344.2 q-2 -5 -5 -6.4"/>
+    </g>
+    <g fill="#f4f7ff"><ellipse cx="4.2" cy="320.6" rx="1.6" ry=".9"/><ellipse cx="15" cy="320.8" rx="1.5" ry=".8"/><ellipse cx="240" cy="334" rx="1.5" ry=".8"/></g>
 
     <g class="hare">
       <ellipse cx="22" cy="317" rx="1.8" ry="1" fill="#8d9ad0" opacity=".5"/><ellipse cx="14" cy="321" rx="1.8" ry="1" fill="#8d9ad0" opacity=".45"/><ellipse cx="6" cy="318" rx="1.8" ry="1" fill="#8d9ad0" opacity=".4"/>
@@ -561,7 +587,9 @@ function foreground(rnd: () => number): string {
 
 /**
  * The string of lights hung across the top of the window, W x 64: a wire that
- * sags between hooks, with a bulb every ~30 px.
+ * sags a little between hooks, with a bulb every ~26 px. The bulbs end above
+ * y = 48, so they hang in the gap under the tab bar and leave the pane
+ * headers clear.
  */
 export function garland(W: number): string {
   const hooks: number[] = [];
@@ -569,25 +597,25 @@ export function garland(W: number): string {
   for (let x = 0; x <= W + 1; x += span) hooks.push(x);
   const pts: Pt[] = [];
   for (let i = 0; i < hooks.length - 1; i++) {
-    const a = hooks[i], b = hooks[i + 1], sag = 14 + (b - a) * 0.03;
+    const a = hooks[i], b = hooks[i + 1], sag = 4 + (b - a) * 0.01;
     for (let k = i ? 1 : 0; k <= 24; k++) {
       const f = k / 24;
-      pts.push([a + (b - a) * f, 30 + Math.sin(f * Math.PI) * sag]);
+      pts.push([a + (b - a) * f, 31 + Math.sin(f * Math.PI) * sag]);
     }
   }
   const wire = "M" + pts.map(([x, y]) => `${n1(x)} ${n1(y)}`).join(" L");
   // Bulbs at even spacing along the wire.
   const colors = ["#ff4d5e", "#ffc24a", "#5aa8ff", "#4fe08f"];
   let bulbs = "";
-  let acc = 0, next = 16, n = 0;
+  let acc = 0, next = 13, n = 0;
   for (let i = 1; i < pts.length; i++) {
     const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
     const seg = Math.hypot(x1 - x0, y1 - y0);
     while (acc + seg >= next) {
       const f = (next - acc) / seg, x = x0 + (x1 - x0) * f, y = y0 + (y1 - y0) * f;
       const c = colors[n % 4], tilt = (Math.sin(n * 1.7) * 14).toFixed(1);
-      bulbs += `<g transform="translate(${n1(x)} ${n1(y)}) rotate(${tilt})"><rect x="-2.5" y="-1" width="5" height="4" rx="1" fill="#2c3048"/><ellipse class="g-bulb" style="--c:${c};animation-delay:${(-(n * 0.37) % 3.2).toFixed(2)}s" cx="0" cy="8" rx="4.2" ry="6" fill="${c}"/></g>`;
-      next += 30;
+      bulbs += `<g transform="translate(${n1(x)} ${n1(y)}) rotate(${tilt})"><rect x="-2" y="-.8" width="4" height="3.2" rx=".8" fill="#2c3048"/><ellipse class="g-bulb" style="--c:${c};animation-delay:${(-(n * 0.37) % 3.2).toFixed(2)}s" cx="0" cy="6.2" rx="3.2" ry="4.4" fill="${c}"/><ellipse cx="-1" cy="4.8" rx=".8" ry="1.3" fill="#ffffff" opacity=".7"/></g>`;
+      next += 26;
       n++;
     }
     acc += seg;
