@@ -50,14 +50,18 @@ export default function ChristmasBackdrop() {
     const appRect = () => scene.getBoundingClientRect();
 
     // The vignette sits at the sidebar's bottom-left (or the window's, with the
-    // sidebar hidden), and shrinks with a sidebar narrower than it.
+    // sidebar hidden). It shrinks with a sidebar narrower than it, and in a
+    // short window it takes at most half the height, so the page list stays
+    // clear of the star.
     let foreScale = 1;
     const anchor = () => {
       if (!fore) return;
       const app = appRect(), sb = sidebarRect();
-      foreScale = sb ? Math.min(1, sb.width / FORE.w) : 1;
+      foreScale = Math.min(1, sb ? sb.width / FORE.w : 1, (app.height * 0.5) / FORE.h);
       fore.style.left = `${sb ? sb.left - app.left : 0}px`;
       fore.style.transform = foreScale < 1 ? `scale(${foreScale.toFixed(3)})` : "";
+      // The sidebar's frosted glass clears above this height, so the tree's star stays sharp.
+      root.style.setProperty("--xmas-fore-h", `${Math.round(FORE.h * foreScale)}px`);
     };
 
     const build = () => {
@@ -199,6 +203,7 @@ export default function ChristmasBackdrop() {
       for (const el of document.querySelectorAll(".pane-slot[data-xmas-waiting]")) el.removeAttribute("data-xmas-waiting");
       root.removeAttribute("data-xmas-alert");
       root.classList.remove("xmas-rest");
+      root.style.removeProperty("--xmas-fore-h");
     };
   }, []);
 

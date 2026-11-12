@@ -189,12 +189,13 @@ html[data-xmas-alert] .xmas-garland .g-bulb {
 }
 
 /* ------------------------------------------------------------ surfaces */
-/* Frosted at the top of the sidebar, clear at the bottom where the vignette
-   stands. The page list keeps clear of the vignette and scrolls instead. */
+/* Frosted at the top of the sidebar, clear over the whole vignette (its
+   height, star included, is --xmas-fore-h). The page list keeps clear of the
+   star and scrolls instead. */
 html[data-theme="christmas"] .sidebar {
   isolation: isolate;
   background: transparent;
-  padding-bottom: clamp(96px, 34vh, 290px);
+  padding-bottom: min(calc(var(--xmas-fore-h, 346px) - 44px), 46vh);
 }
 html[data-theme="christmas"] .sidebar::before {
   content: "";
@@ -204,8 +205,8 @@ html[data-theme="christmas"] .sidebar::before {
   background: rgba(10, 14, 32, 0.6);
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
-  -webkit-mask-image: linear-gradient(to top, transparent 0, transparent clamp(60px, 26vh, 230px), #000 clamp(110px, 36vh, 300px));
-  mask-image: linear-gradient(to top, transparent 0, transparent clamp(60px, 26vh, 230px), #000 clamp(110px, 36vh, 300px));
+  -webkit-mask-image: linear-gradient(to top, transparent 0, transparent calc(var(--xmas-fore-h, 346px) - 22px), #000 calc(var(--xmas-fore-h, 346px) + 28px));
+  mask-image: linear-gradient(to top, transparent 0, transparent calc(var(--xmas-fore-h, 346px) - 22px), #000 calc(var(--xmas-fore-h, 346px) + 28px));
   pointer-events: none;
 }
 html[data-theme="christmas"] .htabbar {
