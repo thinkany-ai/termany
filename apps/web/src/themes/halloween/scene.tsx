@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import { isDemo } from "../../demo";
 import { subscribeAgentActivity } from "../../terminal/manager";
-import { Director, gazeToward, showcasePose, type Gaze, type Mood, type Pose } from "./player";
+import { AgentWatch } from "../agent-watch";
+import { Director, gazeToward, showcasePose, type Pose } from "./player";
 import { CSS_PX, EYES, SCENE_H, SCENE_W, SHEETS, STRING_H, WIRE_X, type SheetName } from "./sheets";
 
 // The Halloween scene at the foot of the sidebar: a light string over a
@@ -36,51 +37,6 @@ async function loadImages(): Promise<Record<SheetName, HTMLImageElement>> {
     return [name, img] as const;
   });
   return Object.fromEntries(await Promise.all(entries)) as Record<SheetName, HTMLImageElement>;
-}
-
-type Status = "working" | "done" | "error" | "none";
-
-/**
- * What the agents want from the user, read from the pane headers. A pane
- * needs the user from the moment its agent stops working (done or error)
- * until the user focuses that pane or the agent starts again. A pane that was
- * already finished when the scene appeared does not count: an agent idling at
- * its prompt all day is not news. A working agent is only watched.
- */
-class AgentWatch {
-  private last = new Map<string, Status>();
-  private waiting = new Set<string>();
-
-  read(canvas: HTMLCanvasElement): { mood: Mood; target: Gaze | null } {
-    const slots = [...document.querySelectorAll<HTMLElement>(".pane-slot[data-pane-id]")];
-    let waitingPane: HTMLElement | undefined;
-    let workingPane: HTMLElement | undefined;
-    for (const slot of slots) {
-      const id = slot.dataset.paneId!;
-      const dot = slot.querySelector(".pane-head .agent-dot");
-      const status: Status = dot?.classList.contains("working")
-        ? "working"
-        : dot?.classList.contains("error")
-          ? "error"
-          : dot?.classList.contains("done")
-            ? "done"
-            : "none";
-      const prev = this.last.get(id);
-      if (prev === "working" && (status === "done" || status === "error")) this.waiting.add(id);
-      if (status === "working" || status === "none" || slot.classList.contains("focused")) this.waiting.delete(id);
-      this.last.set(id, status);
-      if (this.waiting.has(id)) waitingPane ??= slot;
-      if (status === "working") workingPane ??= slot;
-    }
-    const pane = waitingPane ?? workingPane;
-    if (!pane) return { mood: "idle", target: null };
-    const r = canvas.getBoundingClientRect();
-    const unit = r.width / SCENE_W;
-    const p = pane.getBoundingClientRect();
-    const dx = p.left + p.width / 2 - (r.left + EYES.x * unit);
-    const dy = p.top + Math.min(p.height / 3, 120) - (r.top + EYES.y * unit);
-    return { mood: waitingPane ? "alert" : "idle", target: gazeToward(dx, dy) };
-  }
 }
 
 /**
@@ -152,7 +108,11 @@ export default function HalloweenScene() {
         pose = showcasePose(SHEETS, showcase === "loop" ? now : showcase);
         if (showcase !== "loop") pose.next = Infinity;
       } else {
-        const { mood, target } = watch.read(canvas);
+        const r = canvas.getBoundingClientRect();
+        const unit = r.width / SCENE_W;
+        const seen = watch.read(r.left + EYES.x * unit, r.top + EYES.y * unit);
+        const mood = seen.mood;
+        const target = seen.target && gazeToward(seen.target.dx, seen.target.dy);
         watching = target !== null;
         const idleFor = now - lastInput;
         // The demo lives in an iframe on termany.sh and has no focus until a
