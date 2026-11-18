@@ -18,13 +18,24 @@ function isWorkspace(value: unknown): value is Workspace {
  * then one of its workspaces. Its pages, tabs and running shells come along
  * as they are — nothing is copied; both devices then work in the same one.
  */
-export function ImportWorkspaceDialog({ devices, onClose }: { devices: NexDevice[]; onClose: () => void }) {
+export function ImportWorkspaceDialog({
+  devices,
+  initialDeviceId,
+  onClose,
+}: {
+  devices: NexDevice[];
+  /** Device to show first, e.g. the one picked in Settings → Devices. */
+  initialDeviceId?: string;
+  onClose: () => void;
+}) {
   const { t } = useI18n();
   const backdropRef = useNativeOccluder<HTMLDivElement>("workspace-import");
   const mounted = useStore((s) => s.workspaces);
   const importWorkspace = useStore((s) => s.importWorkspace);
   const connectable = devices.filter((d) => d.connectable);
-  const [deviceId, setDeviceId] = useState(connectable[0]?.id ?? "");
+  const [deviceId, setDeviceId] = useState(
+    connectable.find((d) => d.id === initialDeviceId)?.id ?? connectable[0]?.id ?? "",
+  );
   const [list, setList] = useState<Workspace[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 

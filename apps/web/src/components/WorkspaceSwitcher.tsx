@@ -3,7 +3,7 @@ import { connectableDevices, type NexDevice } from "../state/devices";
 import { useI18n } from "../i18n";
 import { useNativeOccluder } from "../nativeViewOcclusion";
 import { useStore } from "../state/store";
-import { TOGGLE_WORKSPACE_SWITCHER_EVENT } from "../workspaceSwitcherEvents";
+import { OPEN_WORKSPACE_IMPORT_EVENT, TOGGLE_WORKSPACE_SWITCHER_EVENT } from "../workspaceSwitcherEvents";
 import { EditIcon, GearIcon, PlusIcon, TrashIcon } from "./icons";
 import { ImportWorkspaceDialog } from "./ImportWorkspaceDialog";
 import { WorkspaceDialog } from "./WorkspaceDialog";
@@ -12,7 +12,7 @@ const initial = (t: string) => t.trim().charAt(0).toUpperCase() || "?";
 
 type DialogState =
   | { mode: "new" }
-  | { mode: "import" }
+  | { mode: "import"; deviceId?: string }
   | { mode: "edit"; id: string; title: string; icon?: string };
 
 /**
@@ -60,6 +60,24 @@ export function WorkspaceSwitcher({ onOpenSettings }: { onOpenSettings: () => vo
     const toggleFromRail = () => setMenuOpen((open) => !open);
     window.addEventListener(TOGGLE_WORKSPACE_SWITCHER_EVENT, toggleFromRail);
     return () => window.removeEventListener(TOGGLE_WORKSPACE_SWITCHER_EVENT, toggleFromRail);
+  }, []);
+
+  // Settings → Devices asks to import from one device: load the device list
+  // (the menu may never have been opened), then show the dialog on it.
+  useEffect(() => {
+    const openImport = (event: Event) => {
+      const deviceId = (event as CustomEvent<string>).detail;
+      setMenuOpen(false);
+      connectableDevices().then(
+        (list) => {
+          setDevices(list);
+          setDialog({ mode: "import", deviceId });
+        },
+        () => setDialog({ mode: "import", deviceId }),
+      );
+    };
+    window.addEventListener(OPEN_WORKSPACE_IMPORT_EVENT, openImport);
+    return () => window.removeEventListener(OPEN_WORKSPACE_IMPORT_EVENT, openImport);
   }, []);
 
   const avatar = (w: { icon?: string; title: string }, sm = false) =>
@@ -173,7 +191,9 @@ export function WorkspaceSwitcher({ onOpenSettings }: { onOpenSettings: () => vo
           onClose={() => setDialog(null)}
         />
       )}
-      {dialog?.mode === "import" && <ImportWorkspaceDialog devices={devices} onClose={() => setDialog(null)} />}
+      {dialog?.mode === "import" && (
+        <ImportWorkspaceDialog devices={devices} initialDeviceId={dialog.deviceId} onClose={() => setDialog(null)} />
+      )}
       {dialog?.mode === "edit" && (
         <WorkspaceDialog
           title={dialog.title}

@@ -10373,14 +10373,9 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   .gateway-form .ms-field-row { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Settings → Devices (nex) */
+/* Settings → Devices */
 .devices-intro {
   margin: -6px 0 16px;
-}
-.devices-mode {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 4px;
 }
 .devices-self {
   display: flex;
@@ -10406,33 +10401,57 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   font-size: 12px;
 }
 .devices-actions {
-  justify-content: flex-start;
+  justify-content: flex-end;
   align-items: center;
   flex-wrap: wrap;
 }
-.devices-pairing {
-  margin-top: 14px;
+.devices-actions .ms-hint {
+  margin: 0;
 }
-.devices-code {
-  font-family: Menlo, monospace;
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  user-select: all;
+.devices-account {
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+.devices-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.devices-list > li {
+  padding: 10px 0;
+}
+.devices-import {
+  margin-left: auto;
+  /* Line up with the header buttons, which clear the close button. */
+  margin-right: 24px;
+}
+.devices-list > li + li {
+  border-top: 1px solid var(--border);
 }
 
 /* Workspaces that live on another device */
+/* The name stops growing so the device badge sits right after it. */
+.ws-menu-name:has(+ .ws-menu-device) {
+  flex: 0 1 auto;
+}
 .ws-menu-device {
   flex-shrink: 1;
   max-width: 40%;
-  padding: 1px 6px;
+  margin-left: -3px;
+  position: relative;
+  top: -5px;
+  padding: 0 5px;
+  line-height: 15px;
   border-radius: var(--radius-sm);
   background: var(--bg-3);
   color: var(--fg-dim);
-  font-size: 11px;
+  font-size: 10px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.ws-menu-item:hover .ws-menu-device {
+  background: var(--border);
 }
 .ws-dialog-device {
   display: flex;
@@ -10512,9 +10531,4 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   max-width: 420px;
   font-size: 12px;
   word-break: break-word;
-}
-
-.devices-manual-toggle {
-  align-self: flex-start;
-  margin: 4px 0 12px;
 }

@@ -398,7 +398,7 @@ export function Settings({
               onConfigureModels={() => goto("models")}
             />
           )}
-          {section === "devices" && <DeviceSettings />}
+          {section === "devices" && <DeviceSettings onClose={onClose} />}
           {section === "keyboard" && <KeyboardSettings />}
           {section === "general" && (
             <>

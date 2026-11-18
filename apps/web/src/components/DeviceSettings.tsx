@@ -3,20 +3,18 @@ import { useI18n } from "../i18n";
 import { openExternal } from "../openExternal";
 import { nexRequest, type NexDevice, type NexStatus } from "../state/devices";
 import { textInputProps } from "../textInputProps";
+import { openWorkspaceImport } from "../workspaceSwitcherEvents";
 
 /**
- * Settings → Devices: sign this Termany in with a termany.sh account (every
- * Termany signed in with the same account reaches the others), or, for a
- * self-hosted relay, set one up by hand and add devices with a pairing code. Workspaces then live on whichever device the user
- * picks (see the workspace menu). All the relay work happens in the server
+ * Settings → Devices: sign this Termany in with a termany.sh account; every
+ * Termany signed in with the same account reaches the others. Workspaces then
+ * live on whichever device the user picks (see the workspace menu). All the relay work happens in the server
  * (apps/server/src/nexBridge.ts); the credential never reaches the webview.
  */
 
-type PairingCode = { code: string; expiresAt: number; server: string };
-
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
-export function DeviceSettings() {
+export function DeviceSettings({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
   const [status, setStatus] = useState<NexStatus | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -42,27 +40,18 @@ export function DeviceSettings() {
       <p className="ms-hint devices-intro">{t("devices.intro")}</p>
       {loadError && <div className="ms-test-fail">{loadError}</div>}
       {status && !status.configured && (
-        <SignIn defaultName={status.defaultDeviceName} onDone={setStatus} onWaiting={refreshStatus} />
+        <SignIn defaultName={status.defaultDeviceName} onWaiting={refreshStatus} />
       )}
-      {status?.configured && <Connected status={status} onChange={setStatus} />}
+      {status?.configured && <Connected status={status} onChange={setStatus} onClose={onClose} />}
     </>
   );
 }
 
-function SignIn({
-  defaultName,
-  onDone,
-  onWaiting,
-}: {
-  defaultName: string;
-  onDone: (s: NexStatus) => void;
-  onWaiting: () => Promise<void>;
-}) {
+function SignIn({ defaultName, onWaiting }: { defaultName: string; onWaiting: () => Promise<void> }) {
   const { t } = useI18n();
   const [deviceName, setDeviceName] = useState(defaultName);
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [manual, setManual] = useState(false);
 
   // While the browser is out doing the sign-in, check back often so the page
   // flips to "connected" as soon as the callback lands.
@@ -89,105 +78,17 @@ function SignIn({
   };
 
   return (
-    <>
-      <div className="ms-card">
-        <div className="ms-card-title">{t("devices.signIn.title")}</div>
-        <p className="ms-hint">{t("devices.signIn.hint")}</p>
-        <label className="ms-field">
-          <span>{t("devices.setup.deviceName")}</span>
-          <input {...textInputProps} value={deviceName} onChange={(e) => setDeviceName(e.target.value)} />
-        </label>
-        {waiting && <p className="ms-hint">{t("devices.signIn.waiting")}</p>}
-        {error && <div className="ms-test-fail">{error}</div>}
-        <div className="ms-form-actions">
-          <button type="button" className="ms-btn primary" disabled={!deviceName.trim()} onClick={() => void start()}>
-            {t(waiting ? "devices.signIn.again" : "devices.signIn.action")}
-          </button>
-        </div>
-      </div>
-      <button type="button" className="ms-btn devices-manual-toggle" onClick={() => setManual((v) => !v)}>
-        {t(manual ? "devices.signIn.hideManual" : "devices.signIn.manual")}
-      </button>
-      {manual && <SetupForm defaultName={defaultName} onDone={onDone} />}
-    </>
-  );
-}
-
-function SetupForm({ defaultName, onDone }: { defaultName: string; onDone: (s: NexStatus) => void }) {
-  const { t } = useI18n();
-  const [mode, setMode] = useState<"join" | "create">("join");
-  const [server, setServer] = useState("");
-  const [deviceName, setDeviceName] = useState(defaultName);
-  const [code, setCode] = useState("");
-  const [accountName, setAccountName] = useState("");
-  const [adminKey, setAdminKey] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const submit = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      onDone(
-        await nexRequest<NexStatus>("setup", {
-          server,
-          mode,
-          deviceName,
-          code: mode === "join" ? code : undefined,
-          accountName: mode === "create" ? accountName : undefined,
-          adminKey: mode === "create" ? adminKey : undefined,
-        }),
-      );
-    } catch (err) {
-      setError(errorText(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const ready = server.trim() && deviceName.trim() && (mode === "create" || code.trim());
-
-  return (
     <div className="ms-card">
-      <div className="ms-card-title">{t("devices.setup.title")}</div>
-      <div className="devices-mode">
-        <button type="button" className={`ms-btn ${mode === "join" ? "primary" : ""}`} onClick={() => setMode("join")}>
-          {t("devices.setup.join")}
-        </button>
-        <button type="button" className={`ms-btn ${mode === "create" ? "primary" : ""}`} onClick={() => setMode("create")}>
-          {t("devices.setup.create")}
-        </button>
-      </div>
-      <p className="ms-hint">{t(mode === "join" ? "devices.setup.joinHint" : "devices.setup.createHint")}</p>
-      <label className="ms-field">
-        <span>{t("devices.setup.server")}</span>
-        <input {...textInputProps} placeholder="https://nex.example.com" value={server} onChange={(e) => setServer(e.target.value)} />
-      </label>
+      <p className="ms-hint">{t("devices.signIn.hint")}</p>
       <label className="ms-field">
         <span>{t("devices.setup.deviceName")}</span>
         <input {...textInputProps} value={deviceName} onChange={(e) => setDeviceName(e.target.value)} />
       </label>
-      {mode === "join" ? (
-        <label className="ms-field">
-          <span>{t("devices.setup.code")}</span>
-          <input {...textInputProps} placeholder="ABCD-EFGH" value={code} onChange={(e) => setCode(e.target.value)} />
-        </label>
-      ) : (
-        <div className="ms-field-row">
-          <label className="ms-field">
-            <span>{t("devices.setup.accountName")}</span>
-            <input {...textInputProps} value={accountName} onChange={(e) => setAccountName(e.target.value)} />
-          </label>
-          <label className="ms-field">
-            <span>{t("devices.setup.adminKey")}</span>
-            <input {...textInputProps} type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} />
-          </label>
-        </div>
-      )}
+      {waiting && <p className="ms-hint">{t("devices.signIn.waiting")}</p>}
       {error && <div className="ms-test-fail">{error}</div>}
       <div className="ms-form-actions">
-        <button type="button" className="ms-btn primary" disabled={busy || !ready} onClick={() => void submit()}>
-          {t(mode === "join" ? "devices.setup.joinAction" : "devices.setup.createAction")}
+        <button type="button" className="ms-btn primary" disabled={!deviceName.trim()} onClick={() => void start()}>
+          {t(waiting ? "devices.signIn.again" : "devices.signIn.action")}
         </button>
       </div>
     </div>
@@ -197,14 +98,15 @@ function SetupForm({ defaultName, onDone }: { defaultName: string; onDone: (s: N
 function Connected({
   status,
   onChange,
+  onClose,
 }: {
   status: Extract<NexStatus, { configured: true }>;
   onChange: (s: NexStatus) => void;
+  onClose: () => void;
 }) {
   const { t } = useI18n();
   const [devices, setDevices] = useState<NexDevice[]>([]);
   const [devicesError, setDevicesError] = useState<string | null>(null);
-  const [pairing, setPairing] = useState<PairingCode | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
 
@@ -223,15 +125,6 @@ function Connected({
     return () => clearInterval(timer);
   }, [loadDevices]);
 
-  const createCode = async () => {
-    setActionError(null);
-    try {
-      setPairing(await nexRequest<PairingCode>("pairing-code", {}));
-    } catch (err) {
-      setActionError(errorText(err));
-    }
-  };
-
   const leave = async () => {
     setConfirmLeave(false);
     try {
@@ -246,46 +139,36 @@ function Connected({
   return (
     <>
       <div className="ms-card">
-        <div className="ms-card-title">{t("devices.thisDevice")}</div>
+        <div className="ms-head">
+          <div className="ms-card-title">{t("devices.thisDevice")}</div>
+          <div className="ms-head-actions devices-actions">
+            {confirmLeave ? (
+              <>
+                <span className="ms-hint">{t(status.account ? "devices.signOutConfirm" : "devices.leaveConfirm")}</span>
+                <button type="button" className="ms-btn" onClick={() => setConfirmLeave(false)}>
+                  {t("devices.cancel")}
+                </button>
+                <button type="button" className="ms-btn primary" onClick={() => void leave()}>
+                  {t(status.account ? "devices.signOut" : "devices.leave")}
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="ms-mono devices-account">{status.account ?? status.server}</span>
+                <button type="button" className="ms-btn" onClick={() => setConfirmLeave(true)}>
+                  {t(status.account ? "devices.signOut" : "devices.leave")}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
         <div className="devices-self">
           <span className={`devices-dot ${status.online ? "online" : ""}`} />
           <strong>{status.deviceName}</strong>
-          <span className="ms-mono">{status.account ?? status.server}</span>
           <span className="devices-state">{t(status.online ? "devices.online" : "devices.offline")}</span>
         </div>
         {!status.online && status.error && <div className="ms-test-fail">{status.error}</div>}
         <p className="ms-hint">{t("devices.sharingHint")}</p>
-        <div className="ms-form-actions devices-actions">
-          <button type="button" className="ms-btn" onClick={() => void createCode()}>
-            {t("devices.pair")}
-          </button>
-          {confirmLeave ? (
-            <>
-              <span className="ms-hint">{t(status.account ? "devices.signOutConfirm" : "devices.leaveConfirm")}</span>
-              <button type="button" className="ms-btn" onClick={() => setConfirmLeave(false)}>
-                {t("devices.cancel")}
-              </button>
-              <button type="button" className="ms-btn primary" onClick={() => void leave()}>
-                {t(status.account ? "devices.signOut" : "devices.leave")}
-              </button>
-            </>
-          ) : (
-            <button type="button" className="ms-btn" onClick={() => setConfirmLeave(true)}>
-              {t(status.account ? "devices.signOut" : "devices.leave")}
-            </button>
-          )}
-        </div>
-        {pairing && (
-          <div className="devices-pairing">
-            <div className="devices-code">{pairing.code}</div>
-            <p className="ms-hint">
-              {t("devices.pairHint", {
-                server: pairing.server,
-                time: new Date(pairing.expiresAt * 1000).toLocaleTimeString(),
-              })}
-            </p>
-          </div>
-        )}
       </div>
 
       <div className="ms-card">
@@ -300,31 +183,31 @@ function Connected({
         {others.length === 0 ? (
           <p className="ms-hint">{t("devices.none")}</p>
         ) : (
-          <div className="ms-table-scroll">
-            <table className="ms-table">
-              <tbody>
-                {others.map((device) => (
-                  <tr key={device.id}>
-                    <td>
-                      <span className={`devices-dot ${device.online ? "online" : ""}`} /> {device.name}
-                    </td>
-                    <td>
-                      <span className="ms-mono">{device.app ?? "—"}</span>
-                    </td>
-                    <td className="devices-state">
-                      {t(
-                        device.connectable
-                          ? "devices.online"
-                          : device.online
-                            ? "devices.notSharing"
-                            : "devices.offline",
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul className="devices-list">
+            {others.map((device) => (
+              <li key={device.id} className="devices-self">
+                <span className={`devices-dot ${device.online ? "online" : ""}`} />
+                <strong>{device.name}</strong>
+                <span className="devices-state">
+                  {t(
+                    device.connectable ? "devices.online" : device.online ? "devices.notSharing" : "devices.offline",
+                  )}
+                </span>
+                {device.connectable && (
+                  <button
+                    type="button"
+                    className="ms-btn devices-import"
+                    onClick={() => {
+                      onClose();
+                      openWorkspaceImport(device.id);
+                    }}
+                  >
+                    {t("devices.importWorkspace")}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </>
