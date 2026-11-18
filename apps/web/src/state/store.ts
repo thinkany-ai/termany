@@ -6,7 +6,7 @@ import {
   loadKeybindings,
   saveKeybindings,
 } from "../keybindings";
-import { disposePaneSessions } from "../terminal/manager";
+import { disposePaneSessions, releasePaneSessions } from "../terminal/manager";
 import { applyTheme, loadThemeId, THEMES } from "../themes";
 import {
   loadRailVisibility,
@@ -291,6 +291,12 @@ export interface TreeNode {
 export interface Workspace {
   id: string;
   title: string;
+  /**
+   * The other device this workspace lives on; absent for this machine. Its
+   * shells, files and agents run there, reached through a nex tunnel, and its
+   * layout is that device's record, mounted here (see state/devices.ts).
+   */
+  device?: { id: string; name: string };
   /** Emoji icon; when unset the UI falls back to the title's first letter. */
   icon?: string;
   roots: TreeNode[];
@@ -387,7 +393,10 @@ interface State {
   /** Restore every shortcut to its default. */
   resetKeybindings: () => void;
 
-  addWorkspace: (init?: { title?: string; icon?: string }) => void;
+  /** Create a workspace, on this machine or — with `device` — on another one. */
+  addWorkspace: (init?: { title?: string; icon?: string; device?: { id: string; name: string } }) => void;
+  /** Mount a workspace that already lives on another device. */
+  importWorkspace: (workspace: Workspace, device: { id: string; name: string }) => void;
   setActiveWorkspace: (id: string) => void;
   /** Activate the next / previous workspace (wraps around). */
   nextWorkspace: () => void;
@@ -395,7 +404,11 @@ interface State {
   renameWorkspace: (id: string, title: string) => void;
   /** Set the workspace's emoji icon, or null to revert to the letter avatar. */
   setWorkspaceIcon: (id: string, icon: string | null) => void;
-  /** Delete a workspace and dispose every terminal session under it. No-op if it's the last workspace. */
+  /**
+   * Delete a workspace and dispose every terminal session under it. One that
+   * lives on another device is only unmounted: it, and its shells, stay there.
+   * No-op if it's the last workspace.
+   */
   deleteWorkspace: (id: string) => void;
 
   addRootNode: () => void;
@@ -1529,6 +1542,8 @@ export const useStore = create<State>((set, get) => ({
   addWorkspace: (init) => {
     const ws = initialWorkspace(init?.title?.trim() || `ws ${get().workspaces.length + 1}`);
     if (init?.icon) ws.icon = init.icon;
+    // Created on the other device as soon as sync.ts writes it there.
+    if (init?.device) ws.device = { id: init.device.id, name: init.device.name };
     set((s) => ({
       workspaces: [...s.workspaces, ws],
       activeWorkspace: ws.id,
@@ -1536,6 +1551,16 @@ export const useStore = create<State>((set, get) => ({
       activeNodes: { ...s.activeNodes, [ws.id]: ws.roots[0].id },
     }));
     void claimPage(ws.roots[0].id);
+  },
+
+  importWorkspace: (workspace, device) => {
+    if (get().workspaces.some((w) => w.id === workspace.id)) {
+      get().setActiveWorkspace(workspace.id);
+      return;
+    }
+    const roots = workspace.roots?.length ? workspace.roots : [makeNode("page 1")];
+    set((s) => ({ workspaces: [...s.workspaces, { ...workspace, roots, device: { id: device.id, name: device.name } }] }));
+    get().setActiveWorkspace(workspace.id);
   },
 
   /**
@@ -1598,7 +1623,9 @@ export const useStore = create<State>((set, get) => ({
     // working in one of its pages. That's not ours to close — the UI hides the
     // button while any page of it is on screen elsewhere.
     if (flattenNodes(target.roots).some((n) => s.takenPages.has(n.id))) return;
-    target.roots.flatMap(subtreeLeafIds).forEach(disposePaneSessions);
+    // A workspace on another device is only unmounted here: let go of its
+    // shells without closing them — they are that device's, still in use there.
+    target.roots.flatMap(subtreeLeafIds).forEach(target.device ? releasePaneSessions : disposePaneSessions);
     const workspaces = s.workspaces.filter((w) => w.id !== wsId);
     set({
       workspaces,

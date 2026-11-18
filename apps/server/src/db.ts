@@ -158,6 +158,21 @@ export function saveState(state: AppState): void {
   }
 }
 
+/**
+ * Write ONE workspace, leaving the rest of the layout alone. This is how
+ * another device edits a workspace that lives here (it mounted it through
+ * nex): it only knows that workspace, so a whole-layout rewrite from it would
+ * wipe everything else. A workspace new to this device lands last.
+ */
+export function upsertWorkspace(workspace: { id: string }): void {
+  const id = String(workspace.id);
+  const data = JSON.stringify(workspace);
+  const updated = db.prepare("UPDATE workspace SET data = ? WHERE id = ?").run(data, id);
+  if (Number(updated.changes) > 0) return;
+  const row = db.prepare("SELECT COALESCE(MAX(pos), -1) + 1 AS pos FROM workspace").get() as { pos: number };
+  db.prepare("INSERT INTO workspace(id, pos, data) VALUES(?, ?, ?)").run(id, Number(row.pos), data);
+}
+
 // --- per-session restore data (cwd + scroll history) -----------------------
 // Keyed by the frontend's stable pane/session id, which the layout persists, so
 // a respawned shell can land in its old directory and replay its last output.

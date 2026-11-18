@@ -2,7 +2,7 @@ import { textInputProps } from "../textInputProps";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CodeEditor } from "./CodeEditor";
 import { DocxPreview, PptxPreview, XlsxPreview } from "./OfficePreview";
-import { apiUrl } from "../api";
+import { workspaceApiBase } from "../state/devices";
 import { useImeGuard } from "../imeGuard";
 import { revealPath } from "../openExternal";
 import { activeHtab, findLeaf, useStore } from "../state/store";
@@ -170,7 +170,7 @@ function resolveDocUrl(target: string, baseDir: string): string {
     else parts.push(seg);
   }
   const normalized = (abs.startsWith("/") ? "/" : "") + parts.join("/");
-  return `${apiUrl()}/api/fs/media?${new URLSearchParams({ path: normalized })}`;
+  return `${workspaceApiBase()}/api/fs/media?${new URLSearchParams({ path: normalized })}`;
 }
 
 /** `baseDir` is the containing directory of the markdown file being previewed;
@@ -458,7 +458,7 @@ function FilePreview({
 
   const save = useCallback((path: string, text: string) => {
     setSaveError(null);
-    fetch(`${apiUrl()}/api/fs/write`, {
+    fetch(`${workspaceApiBase()}/api/fs/write`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path, content: text }),
@@ -507,7 +507,7 @@ function FilePreview({
 
   if (selected.status === "binary") {
     const mediaKind = mediaKindForPath(selected.path);
-    const mediaSrc = `${apiUrl()}/api/fs/media?${new URLSearchParams({ path: selected.path })}`;
+    const mediaSrc = `${workspaceApiBase()}/api/fs/media?${new URLSearchParams({ path: selected.path })}`;
     if (mediaKind) {
       return (
         <div className="file-preview-panel">
@@ -719,7 +719,7 @@ export function FileTree({
 
   const loadDir = useCallback((path: string) => {
     setDirs((d) => ({ ...d, [path]: { status: "loading" } }));
-    fetch(`${apiUrl()}/api/fs/list?${new URLSearchParams({ path })}`)
+    fetch(`${workspaceApiBase()}/api/fs/list?${new URLSearchParams({ path })}`)
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
@@ -735,7 +735,7 @@ export function FileTree({
   // since folders expanded under the OLD root have nothing to do with this one.
   const navigateTo = useCallback((path: string) => {
     setRootError(null);
-    fetch(`${apiUrl()}/api/fs/list?${new URLSearchParams({ path })}`)
+    fetch(`${workspaceApiBase()}/api/fs/list?${new URLSearchParams({ path })}`)
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
@@ -750,7 +750,7 @@ export function FileTree({
 
   const openExplicitRoot = useCallback((path: string, selectedFile?: string) => {
     setRootError(null);
-    fetch(`${apiUrl()}/api/fs/list?${new URLSearchParams({ path })}`)
+    fetch(`${workspaceApiBase()}/api/fs/list?${new URLSearchParams({ path })}`)
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
@@ -780,7 +780,7 @@ export function FileTree({
   // there.
   const resolveRootFromSession = useCallback(() => {
     setRootError(null);
-    fetch(`${apiUrl()}/api/fs/list?${new URLSearchParams({ session: initialCwdFrom ?? sessionId })}`)
+    fetch(`${workspaceApiBase()}/api/fs/list?${new URLSearchParams({ session: initialCwdFrom ?? sessionId })}`)
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
@@ -894,7 +894,7 @@ export function FileTree({
     if (selected?.status !== "loading") return;
     const path = selected.path;
     let live = true;
-    fetch(`${apiUrl()}/api/fs/read?${new URLSearchParams({ path })}`)
+    fetch(`${workspaceApiBase()}/api/fs/read?${new URLSearchParams({ path })}`)
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);

@@ -1,6 +1,6 @@
 import { textInputProps } from "../textInputProps";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { apiPath } from "../api";
+import { workspaceApiPath } from "../state/devices";
 import { useI18n } from "../i18n";
 import { useNativeOccluder } from "../nativeViewOcclusion";
 import { ActivityIcon } from "./icons";
@@ -244,7 +244,7 @@ export function SystemMonitor() {
 
     const poll = async () => {
       try {
-        const r = await fetch(apiPath("/api/system-stats"));
+        const r = await fetch(workspaceApiPath("/api/system-stats"));
         if (!r.ok) throw new Error(String(r.status));
         const data = (await r.json()) as SystemStats;
         if (!cancelled) {
@@ -334,7 +334,7 @@ export function SystemMonitor() {
   const kill = async (pid: number, force: boolean) => {
     closeDetail();
     try {
-      const r = await fetch(apiPath("/api/system-stats/kill"), {
+      const r = await fetch(workspaceApiPath("/api/system-stats/kill"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pid, force }),

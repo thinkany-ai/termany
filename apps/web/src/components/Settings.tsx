@@ -1,6 +1,6 @@
 import { SkillSettings } from "./SkillSettings";
 import { textInputProps } from "../textInputProps";
-import { Bot, Brain, Info, Keyboard, Palette, UserRound } from "lucide-react";
+import { Bot, Brain, Info, Keyboard, MonitorSmartphone, Palette, UserRound } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { apiPath } from "../api";
 import { isTauri } from "../env";
@@ -51,6 +51,7 @@ import {
   TerminalIcon,
   WebIcon,
 } from "./icons";
+import { DeviceSettings } from "./DeviceSettings";
 import { KeyboardSettings } from "./KeyboardSettings";
 import { ModelSettings } from "./ModelSettings";
 import { UsageSelect } from "./Select";
@@ -68,7 +69,7 @@ const ABOUT_LINKS = [
   { key: "feedback", url: `${REPO}/issues` },
 ] as const;
 
-export type SettingsSection = "profile" | "general" | "appearance" | "models" | "agents" | "skills" | "keyboard" | "about";
+export type SettingsSection = "profile" | "general" | "appearance" | "models" | "agents" | "skills" | "devices" | "keyboard" | "about";
 
 /** Left-nav entries, in display order. Labels come from i18n (settings.<id>). */
 const NAV_SECTIONS: { id: SettingsSection; icon: ReactNode }[] = [
@@ -78,6 +79,7 @@ const NAV_SECTIONS: { id: SettingsSection; icon: ReactNode }[] = [
   { id: "models", icon: <Brain size={16} /> },
   { id: "agents", icon: <Bot size={16} /> },
   { id: "skills", icon: <Brain size={16} /> },
+  { id: "devices", icon: <MonitorSmartphone size={16} /> },
   { id: "keyboard", icon: <Keyboard size={16} /> },
   { id: "about", icon: <Info size={16} /> },
 ];
@@ -396,6 +398,7 @@ export function Settings({
               onConfigureModels={() => goto("models")}
             />
           )}
+          {section === "devices" && <DeviceSettings onClose={onClose} />}
           {section === "keyboard" && <KeyboardSettings />}
           {section === "general" && (
             <>

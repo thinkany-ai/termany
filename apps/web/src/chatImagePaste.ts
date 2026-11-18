@@ -1,4 +1,4 @@
-import { apiPath } from "./api";
+import { workspaceApiPath } from "./state/devices";
 import type { AgentImageAttachment } from "./state/store";
 
 const IMAGE_MIMES = new Set(["image/gif", "image/jpeg", "image/png", "image/webp"]);
@@ -26,7 +26,7 @@ export async function uploadChatImage(file: File, signal?: AbortSignal,
   const mimeType = normalizeImageType(file.type) || "image/png";
   if (!IMAGE_MIMES.has(mimeType)) throw new Error("unsupported image type");
   if (!file.size || file.size > MAX_IMAGE_BYTES) throw new Error("invalid image size");
-  const response = await fetcher(apiPath(`/api/paste-image?type=${encodeURIComponent(mimeType)}`), {
+  const response = await fetcher(workspaceApiPath(`/api/paste-image?type=${encodeURIComponent(mimeType)}`), {
     method: "POST",
     body: file,
     signal,

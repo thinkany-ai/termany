@@ -10,6 +10,11 @@ export function apiUrl(): string {
   return normalized || "http://localhost:5174";
 }
 
+/** Base WebSocket URL of this machine's PTY server (see state/devices.ts for others). */
+export function ptyUrl(): string {
+  return import.meta.env.VITE_PTY_URL ?? DEFAULT_WS_URL;
+}
+
 export function apiPath(path: string): string {
   return `${apiUrl()}${path.startsWith("/") ? path : `/${path}`}`;
 }

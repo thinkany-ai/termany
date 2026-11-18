@@ -626,9 +626,9 @@ struct WindowCounter(AtomicU32);
 ///
 /// Windows share everything else — workspaces, pages, tabs and panes are one
 /// record, and several windows in the same workspace is the point of having
-/// them. Pages are the exception: a page owns live terminals, the PTY server
-/// keeps exactly one socket per pane (it closes the previous on reattach), and
-/// a browser pane is a native child webview that belongs to one window by
+/// them. Pages are the exception: a page owns live terminals, whose size two
+/// windows would fight over (the PTY server itself lets several clients share
+/// a shell), and a browser pane is a native child webview that belongs to one window by
 /// construction. So asking for a page another window holds raises that window
 /// instead of opening it twice — see `claim_page`.
 #[derive(Default)]
