@@ -17,7 +17,7 @@ import {
   postAgentNotification,
   type AgentNotificationActivity,
 } from "../agentNotifications";
-import { apiUrl } from "../api";
+import { apiUrl, ptyUrl } from "../api";
 import { writeClipboard } from "../clipboard";
 import { applyTextInputProps } from "../textInputProps";
 import { DemoBackend, demoInteracted, isDemo } from "../demo";
@@ -65,7 +65,7 @@ import {
  * open() to attachSession(), once the host is mounted.
  */
 
-const WS_URL = import.meta.env.VITE_PTY_URL ?? "ws://localhost:5174";
+const WS_URL = ptyUrl();
 
 export interface Session {
   el: HTMLDivElement;

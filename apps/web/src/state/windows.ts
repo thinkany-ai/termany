@@ -8,11 +8,11 @@
  * What is NOT shared is where each window is looking, so the active workspace
  * and its page are kept in localStorage under the window's label.
  *
- * PAGES are exclusive, one window at a time. A page owns live terminals, and
- * the PTY server keeps exactly one socket per pane (it closes the previous on
- * reattach), so two windows on one page would fight over every shell in it —
- * and a browser pane is a native child webview, which belongs to exactly one
- * window by construction. The Rust side owns the window → page map; asking for
+ * PAGES are exclusive, one window at a time. The PTY server lets several
+ * clients share a shell (that is how another device watches the same pane),
+ * but two windows of one app on one page would still fight over each pane's
+ * size, and a browser pane is a native child webview, which belongs to exactly
+ * one window by construction. The Rust side owns the window → page map; asking for
  * a page another window holds raises that window instead of switching.
  *
  * All of this degrades to a single window in a plain browser, where there are
@@ -127,6 +127,21 @@ export function revealWindow(): void {
       // The Rust side shows the window itself if this never lands.
     }
   }, 0);
+}
+
+/**
+ * Open a window on another device's Termany. `server` is the loopback end of
+ * the nex tunnel (from `POST /api/nex/connect`). In a browser there is no
+ * window to create, so the same page opens in a new tab pointed at the tunnel.
+ */
+export async function openRemoteWindow(server: string, name: string): Promise<void> {
+  if (!isTauri) {
+    const url = new URL(window.location.href);
+    url.search = new URLSearchParams({ server, device: name }).toString();
+    window.open(url.toString(), "_blank", "noopener");
+    return;
+  }
+  await invoke("open_remote_window", { server, name });
 }
 
 /** Open another window. No-op in a browser, where the OS chrome isn't ours. */

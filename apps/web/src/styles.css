@@ -10372,3 +10372,57 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   .gateway-mode-picker, .gateway-form .ms-field-row { flex-direction: column; }
   .gateway-form .ms-field-row { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Settings → Devices (nex) */
+.devices-intro {
+  margin: -6px 0 16px;
+}
+.devices-remote-note {
+  font-size: 13px;
+}
+.devices-mode {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.devices-self {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.devices-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fg-dim);
+  opacity: 0.5;
+}
+.devices-dot.online {
+  background: #22c55e;
+  opacity: 1;
+}
+.devices-state {
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+.devices-actions {
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.devices-pairing {
+  margin-top: 14px;
+}
+.devices-code {
+  font-family: Menlo, monospace;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  user-select: all;
+}
+.devices-row-action {
+  text-align: right;
+}

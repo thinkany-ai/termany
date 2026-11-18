@@ -18,6 +18,7 @@ import { DEFAULT_SESSION_PAGE_SIZE, listAgentSessions, listAgentUsage } from "./
 import { streamAgentChat } from "./agentChat.js";
 import { compileBotContext } from "./botContext.js";
 import { handleSkillRequest } from "./skillsHttp.js";
+import { NexBridge, NexError } from "./nexBridge.js";
 import { listAgentConfigs, saveAgentConfigs } from "./agentConfig.js";
 import {
   acpRuntimeConfig,
@@ -178,6 +179,16 @@ const PORT = Number(process.env.TERMANY_PORT ?? DEFAULT_PORT);
  */
 declare const __TERMANY_VERSION__: string | undefined;
 declare const __TERMANY_BUILD_ID__: string | undefined;
+/**
+ * nex relay membership (see nexBridge.ts). The credential file is keyed by
+ * port so a dev server (5175) and the installed app (5174) on one machine are
+ * two separate devices: one credential may only hold one host connection, and
+ * sharing it would make them knock each other offline.
+ */
+const nex = new NexBridge({
+  file: path.join(os.homedir(), ".termany", PORT === 5174 ? "nex.json" : `nex-${PORT}.json`),
+  localPort: PORT,
+});
 const SERVER_VERSION = typeof __TERMANY_VERSION__ === "string" ? __TERMANY_VERSION__ : "dev";
 const SERVER_BUILD_ID = typeof __TERMANY_BUILD_ID__ === "string" ? __TERMANY_BUILD_ID__ : "dev";
 const IS_WIN = os.platform() === "win32";
@@ -401,7 +412,13 @@ async function savePastedImage(body: any): Promise<{ path: string }> {
 interface PtySession {
   pty: ReturnType<typeof spawn>;
   ring: ScrollRing;
-  ws: WebSocket | null;
+  /**
+   * Every client attached to this shell. Usually one; more when the same pane
+   * is open on another device (through nex) or in another window. Output goes
+   * to all of them and any of them may type — like tmux with several clients.
+   */
+  clients: Set<WebSocket>;
+  /** When the last client left; null while any is attached. */
   detachedAt: number | null;
   /** Null is the local login shell; otherwise the OpenSSH destination. */
   sshTarget: string | null;
@@ -488,6 +505,11 @@ function isOpen(ws: WebSocket | null): ws is WebSocket {
   return !!ws && ws.readyState === ws.OPEN;
 }
 
+/** Send to every attached client that can still receive. */
+function broadcast(session: PtySession, data: string): void {
+  for (const client of session.clients) if (isOpen(client)) client.send(data);
+}
+
 /** Wire a freshly spawned pty's output into its ring + whatever ws is attached. */
 function wireSession(id: string | undefined, session: PtySession): void {
   // The PTY's foreground process group: proof of when a command — an agent
@@ -504,7 +526,7 @@ function wireSession(id: string | undefined, session: PtySession): void {
   /** Everything a client should see: live output, plus the progress bar a
    *  transfer draws while it runs. Also what history records. */
   const emit = (data: string) => {
-    if (isOpen(session.ws)) session.ws.send(data);
+    broadcast(session, data);
     ringAppend(session.ring, data);
     if (id) {
       activityTracker.noteOutput(id, data);
@@ -529,16 +551,17 @@ function wireSession(id: string | undefined, session: PtySession): void {
     console.error(
       `[termany] shell exited (pid: ${session.pty.pid}, code: ${exitCode}, signal: ${signal ?? "none"})`
     );
-    if (isOpen(session.ws)) {
+    for (const client of session.clients) {
+      if (!isOpen(client)) continue;
       // Local shells retain the detailed exit line before the frontend starts
       // a replacement. SSH exits are rendered by the frontend so the message
       // can follow the selected interface language.
       if (!session.sshTarget) {
-        session.ws.send(
+        client.send(
           `\r\n\x1b[2m[termany] shell exited (code: ${exitCode}, signal: ${signal ?? "none"})\x1b[0m\r\n`
         );
       }
-      session.ws.close(SHELL_EXIT_CLOSE_CODE, encodeShellExit(exitCode, signal));
+      client.close(SHELL_EXIT_CLOSE_CODE, encodeShellExit(exitCode, signal));
     }
     if (id) {
       activityTracker.noteExit(id, exitCode, signal);
@@ -589,16 +612,12 @@ function killSession(id: string): void {
  */
 function runUpload(session: PtySession, paths: string[]): void {
   if (!session.transfer?.canUpload) {
-    if (isOpen(session.ws)) {
-      session.ws.send("\r\n\x1b[31m[termany] file upload is only available on remote (SSH) panes\x1b[0m\r\n");
-    }
+    broadcast(session, "\r\n\x1b[31m[termany] file upload is only available on remote (SSH) panes\x1b[0m\r\n");
     return;
   }
   void session.transfer.startUpload(paths).catch((err) => {
     const message = err instanceof Error ? err.message : String(err);
-    if (isOpen(session.ws)) {
-      session.ws.send(`\r\n\x1b[31m[termany] upload failed: ${message}\x1b[0m\r\n`);
-    }
+    broadcast(session, `\r\n\x1b[31m[termany] upload failed: ${message}\x1b[0m\r\n`);
   });
 }
 
@@ -674,6 +693,35 @@ const http = createServer((req, res) => {
     json(500, { error: msg });
   };
   const reqUrl = new URL(req.url ?? "/", "http://localhost");
+
+  if (reqUrl.pathname.startsWith("/api/nex/")) {
+    const route = `${req.method} ${reqUrl.pathname}`;
+    const run = async (): Promise<unknown> => {
+      switch (route) {
+        case "GET /api/nex/status":
+          return nex.status();
+        case "POST /api/nex/setup":
+          return nex.setup(await readJson(req, 64_000));
+        case "POST /api/nex/pairing-code":
+          return nex.pairingCode();
+        case "GET /api/nex/devices":
+          return { devices: await nex.devices() };
+        case "POST /api/nex/connect": {
+          const body = await readJson(req, 64_000);
+          return nex.connect(String(body?.deviceId ?? ""));
+        }
+        case "POST /api/nex/leave":
+          return nex.leave();
+        default:
+          throw new NexError("unknown nex endpoint", 404);
+      }
+    };
+    run().then(
+      (value) => json(200, value),
+      (err) => json(err instanceof NexError ? err.status : 500, { error: err instanceof Error ? err.message : String(err) }),
+    );
+    return;
+  }
 
   if (reqUrl.pathname === "/api/skills" || reqUrl.pathname.startsWith("/api/skills/") || reqUrl.pathname === "/api/skill-roots" || reqUrl.pathname === "/api/skill-catalog" || reqUrl.pathname.startsWith("/api/skill-catalog/")) {
     void handleSkillRequest(req, res, reqUrl).catch(fail);
@@ -1748,6 +1796,8 @@ function tryListen(): void {
   listenAttempts++;
   http.listen(PORT, HOST, () => {
     console.log(`[termany] PTY server listening on ws://${HOST}:${PORT}  (shell: ${SHELL})`);
+    // Go online only once the port the relay forwards to is actually ours.
+    nex.start();
     if (!isLoopbackHost(HOST)) {
       console.warn(
         `[termany] WARNING: TERMANY_HOST=${HOST} exposes shells and files to the network with no authentication. ` +
@@ -1976,20 +2026,15 @@ wss.on("connection", async (ws: WebSocket, req) => {
   const sshTarget = url.searchParams.get("ssh");
   const agent = url.searchParams.get("agent") ?? undefined;
 
-  // --- Reattach: the session's shell is still running (detached or stolen
-  // from a stale connection) — resume it instead of spawning a fresh one.
+  // --- Reattach: the session's shell is still running (detached, or attached
+  // elsewhere — another window, another device) — join it instead of spawning
+  // a fresh one. Other clients stay attached: displacing them would make two
+  // devices on one pane knock each other off in a loop.
   const existing = sessionId ? ptySessions.get(sessionId) : undefined;
   if (existing && existing.sshTarget === sshTarget) {
     console.log(`[termany] client #${cid} reattached to session ${sessionId} (pid ${existing.pty.pid})`);
     activityTracker.bindAgent(sessionId!, agent);
-    if (existing.ws && existing.ws !== ws) {
-      try {
-        existing.ws.close();
-      } catch {
-        /* already closing */
-      }
-    }
-    existing.ws = ws;
+    existing.clients.add(ws);
     existing.detachedAt = null;
 
     ws.on("message", (raw) => {
@@ -2016,8 +2061,7 @@ wss.on("connection", async (ws: WebSocket, req) => {
       }
     });
     ws.on("close", () => {
-      if (existing.ws !== ws) return; // a newer connection already replaced us
-      existing.ws = null;
+      if (!existing.clients.delete(ws) || existing.clients.size > 0) return;
       existing.detachedAt = Date.now();
       if (existing.ring.dirty) {
         try {
@@ -2089,11 +2133,9 @@ wss.on("connection", async (ws: WebSocket, req) => {
       }
       return;
     }
-    // Detach: leave the shell running so a reconnect can resume it. Guard
-    // against the window-reload race, where a newer connection may already
-    // have taken over this session.
-    if (session.ws !== ws) return;
-    session.ws = null;
+    // Detach: leave the shell running so a reconnect can resume it. Only the
+    // last client leaving detaches it; others may still be watching.
+    if (!session.clients.delete(ws) || session.clients.size > 0) return;
     session.detachedAt = Date.now();
     if (session.ring.dirty) {
       try {
@@ -2152,7 +2194,7 @@ wss.on("connection", async (ws: WebSocket, req) => {
   session = {
     pty,
     ring: sessionId ? newRing(sessionId) : { chunks: [], bytes: 0, dirty: false },
-    ws,
+    clients: new Set([ws]),
     detachedAt: null,
     sshTarget,
   };
@@ -2192,6 +2234,7 @@ async function shutdown() {
     }
   }
   closeAllAcpRuntimes();
+  nex.stop();
   process.exit(0);
 }
 process.on("SIGINT", shutdown);

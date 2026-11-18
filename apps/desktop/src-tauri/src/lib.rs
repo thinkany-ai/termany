@@ -626,9 +626,9 @@ struct WindowCounter(AtomicU32);
 ///
 /// Windows share everything else — workspaces, pages, tabs and panes are one
 /// record, and several windows in the same workspace is the point of having
-/// them. Pages are the exception: a page owns live terminals, the PTY server
-/// keeps exactly one socket per pane (it closes the previous on reattach), and
-/// a browser pane is a native child webview that belongs to one window by
+/// them. Pages are the exception: a page owns live terminals, whose size two
+/// windows would fight over (the PTY server itself lets several clients share
+/// a shell), and a browser pane is a native child webview that belongs to one window by
 /// construction. So asking for a page another window holds raises that window
 /// instead of opening it twice — see `claim_page`.
 #[derive(Default)]
@@ -665,11 +665,40 @@ fn emit_to_target<P: serde::Serialize + Clone>(
 /// exactly on top. Chrome has to be set here rather than inherited: the window
 /// in `tauri.conf.json` is a one-off declaration, not a template.
 fn create_window(app_handle: &tauri::AppHandle) -> Result<String, String> {
+    create_window_for(app_handle, None)
+}
+
+/// Another device's Termany, reached through a nex tunnel that this machine's
+/// server opened on loopback (see apps/server/src/nexBridge.ts).
+struct RemoteTarget {
+    /// `http://127.0.0.1:<port>` — the tunnel's local end.
+    server: String,
+    /// The other device's display name, for the title bar.
+    name: String,
+}
+
+/// Only a loopback tunnel URL may be injected: the remote window trusts this
+/// server with its shells, so it must be the one our own server just opened.
+fn is_tunnel_url(url: &str) -> bool {
+    url.strip_prefix("http://127.0.0.1:")
+        .and_then(|port| port.parse::<u16>().ok())
+        .is_some_and(|port| port > 0)
+}
+
+fn create_window_for(
+    app_handle: &tauri::AppHandle,
+    remote: Option<&RemoteTarget>,
+) -> Result<String, String> {
     let label = {
         let counter = app_handle.state::<WindowCounter>();
         loop {
             let n = counter.0.fetch_add(1, Ordering::SeqCst);
-            let candidate = format!("{MAIN_WINDOW_LABEL}-{n}");
+            // Remote windows keep their own label space so a window on another
+            // device never inherits a local window's remembered workspace.
+            let candidate = match remote {
+                Some(_) => format!("{MAIN_WINDOW_LABEL}-remote-{n}"),
+                None => format!("{MAIN_WINDOW_LABEL}-{n}"),
+            };
             if app_handle.get_webview_window(&candidate).is_none() {
                 break candidate;
             }
@@ -680,10 +709,15 @@ fn create_window(app_handle: &tauri::AppHandle) -> Result<String, String> {
     // the new one matches it — including the dev build, which calls itself
     // "Termany Dev" (tauri.dev.conf.json).
     let source = target_window(app_handle);
-    let title = source
+    let mut title = source
         .as_ref()
         .and_then(|window| window.title().ok())
         .unwrap_or_else(|| "Termany".to_string());
+    if let Some(remote) = remote {
+        // A remote window cascades off a local one; drop that one's suffix.
+        let base = title.split(" — ").next().unwrap_or("Termany").to_string();
+        title = format!("{base} — {}", remote.name);
+    }
 
     let mut builder =
         tauri::WebviewWindowBuilder::new(app_handle, &label, tauri::WebviewUrl::default())
@@ -703,6 +737,15 @@ fn create_window(app_handle: &tauri::AppHandle) -> Result<String, String> {
             // The frontend reveals it on its first frame (see revealWindow).
             .visible(false)
             .focused(true);
+    if let Some(remote) = remote {
+        // Runs before any page script, so api.ts sees it at module load.
+        let script = format!(
+            "window.__TERMANY_SERVER__ = {};\nwindow.__TERMANY_SERVER_NAME__ = {};",
+            serde_json::to_string(&remote.server).map_err(|e| e.to_string())?,
+            serde_json::to_string(&remote.name).map_err(|e| e.to_string())?,
+        );
+        builder = builder.initialization_script(&script);
+    }
     // `dragDropEnabled: true` in tauri.conf.json is the builder's default —
     // it only exposes the opt-out (`disable_drag_drop_handler`), so leaving it
     // alone is what matches the declared window.
@@ -743,6 +786,24 @@ fn create_window(app_handle: &tauri::AppHandle) -> Result<String, String> {
 #[tauri::command]
 fn open_new_window(app: tauri::AppHandle) -> Result<String, String> {
     create_window(&app)
+}
+
+/// Open a window on another device's Termany. `server` is the loopback end of
+/// the nex tunnel the local server opened for it (`POST /api/nex/connect`).
+#[tauri::command]
+fn open_remote_window(app: tauri::AppHandle, server: String, name: String) -> Result<String, String> {
+    if !is_tunnel_url(&server) {
+        return Err("remote server must be a loopback tunnel URL".into());
+    }
+    let name = name.trim();
+    let name = if name.is_empty() { "remote" } else { name };
+    create_window_for(
+        &app,
+        Some(&RemoteTarget {
+            server,
+            name: name.chars().take(64).collect(),
+        }),
+    )
 }
 
 /// The pages spoken for by windows OTHER than `label`. Each window gets
@@ -1120,6 +1181,7 @@ pub fn run() {
             get_window_toggle_shortcut,
             set_window_toggle_shortcut,
             open_new_window,
+            open_remote_window,
             claim_page,
             page_claims
         ])
