@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { apiPath } from "../api";
+import { workspaceApiPath } from "../state/devices";
 import { useI18n } from "../i18n";
 import { ChevronIcon, GitBranchIcon, GitCompareIcon, RefreshIcon } from "./icons";
 import { UsageSelect } from "./Select";
@@ -350,7 +350,7 @@ export function GitDiffView({
       const params = new URLSearchParams({ session });
       if (base !== null) params.set("base", base);
       if (worktree !== null) params.set("worktree", worktree);
-      const r = await fetch(apiPath(`/api/git/overview?${params}`));
+      const r = await fetch(workspaceApiPath(`/api/git/overview?${params}`));
       if (!r.ok) throw new Error(String(r.status));
       setOverview((await r.json()) as Overview);
       setRevision((n) => n + 1);
@@ -437,7 +437,7 @@ export function GitDiffView({
     pendingRows.forEach((row) => requestedDiffs.current.set(rowKey(row), diffScope));
     (async () => {
       try {
-        const r = await fetch(apiPath("/api/git/diffs"), {
+        const r = await fetch(workspaceApiPath("/api/git/diffs"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

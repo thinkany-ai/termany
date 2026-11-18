@@ -1,50 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
-import { apiPath, isRemoteWindow, remoteDeviceName } from "../api";
 import { useI18n } from "../i18n";
-import { openRemoteWindow } from "../state/windows";
+import { nexRequest, type NexDevice, type NexStatus } from "../state/devices";
 import { textInputProps } from "../textInputProps";
 
 /**
- * Settings → Devices: put this Termany on a nex relay, add other devices with
- * a pairing code, and open a window on any of them. All the relay work happens
- * in the server (apps/server/src/nexBridge.ts); the credential never reaches
- * the webview.
+ * Settings → Devices: put this Termany on a nex relay and add other devices
+ * with a pairing code. Workspaces then live on whichever device the user
+ * picks (see the workspace menu). All the relay work happens in the server
+ * (apps/server/src/nexBridge.ts); the credential never reaches the webview.
  */
 
-type NexStatus =
-  | { configured: false; defaultDeviceName: string }
-  | {
-      configured: true;
-      server: string;
-      accountId: string;
-      deviceId: string;
-      deviceName: string;
-      online: boolean;
-      error: string | null;
-    };
-
-type NexDevice = {
-  id: string;
-  name: string;
-  app: string | null;
-  online: boolean;
-  isSelf: boolean;
-  connectable: boolean;
-  lastSeenAt: number | null;
-};
-
 type PairingCode = { code: string; expiresAt: number; server: string };
-
-async function nexRequest<T>(path: string, body?: unknown): Promise<T> {
-  const response = await fetch(apiPath(`/api/nex/${path}`), {
-    method: body === undefined ? "GET" : "POST",
-    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof data?.error === "string" ? data.error : `HTTP ${response.status}`);
-  return data as T;
-}
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -68,17 +34,10 @@ export function DeviceSettings() {
     return () => clearInterval(timer);
   }, [refreshStatus]);
 
-  const remoteName = remoteDeviceName();
-
   return (
     <>
       <div className="settings-section-title">{t("devices.title")}</div>
       <p className="ms-hint devices-intro">{t("devices.intro")}</p>
-      {isRemoteWindow && (
-        <div className="ms-card devices-remote-note">
-          {t("devices.remoteWindow", { name: remoteName ?? t("devices.otherDevice") })}
-        </div>
-      )}
       {loadError && <div className="ms-test-fail">{loadError}</div>}
       {status && !status.configured && <SetupForm defaultName={status.defaultDeviceName} onDone={setStatus} />}
       {status?.configured && <Connected status={status} onChange={setStatus} />}
@@ -178,7 +137,6 @@ function Connected({
   const [devices, setDevices] = useState<NexDevice[]>([]);
   const [devicesError, setDevicesError] = useState<string | null>(null);
   const [pairing, setPairing] = useState<PairingCode | null>(null);
-  const [opening, setOpening] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
 
@@ -203,19 +161,6 @@ function Connected({
       setPairing(await nexRequest<PairingCode>("pairing-code", {}));
     } catch (err) {
       setActionError(errorText(err));
-    }
-  };
-
-  const open = async (device: NexDevice) => {
-    setOpening(device.id);
-    setActionError(null);
-    try {
-      const { url } = await nexRequest<{ url: string }>("connect", { deviceId: device.id });
-      await openRemoteWindow(url, device.name);
-    } catch (err) {
-      setActionError(errorText(err));
-    } finally {
-      setOpening(null);
     }
   };
 
@@ -306,16 +251,6 @@ function Connected({
                             ? "devices.notSharing"
                             : "devices.offline",
                       )}
-                    </td>
-                    <td className="devices-row-action">
-                      <button
-                        type="button"
-                        className="ms-btn"
-                        disabled={!device.connectable || opening !== null}
-                        onClick={() => void open(device)}
-                      >
-                        {t(opening === device.id ? "devices.opening" : "devices.open")}
-                      </button>
                     </td>
                   </tr>
                 ))}

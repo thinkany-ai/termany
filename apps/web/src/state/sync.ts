@@ -3,6 +3,9 @@ import { demoState, isDemo } from "../demo";
 import { layoutHasPage, mergeLayout } from "./layoutMerge";
 import { activePageId, useStore, type AgentConversation, type UserProfile, type Workspace } from "./store";
 import { onTakenPagesChange, readWindowPref, takenPages, writeWindowPref } from "./windows";
+import { markDeviceLost, notePaneDevices, onDeviceReady, setActiveWorkspaceDevice, setDeviceSessionHooks } from "./devices";
+import { primeSnapshots, releasePaneSessions } from "../terminal/manager";
+import type { Pane, TreeNode } from "./store";
 
 /**
  * True once the server has answered a state load. Saves are gated on this:
@@ -193,6 +196,8 @@ function applyRemoteState(payload: unknown): void {
     applyingRemote = false;
   }
 
+  noteMountedAsSynced();
+
   // Safety net: another window deleted the page (or workspace) this one was
   // showing, so it has to find somewhere else to be.
   if (!layoutHasPage(useStore.getState().workspaces, ownPage)) {
@@ -217,6 +222,8 @@ function applyRemoteState(payload: unknown): void {
  */
 export function startStateSync(): void {
   if (isDemo) return;
+
+  startDeviceSync();
 
   if (typeof EventSource !== "undefined") {
     const source = new EventSource(apiPath("/api/state/events"));
@@ -255,8 +262,17 @@ export function startStateSync(): void {
   };
 
   let lastView = "";
+  let lastWorkspaces: Workspace[] | null = null;
   useStore.subscribe(() => {
-    const { activeWorkspace, activeNodes } = useStore.getState();
+    const { activeWorkspace, activeNodes, workspaces } = useStore.getState();
+    setActiveWorkspaceDevice(workspaces.find((w) => w.id === activeWorkspace)?.device?.id ?? null);
+    if (workspaces !== lastWorkspaces) {
+      lastWorkspaces = workspaces;
+      indexRemotePanes(workspaces);
+      // Edits to a workspace that lives on another device go back to it. A
+      // snapshot being applied is already in step — see noteMountedAsSynced.
+      if (!applyingRemote) pushMountedChanges(workspaces);
+    }
     const view = `${activeWorkspace} ${JSON.stringify(activeNodes)}`;
     if (view !== lastView) {
       lastView = view;
@@ -275,4 +291,183 @@ export function startStateSync(): void {
   // in the meantime would hydrate from an empty server and invent a default of
   // its own rather than seeing the first window's.
   scheduleSave();
+}
+
+// --- workspaces that live on another device --------------------------------
+//
+// A mounted workspace (one with `device`) is that device's record. This window
+// keeps a copy in its own layout — so it shows in the sidebar while the device
+// is away, and the binding survives a restart — but the truth is over there:
+//
+//   - its changes stream in from that device's /api/state/events and are folded
+//     in exactly like another window's (mergeLayout keeps the page we own);
+//   - our changes go back one workspace at a time (PUT /api/state/workspace),
+//     never as a whole-layout rewrite, which would wipe that device's others.
+
+/** Each mounted workspace as last known to match its device, by id. */
+const syncedWithDevice = new Map<string, Workspace>();
+/**
+ * Device id → its open state stream. `primed` once its first snapshot is in:
+ * until then our copy may be stale, and pushing it would undo that device's
+ * newer edits.
+ */
+const deviceStreams = new Map<string, { url: string; source: EventSource; primed: boolean }>();
+const pushTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function paneLeaves(pane: Pane, out: string[]): void {
+  if (pane.kind === "leaf") out.push(pane.id);
+  else for (const child of pane.children) paneLeaves(child, out);
+}
+
+function nodeLeaves(nodes: TreeNode[], out: string[]): void {
+  for (const node of nodes) {
+    for (const tab of node.htabs) paneLeaves(tab.layout, out);
+    nodeLeaves(node.children, out);
+  }
+}
+
+/** Tell devices.ts which device runs each pane of a mounted workspace. */
+function indexRemotePanes(workspaces: Workspace[]): void {
+  const pairs: [string, string][] = [];
+  for (const ws of workspaces) {
+    if (!ws.device) continue;
+    const leaves: string[] = [];
+    nodeLeaves(ws.roots, leaves);
+    for (const id of leaves) pairs.push([id, ws.device.id]);
+  }
+  if (pairs.length) notePaneDevices(pairs);
+}
+
+/** Whatever is in the store now came FROM a device or another window: don't echo it. */
+function noteMountedAsSynced(): void {
+  for (const ws of useStore.getState().workspaces) if (ws.device) syncedWithDevice.set(ws.id, ws);
+}
+
+/** The workspace as its own device stores it: there it is simply local. */
+function forDevice(ws: Workspace): Workspace {
+  const { device: _device, ...own } = ws;
+  return own;
+}
+
+function pushMountedChanges(workspaces: Workspace[]): void {
+  for (const ws of workspaces) {
+    if (!ws.device || syncedWithDevice.get(ws.id) === ws) continue;
+    if (!deviceStreams.get(ws.device.id)?.primed) continue; // settled by its first snapshot
+    schedulePush(ws.device.id, ws.id);
+  }
+}
+
+function schedulePush(deviceId: string, workspaceId: string): void {
+  const key = `${deviceId} ${workspaceId}`;
+  clearTimeout(pushTimers.get(key));
+  pushTimers.set(
+    key,
+    setTimeout(() => {
+      pushTimers.delete(key);
+      void pushWorkspace(deviceId, workspaceId);
+    }, 400),
+  );
+}
+
+async function pushWorkspace(deviceId: string, workspaceId: string): Promise<void> {
+  const stream = deviceStreams.get(deviceId);
+  const ws = useStore.getState().workspaces.find((w) => w.id === workspaceId);
+  if (!stream || !ws || ws.device?.id !== deviceId) return;
+  try {
+    const res = await fetch(`${stream.url}/api/state/workspace`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId, workspace: forDevice(ws) }),
+    });
+    if (res.ok) {
+      // Only what was sent is in step; a newer edit made meanwhile still goes.
+      syncedWithDevice.set(workspaceId, ws);
+      const now = useStore.getState().workspaces.find((w) => w.id === workspaceId);
+      if (now && now !== ws) schedulePush(deviceId, workspaceId);
+    }
+  } catch {
+    /* the stream's error handler notices a dead tunnel */
+  }
+}
+
+/** Fold a device's snapshot into the workspaces we mounted from it. */
+function applyDeviceState(deviceId: string, payload: unknown): void {
+  const s = payload as { clientId?: string; workspaces?: Workspace[] } | null;
+  if (!s || !Array.isArray(s.workspaces)) return;
+  const stream = deviceStreams.get(deviceId);
+  if (s.clientId === clientId && stream?.primed) return; // our own write, coming back around
+  const theirs = new Map(s.workspaces.map((ws) => [ws.id, ws]));
+  const ownPage = activePageId(useStore.getState());
+  const missing: string[] = [];
+
+  applyingRemote = true;
+  try {
+    useStore.setState((state) => ({
+      workspaces: state.workspaces.map((ws) => {
+        if (ws.device?.id !== deviceId) return ws;
+        const remote = theirs.get(ws.id);
+        if (!remote) {
+          // Not there (yet): one we just created on it, or one it lost. Ours
+          // is the only copy left, so it goes back rather than vanishing.
+          missing.push(ws.id);
+          return ws;
+        }
+        const [merged] = mergeLayout([ws], [{ ...remote, device: ws.device }], ownPage);
+        return merged ?? ws;
+      }),
+    }));
+  } finally {
+    applyingRemote = false;
+  }
+  for (const ws of useStore.getState().workspaces) {
+    if (ws.device?.id === deviceId && !missing.includes(ws.id)) syncedWithDevice.set(ws.id, ws);
+  }
+  if (stream) stream.primed = true;
+  for (const id of missing) schedulePush(deviceId, id);
+  // Keep the local copy current for the sidebar and the next launch.
+  scheduleSave();
+
+  if (!layoutHasPage(useStore.getState().workspaces, ownPage)) void adoptView("");
+}
+
+function openDeviceStream(deviceId: string, url: string): void {
+  const current = deviceStreams.get(deviceId);
+  if (current?.url === url) return;
+  current?.source.close();
+  if (typeof EventSource === "undefined") return;
+  const source = new EventSource(`${url}/api/state/events`);
+  deviceStreams.set(deviceId, { url, source, primed: false });
+  source.addEventListener("state", (event) => {
+    try {
+      applyDeviceState(deviceId, JSON.parse((event as MessageEvent<string>).data));
+    } catch {
+      /* the next event is another complete snapshot */
+    }
+  });
+  source.onerror = () => {
+    // EventSource retries on its own, which covers a blip. A tunnel that is
+    // gone for good (device offline, or our server restarted and its port
+    // with it) needs a fresh connect, so find out which this is.
+    void fetch(`${url}/api/state`, { signal: AbortSignal.timeout(3000) }).then(
+      (res) => {
+        if (res.ok) return;
+        throw new Error(`HTTP ${res.status}`);
+      },
+    ).catch((err) => {
+      if (deviceStreams.get(deviceId)?.source !== source) return;
+      source.close();
+      deviceStreams.delete(deviceId);
+      markDeviceLost(deviceId, err instanceof Error ? err.message : String(err));
+    });
+  };
+}
+
+function startDeviceSync(): void {
+  setDeviceSessionHooks({ primeSnapshots, releasePaneSessions });
+  const { workspaces, activeWorkspace } = useStore.getState();
+  indexRemotePanes(workspaces);
+  setActiveWorkspaceDevice(workspaces.find((w) => w.id === activeWorkspace)?.device?.id ?? null);
+  // The stream opens with a snapshot, which settles every mounted workspace
+  // and sends back any that device doesn't have yet (one just created for it).
+  onDeviceReady(openDeviceStream);
 }

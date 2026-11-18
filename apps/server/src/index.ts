@@ -62,6 +62,7 @@ import {
   setScreenBatch,
   setScrollBatch,
   setSessionCwd,
+  upsertWorkspace,
 } from "./db.js";
 import { gitDiffs, gitOverview, worktreeOverview } from "./git.js";
 import { pickFolder } from "./folderPicker.js";
@@ -1221,6 +1222,31 @@ const http = createServer((req, res) => {
         saveState(body);
         // `clientId` is the writer's own tag, not part of the layout — it comes
         // straight back out on the stream so the sender can skip its own echo.
+        stateChanged(typeof body?.clientId === "string" ? body.clientId : "");
+        json(200, { ok: true });
+      })
+      .catch(fail);
+    return;
+  }
+
+  // One workspace, written by another device that mounted it (see
+  // apps/web/src/state/devices.ts). The rest of the layout is left alone.
+  if (req.method === "PUT" && reqUrl.pathname === "/api/state/workspace") {
+    readJson(req, 8_000_000)
+      .then((body) => {
+        const workspace = body?.workspace;
+        if (!workspace || typeof workspace !== "object" || typeof workspace.id !== "string" || !workspace.id) {
+          json(400, { error: "workspace with an id is required" });
+          return;
+        }
+        if (!Array.isArray(workspace.roots)) {
+          json(400, { error: "workspace.roots must be an array" });
+          return;
+        }
+        // A workspace belongs to the device it lives on; a binding to some
+        // other device only means something on the device that made it.
+        const { device: _device, ...own } = workspace;
+        upsertWorkspace(own);
         stateChanged(typeof body?.clientId === "string" ? body.clientId : "");
         json(200, { ok: true });
       })

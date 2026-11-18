@@ -17,7 +17,8 @@ import {
   postAgentNotification,
   type AgentNotificationActivity,
 } from "../agentNotifications";
-import { apiUrl, ptyUrl } from "../api";
+import { apiUrl } from "../api";
+import { httpBaseFor, wsBaseFor } from "../state/devices";
 import { writeClipboard } from "../clipboard";
 import { applyTextInputProps } from "../textInputProps";
 import { DemoBackend, demoInteracted, isDemo } from "../demo";
@@ -65,7 +66,6 @@ import {
  * open() to attachSession(), once the host is mounted.
  */
 
-const WS_URL = ptyUrl();
 
 export interface Session {
   el: HTMLDivElement;
@@ -1365,15 +1365,17 @@ async function readJsonResponse(res: Response): Promise<any> {
   }
 }
 
-async function uploadClipboardImage(file: File): Promise<string> {
+/** Save a pasted image on the machine that runs `sessionId`; resolves to its path there. */
+async function uploadClipboardImage(sessionId: string, file: File): Promise<string> {
   const type = normalizeImageType(file.type) || "image/png";
-  const res = await fetch(`${apiUrl()}/api/paste-image?type=${encodeURIComponent(type)}`, {
+  const base = httpBaseFor(sessionId);
+  const res = await fetch(`${base}/api/paste-image?type=${encodeURIComponent(type)}`, {
     method: "POST",
     body: file,
   });
   let payload = await readJsonResponse(res);
   if (res.status === 404) {
-    const fallback = await fetch(`${apiUrl()}/api/paste-image`, {
+    const fallback = await fetch(`${base}/api/paste-image`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type, data: arrayBufferToBase64(await file.arrayBuffer()) }),
@@ -1390,7 +1392,7 @@ async function uploadClipboardImage(file: File): Promise<string> {
 async function uploadClipboardImageToRemote(sessionId: string, file: File): Promise<string> {
   const type = normalizeImageType(file.type) || "image/png";
   const params = new URLSearchParams({ session: sessionId, type });
-  const res = await fetch(`${apiUrl()}/api/ssh-paste-image?${params}`, {
+  const res = await fetch(`${httpBaseFor(sessionId)}/api/ssh-paste-image?${params}`, {
     method: "POST",
     body: file,
   });
@@ -1628,7 +1630,7 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
       const fallback = () => paths.map((p) => (/^(?:\/|~\/|[A-Za-z]:[\\/])/.test(p) ? p : null));
       if (isDemo) return fallback();
       try {
-        const res = await fetch(`${apiUrl()}/api/resolve-paths`, {
+        const res = await fetch(`${httpBaseFor(id)}/api/resolve-paths`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ session: id, paths }),
@@ -1648,7 +1650,7 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
   const spawnBackend = (): ITerminalBackend =>
     isDemo
       ? new DemoBackend(id)
-      : new WebSocketBackend(WS_URL, {
+      : new WebSocketBackend(wsBaseFor(paneId), {
           session: id,
           cwdFrom: cwdFrom?.length ? cwdFrom.join(",") : undefined,
           ssh: sshTarget,
@@ -1854,7 +1856,7 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
       void (async () => {
         const upload = sshTarget
           ? (file: File) => uploadClipboardImageToRemote(id, file)
-          : uploadClipboardImage;
+          : (file: File) => uploadClipboardImage(id, file);
         const settled = await Promise.allSettled(images.map(upload));
         const paths = settled
           .filter((result): result is PromiseFulfilledResult<string> => result.status === "fulfilled")
@@ -2440,7 +2442,7 @@ export function disposeSession(id: string) {
   forgetSessionUrls(id);
   if (isDemo) return;
   // Drop its persisted restore data — a closed pane should not come back.
-  fetch(`${apiUrl()}/api/forget`, {
+  fetch(`${httpBaseFor(id)}/api/forget`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ids: [id] }),
@@ -2449,6 +2451,21 @@ export function disposeSession(id: string) {
 
 /** Close every cached local/SSH session owned by a pane. */
 export function disposePaneSessions(paneId: string) {
+  dropPaneSessions(paneId, true);
+}
+
+/**
+ * Let go of a pane's sessions WITHOUT closing their shells: the server keeps
+ * them running (detached) for whoever else has the pane open. Used when a
+ * workspace that lives on another device is unmounted here.
+ */
+export function releasePaneSessions(paneId: string) {
+  dropPaneSessions(paneId, false);
+}
+
+function dropPaneSessions(paneId: string, forget: boolean) {
+  // Resolve the server now: once the pane leaves the layout it can't be found.
+  const base = httpBaseFor(paneId);
   const ids = [...(sessionIdsByPane.get(paneId) ?? new Set([paneId]))];
   activeSessionByPane.delete(paneId);
   sessionIdsByPane.delete(paneId);
@@ -2480,8 +2497,8 @@ export function disposePaneSessions(paneId: string) {
     forgetSessionUrls(id);
   }
   notifyConnectionStatus();
-  if (isDemo || !ids.length) return;
-  fetch(`${apiUrl()}/api/forget`, {
+  if (!forget || isDemo || !ids.length) return;
+  fetch(`${base}/api/forget`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ids, paneIds: [paneId] }),

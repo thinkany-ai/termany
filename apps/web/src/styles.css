@@ -10377,9 +10377,6 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
 .devices-intro {
   margin: -6px 0 16px;
 }
-.devices-remote-note {
-  font-size: 13px;
-}
 .devices-mode {
   display: flex;
   gap: 8px;
@@ -10423,6 +10420,96 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   letter-spacing: 0.12em;
   user-select: all;
 }
-.devices-row-action {
-  text-align: right;
+
+/* Workspaces that live on another device */
+.ws-menu-device {
+  flex-shrink: 1;
+  max-width: 40%;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-3);
+  color: var(--fg-dim);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-dialog-device {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--fg-dim);
+}
+.ws-dialog-device select {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+}
+.ws-import-dialog {
+  width: min(380px, calc(100vw - 32px));
+}
+.ws-import-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.ws-import-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 280px;
+  margin-top: 12px;
+  overflow-y: auto;
+}
+.ws-import-item {
+  width: 100%;
+}
+.ws-import-item:not(:disabled):hover {
+  border-radius: var(--radius-md);
+  background: var(--bg-3);
+}
+.ws-import-item:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.ws-import-done {
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+.ws-import-hint,
+.ws-import-error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--fg-dim);
+}
+.ws-import-error {
+  color: var(--danger, #dc3f45);
+}
+.device-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+  color: var(--fg-dim);
+}
+.device-gate-title {
+  font-size: 14px;
+  color: var(--fg);
+}
+.device-gate-detail {
+  max-width: 420px;
+  font-size: 12px;
+  word-break: break-word;
 }

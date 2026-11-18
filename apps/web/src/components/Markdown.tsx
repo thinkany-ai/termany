@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, type MouseEvent } from "react";
 import DOMPurify from "dompurify";
 import { Marked } from "marked";
 import { useI18n } from "../i18n";
-import { apiPath } from "../api";
+import { workspaceApiPath } from "../state/devices";
 import { markdownMediaUrl } from "../markdownLocalMedia";
 
 /** Fences that read as shell commands get a run button; the rest copy only. */
@@ -45,7 +45,7 @@ DOMPurify.addHook("beforeSanitizeAttributes", (node) => {
   if (!attribute) return;
   const value = node.getAttribute(attribute);
   if (!value) return;
-  const mediaUrl = markdownMediaUrl(value, apiPath("/api/fs/media"));
+  const mediaUrl = markdownMediaUrl(value, workspaceApiPath("/api/fs/media"));
   if (mediaUrl) node.setAttribute(attribute, mediaUrl);
 });
 
