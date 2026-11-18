@@ -79,6 +79,10 @@ import {
 } from "./fileTransfer.js";
 
 /** Read a JSON request body (capped) into an object. */
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
 function readJson(req: import("node:http").IncomingMessage, maxChars = 1_000_000): Promise<any> {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -695,6 +699,32 @@ const http = createServer((req, res) => {
   };
   const reqUrl = new URL(req.url ?? "/", "http://localhost");
 
+  if (req.method === "GET" && reqUrl.pathname === "/api/nex/login/callback") {
+    // The browser lands here from termany.sh after the user approves (or
+    // cancels) "Sign in with termany.sh"; answer with a page, not JSON.
+    const page = (title: string, detail: string, status: number) => {
+      res.writeHead(status, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+      res.end(
+        `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Termany</title>` +
+          `<body style="font:15px/1.6 -apple-system,system-ui,sans-serif;display:grid;place-items:center;min-height:90vh;margin:0;color:#222">` +
+          `<div style="max-width:420px;padding:24px;text-align:center"><h2 style="margin:0 0 8px">${escapeHtml(title)}</h2>` +
+          `<p style="color:#666;margin:0">${escapeHtml(detail)}</p></div></body>`,
+      );
+    };
+    nex
+      .loginCallback(reqUrl.searchParams.get("code") ?? "", reqUrl.searchParams.get("state") ?? "")
+      .then(
+        (status) =>
+          page(
+            "Signed in to Termany",
+            status.configured ? `${status.deviceName} is now linked${status.account ? ` to ${status.account}` : ""}. You can close this tab and go back to Termany.` : "You can close this tab.",
+            200,
+          ),
+        (err) => page("Sign-in failed", err instanceof Error ? err.message : String(err), err instanceof NexError ? err.status : 500),
+      );
+    return;
+  }
+
   if (reqUrl.pathname.startsWith("/api/nex/")) {
     const route = `${req.method} ${reqUrl.pathname}`;
     const run = async (): Promise<unknown> => {
@@ -703,6 +733,10 @@ const http = createServer((req, res) => {
           return nex.status();
         case "POST /api/nex/setup":
           return nex.setup(await readJson(req, 64_000));
+        case "POST /api/nex/login/start": {
+          const body = await readJson(req, 64_000);
+          return nex.loginStart({ deviceName: typeof body?.deviceName === "string" ? body.deviceName : undefined });
+        }
         case "POST /api/nex/pairing-code":
           return nex.pairingCode();
         case "GET /api/nex/devices":

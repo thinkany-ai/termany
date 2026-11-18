@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import type { Server } from "node:net";
 import os from "node:os";
@@ -24,10 +25,16 @@ import { NexHost, echoService, forwardTcp, tcpService } from "nex-sdk/node";
 export const NEX_SERVICE = "termany";
 export const NEX_APP = "termany";
 
+/** Where "Sign in with termany.sh" goes; TERMANY_SITE_URL points dev at a local site. */
+const SITE_URL = (process.env.TERMANY_SITE_URL || "https://termany.sh").replace(/\/+$/, "");
+const LOGIN_TTL_MS = 10 * 60_000;
+
 type SavedConfig = {
   server: string;
   deviceName: string;
   credential: DeviceCredential;
+  /** termany.sh account (email) the credential was issued to; absent for relay/pairing setups. */
+  account?: string;
 };
 
 export type NexStatus =
@@ -38,6 +45,8 @@ export type NexStatus =
       accountId: string;
       deviceId: string;
       deviceName: string;
+      /** termany.sh account this device signed in with, or null for a manual relay setup. */
+      account: string | null;
       online: boolean;
       /** Why the host is not online, when it gave up or is retrying. */
       error: string | null;
@@ -88,10 +97,14 @@ export class NexBridge {
   #online = false;
   #error: string | null = null;
   readonly #forwards = new Map<string, Promise<Server>>();
+  readonly #localPort: number;
+  /** Sign-ins started from this server and not yet completed: state → device name + expiry. */
+  readonly #logins = new Map<string, { deviceName: string; expires: number }>();
 
   constructor(options: { file: string; localPort: number; logger?: Logger }) {
     this.#file = options.file;
     this.#localAddr = `127.0.0.1:${options.localPort}`;
+    this.#localPort = options.localPort;
     this.#log = options.logger ?? console;
   }
 
@@ -111,6 +124,7 @@ export class NexBridge {
       accountId: config.credential.account_id,
       deviceId: config.credential.device_id,
       deviceName: config.deviceName,
+      account: config.account ?? null,
       online: this.#online,
       error: this.#error,
     };
@@ -140,6 +154,74 @@ export class NexBridge {
       throw asNexError(err);
     }
     const config: SavedConfig = { server, deviceName, credential };
+    writeConfig(this.#file, config);
+    this.#apply(config);
+    return this.status();
+  }
+
+  /**
+   * Starts "Sign in with termany.sh": an OAuth-style loopback redirect. The
+   * site sends the browser back to GET /api/nex/login/callback with a link
+   * code bound to `state`, which `loginCallback` trades for a device
+   * credential in the user's account. Returns the page to open.
+   */
+  loginStart(input: { deviceName?: string }): { url: string } {
+    if (this.#config) throw new NexError("already signed in; sign out first", 409);
+    const now = Date.now();
+    for (const [key, login] of this.#logins) if (login.expires < now) this.#logins.delete(key);
+    const state = randomBytes(24).toString("base64url");
+    const deviceName = (input.deviceName ?? "").trim().slice(0, 100) || defaultDeviceName();
+    this.#logins.set(state, { deviceName, expires: now + LOGIN_TTL_MS });
+    const url = new URL(`${SITE_URL}/connect/termany`);
+    url.searchParams.set("callback", `http://127.0.0.1:${this.#localPort}/api/nex/login/callback`);
+    url.searchParams.set("state", state);
+    url.searchParams.set("device", deviceName);
+    return { url: url.toString() };
+  }
+
+  /** Completes a sign-in this server started; anything else is refused. */
+  async loginCallback(code: string, state: string): Promise<NexStatus> {
+    const login = this.#logins.get(state);
+    // An unknown state is a sign-in this server never started (or a page
+    // trying to sign the user into someone else's account): refuse it.
+    if (!login || login.expires < Date.now()) throw new NexError("this sign-in link is unknown or expired; start again from Termany", 400);
+    this.#logins.delete(state);
+    if (this.#config) throw new NexError("already signed in; sign out first", 409);
+    if (!code) throw new NexError("sign-in was not approved", 400);
+
+    let data: { server?: unknown; deviceName?: unknown; account?: unknown; credential?: Partial<DeviceCredential> };
+    try {
+      const res = await fetch(`${SITE_URL}/api/nex/exchange`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, state }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      const body = (await res.json().catch(() => null)) as { code?: number; message?: string; data?: typeof data } | null;
+      if (!res.ok || !body || body.code !== 0 || !body.data) {
+        throw new NexError(body?.message || `termany.sh answered HTTP ${res.status}`, 502);
+      }
+      data = body.data;
+    } catch (err) {
+      if (err instanceof NexError) throw err;
+      throw new NexError(`cannot reach termany.sh: ${errMessage(err)}`, 502);
+    }
+    const c = data.credential;
+    if (
+      typeof data.server !== "string" ||
+      !c ||
+      typeof c.account_id !== "string" ||
+      typeof c.device_id !== "string" ||
+      typeof c.device_token !== "string"
+    ) {
+      throw new NexError("termany.sh returned an incomplete credential", 502);
+    }
+    const config: SavedConfig = {
+      server: normalizeServer(data.server),
+      deviceName: typeof data.deviceName === "string" && data.deviceName ? data.deviceName : login.deviceName,
+      credential: { account_id: c.account_id, device_id: c.device_id, device_token: c.device_token },
+      account: typeof data.account === "string" && data.account ? data.account : undefined,
+    };
     writeConfig(this.#file, config);
     this.#apply(config);
     return this.status();
@@ -311,7 +393,12 @@ function readConfig(file: string): SavedConfig | null {
       typeof c.device_id === "string" &&
       typeof c.device_token === "string"
     ) {
-      return { server: parsed.server, deviceName: parsed.deviceName, credential: c };
+      return {
+        server: parsed.server,
+        deviceName: parsed.deviceName,
+        credential: c,
+        account: typeof parsed.account === "string" ? parsed.account : undefined,
+      };
     }
   } catch {
     /* missing or unreadable: not set up */

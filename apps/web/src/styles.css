@@ -10513,3 +10513,8 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   font-size: 12px;
   word-break: break-word;
 }
+
+.devices-manual-toggle {
+  align-self: flex-start;
+  margin: 4px 0 12px;
+}

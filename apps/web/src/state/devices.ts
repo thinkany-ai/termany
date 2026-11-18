@@ -146,6 +146,8 @@ export type NexStatus =
       accountId: string;
       deviceId: string;
       deviceName: string;
+      /** termany.sh account this device signed in with; null for a manual relay setup. */
+      account: string | null;
       online: boolean;
       error: string | null;
     };

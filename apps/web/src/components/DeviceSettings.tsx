@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "../i18n";
+import { openExternal } from "../openExternal";
 import { nexRequest, type NexDevice, type NexStatus } from "../state/devices";
 import { textInputProps } from "../textInputProps";
 
 /**
- * Settings → Devices: put this Termany on a nex relay and add other devices
- * with a pairing code. Workspaces then live on whichever device the user
+ * Settings → Devices: sign this Termany in with a termany.sh account (every
+ * Termany signed in with the same account reaches the others), or, for a
+ * self-hosted relay, set one up by hand and add devices with a pairing code. Workspaces then live on whichever device the user
  * picks (see the workspace menu). All the relay work happens in the server
  * (apps/server/src/nexBridge.ts); the credential never reaches the webview.
  */
@@ -39,8 +41,74 @@ export function DeviceSettings() {
       <div className="settings-section-title">{t("devices.title")}</div>
       <p className="ms-hint devices-intro">{t("devices.intro")}</p>
       {loadError && <div className="ms-test-fail">{loadError}</div>}
-      {status && !status.configured && <SetupForm defaultName={status.defaultDeviceName} onDone={setStatus} />}
+      {status && !status.configured && (
+        <SignIn defaultName={status.defaultDeviceName} onDone={setStatus} onWaiting={refreshStatus} />
+      )}
       {status?.configured && <Connected status={status} onChange={setStatus} />}
+    </>
+  );
+}
+
+function SignIn({
+  defaultName,
+  onDone,
+  onWaiting,
+}: {
+  defaultName: string;
+  onDone: (s: NexStatus) => void;
+  onWaiting: () => Promise<void>;
+}) {
+  const { t } = useI18n();
+  const [deviceName, setDeviceName] = useState(defaultName);
+  const [waiting, setWaiting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [manual, setManual] = useState(false);
+
+  // While the browser is out doing the sign-in, check back often so the page
+  // flips to "connected" as soon as the callback lands.
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setInterval(() => void onWaiting(), 1500);
+    const giveUp = setTimeout(() => setWaiting(false), 10 * 60_000);
+    return () => {
+      clearInterval(timer);
+      clearTimeout(giveUp);
+    };
+  }, [waiting, onWaiting]);
+
+  const start = async () => {
+    setError(null);
+    try {
+      const { url } = await nexRequest<{ url: string }>("login/start", { deviceName });
+      const failure = await openExternal(url);
+      if (failure) throw new Error(failure);
+      setWaiting(true);
+    } catch (err) {
+      setError(errorText(err));
+    }
+  };
+
+  return (
+    <>
+      <div className="ms-card">
+        <div className="ms-card-title">{t("devices.signIn.title")}</div>
+        <p className="ms-hint">{t("devices.signIn.hint")}</p>
+        <label className="ms-field">
+          <span>{t("devices.setup.deviceName")}</span>
+          <input {...textInputProps} value={deviceName} onChange={(e) => setDeviceName(e.target.value)} />
+        </label>
+        {waiting && <p className="ms-hint">{t("devices.signIn.waiting")}</p>}
+        {error && <div className="ms-test-fail">{error}</div>}
+        <div className="ms-form-actions">
+          <button type="button" className="ms-btn primary" disabled={!deviceName.trim()} onClick={() => void start()}>
+            {t(waiting ? "devices.signIn.again" : "devices.signIn.action")}
+          </button>
+        </div>
+      </div>
+      <button type="button" className="ms-btn devices-manual-toggle" onClick={() => setManual((v) => !v)}>
+        {t(manual ? "devices.signIn.hideManual" : "devices.signIn.manual")}
+      </button>
+      {manual && <SetupForm defaultName={defaultName} onDone={onDone} />}
     </>
   );
 }
@@ -182,7 +250,7 @@ function Connected({
         <div className="devices-self">
           <span className={`devices-dot ${status.online ? "online" : ""}`} />
           <strong>{status.deviceName}</strong>
-          <span className="ms-mono">{status.server}</span>
+          <span className="ms-mono">{status.account ?? status.server}</span>
           <span className="devices-state">{t(status.online ? "devices.online" : "devices.offline")}</span>
         </div>
         {!status.online && status.error && <div className="ms-test-fail">{status.error}</div>}
@@ -193,17 +261,17 @@ function Connected({
           </button>
           {confirmLeave ? (
             <>
-              <span className="ms-hint">{t("devices.leaveConfirm")}</span>
+              <span className="ms-hint">{t(status.account ? "devices.signOutConfirm" : "devices.leaveConfirm")}</span>
               <button type="button" className="ms-btn" onClick={() => setConfirmLeave(false)}>
                 {t("devices.cancel")}
               </button>
               <button type="button" className="ms-btn primary" onClick={() => void leave()}>
-                {t("devices.leave")}
+                {t(status.account ? "devices.signOut" : "devices.leave")}
               </button>
             </>
           ) : (
             <button type="button" className="ms-btn" onClick={() => setConfirmLeave(true)}>
-              {t("devices.leave")}
+              {t(status.account ? "devices.signOut" : "devices.leave")}
             </button>
           )}
         </div>
