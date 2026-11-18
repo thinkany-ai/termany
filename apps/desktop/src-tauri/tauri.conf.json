@@ -1,7 +1,7 @@
 {
   "$schema": "../../../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Termany",
-  "version": "0.2.8",
+  "version": "0.5.0",
   "identifier": "ai.termany.desktop",
   "build": {
     "frontendDist": "../../web/dist",

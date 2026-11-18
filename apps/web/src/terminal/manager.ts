@@ -18,11 +18,11 @@ import {
   type AgentNotificationActivity,
 } from "../agentNotifications";
 import { apiUrl } from "../api";
+import { httpBaseFor, wsBaseFor } from "../state/devices";
 import { writeClipboard } from "../clipboard";
 import { applyTextInputProps } from "../textInputProps";
 import { DemoBackend, demoInteracted, isDemo } from "../demo";
-import { ACTIONS, IS_MAC, loadKeybindings, matchChord } from "../keybindings";
-import { isNativePasteShortcut } from "./pasteShortcut";
+import { IS_MAC } from "../keybindings";
 import {
   agentConfirmationPromptVisible,
   agentInputPromptVisible,
@@ -41,11 +41,13 @@ import {
   RESTART_HEALTHY_MS,
   shellExitDisposition,
 } from "./shellExit";
-import { SHIFT_ENTER_DATA, isShiftEnterNewline } from "./shiftEnter";
 import { forgetSessionUrls, noteSessionOutput } from "./servedUrls";
 import { registerWebLinks } from "./webLinks";
 import { fixWebkitGtkImeComposition } from "./webkitGtkIme";
+import { CompositionBoundsAddon } from "./compositionBounds";
 import { createGlyphAtlasRepairer, onAtlasPagesMerged } from "./glyphAtlas";
+import { isModifierKeyEvent, registerTerminalKeybindings } from "./keyEvents";
+import { resumeOutputFollow, resumeOutputOnInput } from "./scrollFollow";
 import { isMacWebKit } from "./rendererPlatform";
 import {
   defaultColorQueryMask,
@@ -65,7 +67,6 @@ import {
  * open() to attachSession(), once the host is mounted.
  */
 
-const WS_URL = import.meta.env.VITE_PTY_URL ?? "ws://localhost:5174";
 
 export interface Session {
   el: HTMLDivElement;
@@ -127,9 +128,10 @@ export function noteManualScroll(id: string) {
   // between the wheel gesture and xterm noticing that it left the bottom.
   session.followOutput = false;
   session.lockedViewportY = session.term.buffer.active.viewportY;
+  const scrollUntil = session.manualScrollUntil;
   requestAnimationFrame(() => {
     const latest = sessions.get(id);
-    if (!latest) return;
+    if (latest !== session || latest.manualScrollUntil !== scrollUntil) return;
     const state = readScrollState(latest.term);
     latest.followOutput = state.atBottom;
     latest.lockedViewportY = state.atBottom ? null : latest.term.buffer.active.viewportY;
@@ -981,6 +983,13 @@ function deliverTerminalInput(
   data: string,
   isSubmit = true
 ) {
+  if (resumeOutputOnInput(session, data, readScrollState(term).atBottom)) {
+    if (session.deferredFlushTimer !== null) {
+      window.clearTimeout(session.deferredFlushTimer);
+      session.deferredFlushTimer = null;
+    }
+    flushDeferredOutput(id);
+  }
   if (sshTarget && session.ended) {
     if (/[\r\n]/.test(data)) {
       term.write("\r\n");
@@ -1357,15 +1366,17 @@ async function readJsonResponse(res: Response): Promise<any> {
   }
 }
 
-async function uploadClipboardImage(file: File): Promise<string> {
+/** Save a pasted image on the machine that runs `sessionId`; resolves to its path there. */
+async function uploadClipboardImage(sessionId: string, file: File): Promise<string> {
   const type = normalizeImageType(file.type) || "image/png";
-  const res = await fetch(`${apiUrl()}/api/paste-image?type=${encodeURIComponent(type)}`, {
+  const base = httpBaseFor(sessionId);
+  const res = await fetch(`${base}/api/paste-image?type=${encodeURIComponent(type)}`, {
     method: "POST",
     body: file,
   });
   let payload = await readJsonResponse(res);
   if (res.status === 404) {
-    const fallback = await fetch(`${apiUrl()}/api/paste-image`, {
+    const fallback = await fetch(`${base}/api/paste-image`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type, data: arrayBufferToBase64(await file.arrayBuffer()) }),
@@ -1375,6 +1386,19 @@ async function uploadClipboardImage(file: File): Promise<string> {
     return String(payload.path);
   }
   if (!res.ok) throw new Error(payload.error ?? `upload failed (${res.status})`);
+  return String(payload.path);
+}
+
+/** Upload to the SSH pane's remote host; resolves to the path there. */
+async function uploadClipboardImageToRemote(sessionId: string, file: File): Promise<string> {
+  const type = normalizeImageType(file.type) || "image/png";
+  const params = new URLSearchParams({ session: sessionId, type });
+  const res = await fetch(`${httpBaseFor(sessionId)}/api/ssh-paste-image?${params}`, {
+    method: "POST",
+    body: file,
+  });
+  const payload = await readJsonResponse(res);
+  if (!res.ok || !payload.path) throw new Error(payload.error ?? `remote upload failed (${res.status})`);
   return String(payload.path);
 }
 
@@ -1547,32 +1571,12 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
   // typing IS the terminal), app shortcuts like ⌘W silently did nothing.
   // Step aside for any key that matches a live user shortcut binding so it
   // reaches the app instead of being typed into the shell.
-  term.attachCustomKeyEventHandler((event) => {
-    // Otherwise Ctrl+V can also reach the PTY as SYN (\x16), causing Codex
-    // to read its own image clipboard instead of receiving our paste event.
-    if (isNativePasteShortcut(event, IS_MAC)) return false;
-    if (event.type !== "keydown") return true;
-    const keybindings = loadKeybindings();
-    for (const action of ACTIONS) {
-      if (matchChord(event, keybindings[action.id] ?? action.default)) return false;
-    }
-    // Shift+Enter inserts a newline instead of submitting. xterm encodes it
-    // as a bare CR — byte-identical to Enter — so intercept it here, where
-    // returning false skips xterm's encoding entirely, and send the same
-    // ESC CR bytes Option+Enter already produces (see shiftEnter.ts).
-    // Runs AFTER the shortcut loop so a user rebind of Shift+Enter still wins.
-    if (isShiftEnterNewline(event)) {
-      // Returning false alone only skips xterm's encoding; without
-      // preventDefault the keystroke would also land in xterm's hidden
-      // textarea as a stray newline, and without stopPropagation it would
-      // keep bubbling to the app-level shortcut listener.
-      event.preventDefault();
-      event.stopPropagation();
-      const live = sessions.get(id);
-      if (live) deliverTerminalInput(id, live, live.term, sshTarget, SHIFT_ENTER_DATA, false);
-      return false;
-    }
-    return true;
+  registerTerminalKeybindings(term, undefined, IS_MAC, (data) => {
+    const live = sessions.get(id);
+    if (!live) return;
+    // Synthetic newlines bypass xterm's input encoder and its automatic scroll.
+    live.term.scrollToBottom();
+    deliverTerminalInput(id, live, live.term, sshTarget, data, false);
   });
 
   // Replay the previous run's output tail (server-captured, sanitized) ABOVE
@@ -1627,7 +1631,7 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
       const fallback = () => paths.map((p) => (/^(?:\/|~\/|[A-Za-z]:[\\/])/.test(p) ? p : null));
       if (isDemo) return fallback();
       try {
-        const res = await fetch(`${apiUrl()}/api/resolve-paths`, {
+        const res = await fetch(`${httpBaseFor(id)}/api/resolve-paths`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ session: id, paths }),
@@ -1647,7 +1651,7 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
   const spawnBackend = (): ITerminalBackend =>
     isDemo
       ? new DemoBackend(id)
-      : new WebSocketBackend(WS_URL, {
+      : new WebSocketBackend(wsBaseFor(paneId), {
           session: id,
           cwdFrom: cwdFrom?.length ? cwdFrom.join(",") : undefined,
           ssh: sshTarget,
@@ -1830,10 +1834,8 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
     if (sel.trim()) void writeClipboard(sel);
   });
 
-  // Paste image blobs as local file paths only when the active program looks
-  // like an agent/TUI that knows how to turn image paths into image chips.
-  // In a plain shell, inserting the temp path directly is surprising and easy
-  // to submit accidentally.
+  // Paste image blobs as file paths, which agent CLIs turn into image chips.
+  // In an SSH pane the CLI runs on the remote, so the image is uploaded there.
   // Duplicate-fire guard: swallow a second image paste while one is still
   // uploading or within a short cooldown — key auto-repeat on a held ⌘V (and
   // any double-dispatched event) otherwise inserts the same screenshot twice.
@@ -1853,7 +1855,10 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
       if (Date.now() < imagePasteBusyUntil) return;
       imagePasteBusyUntil = Date.now() + 1000;
       void (async () => {
-        const settled = await Promise.allSettled(images.map(uploadClipboardImage));
+        const upload = sshTarget
+          ? (file: File) => uploadClipboardImageToRemote(id, file)
+          : (file: File) => uploadClipboardImage(id, file);
+        const settled = await Promise.allSettled(images.map(upload));
         const paths = settled
           .filter((result): result is PromiseFulfilledResult<string> => result.status === "fulfilled")
           .map((result) => result.value);
@@ -1862,15 +1867,8 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
         // receive ONE paste event. Agent CLIs can recognize pasted image paths
         // and render [Image #N] chips instead of echoing raw temp paths.
         if (paths.length) {
-          if (sessionLooksLikeAgentInput(id)) {
-            term.paste(`${paths.join(" ")} `);
-          } else {
-            term.write(
-              `\r\n\x1b[2m[termany] image saved: ${paths.join(" ")} — no TUI input prompt detected here, so the path was not inserted.\x1b[0m\r\n`
-            );
-          }
-        }
-        if (!paths.length) {
+          term.paste(`${paths.join(" ")} `);
+        } else {
           const reason = settled.find(
             (result): result is PromiseRejectedResult => result.status === "rejected"
           )?.reason;
@@ -1984,6 +1982,7 @@ function fixAbandonedImeFinalize(term: Terminal) {
     "keydown",
     (e) => {
       if (!composing || e.target !== ta) return;
+      if (isModifierKeyEvent(e)) return;
       composing = false;
       if (e.keyCode === 229 || MODIFIERS.has(e.keyCode) || e.key === "Enter") return;
       imeLog(`fix:drop-abandoned-composition before ${JSON.stringify(e.key)} ta=${JSON.stringify(ta.value)}`);
@@ -2020,6 +2019,7 @@ export function attachSession(
   host.appendChild(s.el);
   if (!s.opened) {
     s.term.open(s.el); // el is now in the document — renderer initialises correctly
+    s.term.loadAddon(new CompositionBoundsAddon());
     if (s.term.textarea) applyTextInputProps(s.term.textarea);
     // macOS 26.5+ has a WKWebView/Safari WebGL regression that leaves old
     // terminal frames composited over new ones. Canvas 2D is xterm's supported
@@ -2090,8 +2090,8 @@ export function scrollSessionToBottom(id: string) {
   id = activeSessionId(id);
   const session = sessions.get(id);
   if (!session) return;
-  session.followOutput = true;
-  session.lockedViewportY = null;
+  resumeOutputFollow(session);
+  flushDeferredOutput(id);
   settleSessionAtBottom(id, true);
 }
 
@@ -2444,7 +2444,7 @@ export function disposeSession(id: string) {
   forgetSessionUrls(id);
   if (isDemo) return;
   // Drop its persisted restore data — a closed pane should not come back.
-  fetch(`${apiUrl()}/api/forget`, {
+  fetch(`${httpBaseFor(id)}/api/forget`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ids: [id] }),
@@ -2453,6 +2453,21 @@ export function disposeSession(id: string) {
 
 /** Close every cached local/SSH session owned by a pane. */
 export function disposePaneSessions(paneId: string) {
+  dropPaneSessions(paneId, true);
+}
+
+/**
+ * Let go of a pane's sessions WITHOUT closing their shells: the server keeps
+ * them running (detached) for whoever else has the pane open. Used when a
+ * workspace that lives on another device is unmounted here.
+ */
+export function releasePaneSessions(paneId: string) {
+  dropPaneSessions(paneId, false);
+}
+
+function dropPaneSessions(paneId: string, forget: boolean) {
+  // Resolve the server now: once the pane leaves the layout it can't be found.
+  const base = httpBaseFor(paneId);
   const ids = [...(sessionIdsByPane.get(paneId) ?? new Set([paneId]))];
   activeSessionByPane.delete(paneId);
   sessionIdsByPane.delete(paneId);
@@ -2484,8 +2499,8 @@ export function disposePaneSessions(paneId: string) {
     forgetSessionUrls(id);
   }
   notifyConnectionStatus();
-  if (isDemo || !ids.length) return;
-  fetch(`${apiUrl()}/api/forget`, {
+  if (!forget || isDemo || !ids.length) return;
+  fetch(`${base}/api/forget`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ids, paneIds: [paneId] }),

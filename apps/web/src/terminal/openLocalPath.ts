@@ -1,4 +1,4 @@
-import { apiUrl } from "../api";
+import { httpBaseFor } from "../state/devices";
 import { activeHtab, useStore } from "../state/store";
 import { pasteIntoSession, sendCommand, sessionLooksLikeAgentInput } from "./manager";
 
@@ -26,7 +26,7 @@ export async function openLocalPathsInSession(sessionId: string, paths: string[]
 
   const [path] = paths;
   try {
-    const res = await fetch(`${apiUrl()}/api/fs/stat?${new URLSearchParams({ path })}`);
+    const res = await fetch(`${httpBaseFor(sessionId)}/api/fs/stat?${new URLSearchParams({ path })}`);
     const body = await res.json();
     if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
 

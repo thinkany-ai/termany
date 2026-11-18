@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CloseConfirm } from "./components/CloseConfirm";
+import { DeviceGate } from "./components/DeviceGate";
 import { FindBar } from "./components/FindBar";
 import { GitDiff } from "./components/GitDiff";
 import { HTabBar } from "./components/HTabBar";
@@ -12,6 +13,7 @@ import { Settings, type SettingsSection } from "./components/Settings";
 import { fetchSystemUsername } from "./userProfile";
 import { SideRail } from "./components/SideRail";
 import { SplitView } from "./components/SplitView";
+import { ThemeBackdrop } from "./components/ThemeScene";
 import { TreeSidebar } from "./components/TreeSidebar";
 import { WindowControls } from "./components/WindowControls";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
@@ -104,6 +106,11 @@ function isTextEditingTarget(target: EventTarget | null): boolean {
 export function App() {
   const htab = useStore(activeHtab);
   const activeWorkspaceId = useStore((state) => state.activeWorkspace);
+  // The other device the active workspace lives on, if any. Selected as the
+  // binding object itself so an unrelated layout change doesn't re-render.
+  const activeDevice = useStore(
+    (state) => state.workspaces.find((w) => w.id === state.activeWorkspace)?.device,
+  );
   const botEnabled = useStore((state) => state.botEnabled);
   const [selectedAppTab, setAppTab] = useState<AppTab>(loadAppTab);
   const appTab = botEnabled ? selectedAppTab : "pages";
@@ -458,6 +465,7 @@ export function App() {
 
   return (
     <div className={`app${isTauri ? " tauri" : ""}${botEnabled ? "" : " bot-disabled"}`}>
+      <ThemeBackdrop />
       {isTauri && <WindowControls />}
       {isTauri && <ResizeHandles />}
       {botEnabled && <AppTabRail active={appTab} workspaceId={activeWorkspaceId} onChange={handleAppTabChange} />}
@@ -469,7 +477,9 @@ export function App() {
             <HTabBar />
             <div className="pane-area">
               <div className="pane-card">
-                {htab && <SplitView key={htab.id} htab={htab} />}
+                <DeviceGate device={activeDevice}>
+                  {htab && <SplitView key={htab.id} htab={htab} />}
+                </DeviceGate>
                 {findOpen && focusedPane && (
                   <FindBar
                     key={focusedPane}
@@ -495,7 +505,9 @@ export function App() {
         </>
       )}
       {botEnabled && <div className="agent-workspace-host" hidden={appTab !== "agents"}>
-        <AgentWorkspace key={activeWorkspaceId} workspaceId={activeWorkspaceId} visible={appTab === "agents"} />
+        <DeviceGate device={activeDevice}>
+          <AgentWorkspace key={activeWorkspaceId} workspaceId={activeWorkspaceId} visible={appTab === "agents"} />
+        </DeviceGate>
       </div>}
       {settingsOpen && (
         <Settings

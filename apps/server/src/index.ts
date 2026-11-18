@@ -18,6 +18,7 @@ import { DEFAULT_SESSION_PAGE_SIZE, listAgentSessions, listAgentUsage } from "./
 import { streamAgentChat } from "./agentChat.js";
 import { compileBotContext } from "./botContext.js";
 import { handleSkillRequest } from "./skillsHttp.js";
+import { NexBridge, NexError } from "./nexBridge.js";
 import { listAgentConfigs, saveAgentConfigs } from "./agentConfig.js";
 import {
   acpRuntimeConfig,
@@ -61,6 +62,7 @@ import {
   setScreenBatch,
   setScrollBatch,
   setSessionCwd,
+  upsertWorkspace,
 } from "./db.js";
 import { gitDiffs, gitOverview, worktreeOverview } from "./git.js";
 import { pickFolder } from "./folderPicker.js";
@@ -77,6 +79,10 @@ import {
 } from "./fileTransfer.js";
 
 /** Read a JSON request body (capped) into an object. */
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
 function readJson(req: import("node:http").IncomingMessage, maxChars = 1_000_000): Promise<any> {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -178,6 +184,16 @@ const PORT = Number(process.env.TERMANY_PORT ?? DEFAULT_PORT);
  */
 declare const __TERMANY_VERSION__: string | undefined;
 declare const __TERMANY_BUILD_ID__: string | undefined;
+/**
+ * nex relay membership (see nexBridge.ts). The credential file is keyed by
+ * port so a dev server (5175) and the installed app (5174) on one machine are
+ * two separate devices: one credential may only hold one host connection, and
+ * sharing it would make them knock each other offline.
+ */
+const nex = new NexBridge({
+  file: path.join(os.homedir(), ".termany", PORT === 5174 ? "nex.json" : `nex-${PORT}.json`),
+  localPort: PORT,
+});
 const SERVER_VERSION = typeof __TERMANY_VERSION__ === "string" ? __TERMANY_VERSION__ : "dev";
 const SERVER_BUILD_ID = typeof __TERMANY_BUILD_ID__ === "string" ? __TERMANY_BUILD_ID__ : "dev";
 const IS_WIN = os.platform() === "win32";
@@ -365,14 +381,18 @@ function normalizeImageType(value: string): string {
   return type;
 }
 
-async function writePastedImage(mime: string, data: Buffer): Promise<{ path: string }> {
+function pastedImageName(mime: string, data: Buffer): string {
   const ext = IMAGE_EXT_BY_MIME[normalizeImageType(mime)];
   if (!ext) throw new Error("unsupported image type");
   if (!data.byteLength) throw new Error("image data is required");
-
-  await fs.promises.mkdir(PASTE_DIR, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const filePath = `${PASTE_DIR}/paste-${stamp}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  return `paste-${stamp}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+}
+
+async function writePastedImage(mime: string, data: Buffer): Promise<{ path: string }> {
+  const fileName = pastedImageName(mime, data);
+  await fs.promises.mkdir(PASTE_DIR, { recursive: true });
+  const filePath = `${PASTE_DIR}/${fileName}`;
   await fs.promises.writeFile(filePath, data);
   return { path: filePath };
 }
@@ -397,7 +417,13 @@ async function savePastedImage(body: any): Promise<{ path: string }> {
 interface PtySession {
   pty: ReturnType<typeof spawn>;
   ring: ScrollRing;
-  ws: WebSocket | null;
+  /**
+   * Every client attached to this shell. Usually one; more when the same pane
+   * is open on another device (through nex) or in another window. Output goes
+   * to all of them and any of them may type — like tmux with several clients.
+   */
+  clients: Set<WebSocket>;
+  /** When the last client left; null while any is attached. */
   detachedAt: number | null;
   /** Null is the local login shell; otherwise the OpenSSH destination. */
   sshTarget: string | null;
@@ -484,6 +510,11 @@ function isOpen(ws: WebSocket | null): ws is WebSocket {
   return !!ws && ws.readyState === ws.OPEN;
 }
 
+/** Send to every attached client that can still receive. */
+function broadcast(session: PtySession, data: string): void {
+  for (const client of session.clients) if (isOpen(client)) client.send(data);
+}
+
 /** Wire a freshly spawned pty's output into its ring + whatever ws is attached. */
 function wireSession(id: string | undefined, session: PtySession): void {
   // The PTY's foreground process group: proof of when a command — an agent
@@ -500,7 +531,7 @@ function wireSession(id: string | undefined, session: PtySession): void {
   /** Everything a client should see: live output, plus the progress bar a
    *  transfer draws while it runs. Also what history records. */
   const emit = (data: string) => {
-    if (isOpen(session.ws)) session.ws.send(data);
+    broadcast(session, data);
     ringAppend(session.ring, data);
     if (id) {
       activityTracker.noteOutput(id, data);
@@ -525,16 +556,17 @@ function wireSession(id: string | undefined, session: PtySession): void {
     console.error(
       `[termany] shell exited (pid: ${session.pty.pid}, code: ${exitCode}, signal: ${signal ?? "none"})`
     );
-    if (isOpen(session.ws)) {
+    for (const client of session.clients) {
+      if (!isOpen(client)) continue;
       // Local shells retain the detailed exit line before the frontend starts
       // a replacement. SSH exits are rendered by the frontend so the message
       // can follow the selected interface language.
       if (!session.sshTarget) {
-        session.ws.send(
+        client.send(
           `\r\n\x1b[2m[termany] shell exited (code: ${exitCode}, signal: ${signal ?? "none"})\x1b[0m\r\n`
         );
       }
-      session.ws.close(SHELL_EXIT_CLOSE_CODE, encodeShellExit(exitCode, signal));
+      client.close(SHELL_EXIT_CLOSE_CODE, encodeShellExit(exitCode, signal));
     }
     if (id) {
       activityTracker.noteExit(id, exitCode, signal);
@@ -585,16 +617,12 @@ function killSession(id: string): void {
  */
 function runUpload(session: PtySession, paths: string[]): void {
   if (!session.transfer?.canUpload) {
-    if (isOpen(session.ws)) {
-      session.ws.send("\r\n\x1b[31m[termany] file upload is only available on remote (SSH) panes\x1b[0m\r\n");
-    }
+    broadcast(session, "\r\n\x1b[31m[termany] file upload is only available on remote (SSH) panes\x1b[0m\r\n");
     return;
   }
   void session.transfer.startUpload(paths).catch((err) => {
     const message = err instanceof Error ? err.message : String(err);
-    if (isOpen(session.ws)) {
-      session.ws.send(`\r\n\x1b[31m[termany] upload failed: ${message}\x1b[0m\r\n`);
-    }
+    broadcast(session, `\r\n\x1b[31m[termany] upload failed: ${message}\x1b[0m\r\n`);
   });
 }
 
@@ -670,6 +698,65 @@ const http = createServer((req, res) => {
     json(500, { error: msg });
   };
   const reqUrl = new URL(req.url ?? "/", "http://localhost");
+
+  if (req.method === "GET" && reqUrl.pathname === "/api/nex/login/callback") {
+    // The browser lands here from termany.sh after the user approves (or
+    // cancels) "Sign in with termany.sh"; answer with a page, not JSON.
+    const page = (title: string, detail: string, status: number) => {
+      res.writeHead(status, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+      res.end(
+        `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Termany</title>` +
+          `<body style="font:15px/1.6 -apple-system,system-ui,sans-serif;display:grid;place-items:center;min-height:90vh;margin:0;color:#222">` +
+          `<div style="max-width:420px;padding:24px;text-align:center"><h2 style="margin:0 0 8px">${escapeHtml(title)}</h2>` +
+          `<p style="color:#666;margin:0">${escapeHtml(detail)}</p></div></body>`,
+      );
+    };
+    nex
+      .loginCallback(reqUrl.searchParams.get("code") ?? "", reqUrl.searchParams.get("state") ?? "")
+      .then(
+        (status) =>
+          page(
+            "Signed in to Termany",
+            status.configured ? `${status.deviceName} is now linked${status.account ? ` to ${status.account}` : ""}. You can close this tab and go back to Termany.` : "You can close this tab.",
+            200,
+          ),
+        (err) => page("Sign-in failed", err instanceof Error ? err.message : String(err), err instanceof NexError ? err.status : 500),
+      );
+    return;
+  }
+
+  if (reqUrl.pathname.startsWith("/api/nex/")) {
+    const route = `${req.method} ${reqUrl.pathname}`;
+    const run = async (): Promise<unknown> => {
+      switch (route) {
+        case "GET /api/nex/status":
+          return nex.status();
+        case "POST /api/nex/setup":
+          return nex.setup(await readJson(req, 64_000));
+        case "POST /api/nex/login/start": {
+          const body = await readJson(req, 64_000);
+          return nex.loginStart({ deviceName: typeof body?.deviceName === "string" ? body.deviceName : undefined });
+        }
+        case "POST /api/nex/pairing-code":
+          return nex.pairingCode();
+        case "GET /api/nex/devices":
+          return { devices: await nex.devices() };
+        case "POST /api/nex/connect": {
+          const body = await readJson(req, 64_000);
+          return nex.connect(String(body?.deviceId ?? ""));
+        }
+        case "POST /api/nex/leave":
+          return nex.leave();
+        default:
+          throw new NexError("unknown nex endpoint", 404);
+      }
+    };
+    run().then(
+      (value) => json(200, value),
+      (err) => json(err instanceof NexError ? err.status : 500, { error: err instanceof Error ? err.message : String(err) }),
+    );
+    return;
+  }
 
   if (reqUrl.pathname === "/api/skills" || reqUrl.pathname.startsWith("/api/skills/") || reqUrl.pathname === "/api/skill-roots" || reqUrl.pathname === "/api/skill-catalog" || reqUrl.pathname.startsWith("/api/skill-catalog/")) {
     void handleSkillRequest(req, res, reqUrl).catch(fail);
@@ -1169,6 +1256,31 @@ const http = createServer((req, res) => {
         saveState(body);
         // `clientId` is the writer's own tag, not part of the layout — it comes
         // straight back out on the stream so the sender can skip its own echo.
+        stateChanged(typeof body?.clientId === "string" ? body.clientId : "");
+        json(200, { ok: true });
+      })
+      .catch(fail);
+    return;
+  }
+
+  // One workspace, written by another device that mounted it (see
+  // apps/web/src/state/devices.ts). The rest of the layout is left alone.
+  if (req.method === "PUT" && reqUrl.pathname === "/api/state/workspace") {
+    readJson(req, 8_000_000)
+      .then((body) => {
+        const workspace = body?.workspace;
+        if (!workspace || typeof workspace !== "object" || typeof workspace.id !== "string" || !workspace.id) {
+          json(400, { error: "workspace with an id is required" });
+          return;
+        }
+        if (!Array.isArray(workspace.roots)) {
+          json(400, { error: "workspace.roots must be an array" });
+          return;
+        }
+        // A workspace belongs to the device it lives on; a binding to some
+        // other device only means something on the device that made it.
+        const { device: _device, ...own } = workspace;
+        upsertWorkspace(own);
         stateChanged(typeof body?.clientId === "string" ? body.clientId : "");
         json(200, { ok: true });
       })
@@ -1707,6 +1819,29 @@ const http = createServer((req, res) => {
     return;
   }
 
+  // The same paste for an SSH pane: the agent CLI reading the path runs on the
+  // remote, so the image goes there, over the pane's own multiplexed
+  // connection — no re-auth, nothing to install remotely.
+  if (req.method === "POST" && reqUrl.pathname === "/api/ssh-paste-image") {
+    const sessionId = reqUrl.searchParams.get("session") ?? "";
+    const contentType = normalizeImageType(
+      reqUrl.searchParams.get("type") ||
+        String(req.headers["content-type"] ?? "").split(";")[0] ||
+        "image/png"
+    );
+    readBuffer(req)
+      .then(async (body) => {
+        try {
+          const fileName = pastedImageName(contentType, body);
+          json(200, { path: await sshPortForwarding.uploadFile(sessionId, fileName, body) });
+        } catch (error) {
+          json(400, { error: error instanceof Error ? error.message : String(error) });
+        }
+      })
+      .catch(fail);
+    return;
+  }
+
   res.writeHead(404).end();
 });
 
@@ -1721,6 +1856,8 @@ function tryListen(): void {
   listenAttempts++;
   http.listen(PORT, HOST, () => {
     console.log(`[termany] PTY server listening on ws://${HOST}:${PORT}  (shell: ${SHELL})`);
+    // Go online only once the port the relay forwards to is actually ours.
+    nex.start();
     if (!isLoopbackHost(HOST)) {
       console.warn(
         `[termany] WARNING: TERMANY_HOST=${HOST} exposes shells and files to the network with no authentication. ` +
@@ -1949,20 +2086,15 @@ wss.on("connection", async (ws: WebSocket, req) => {
   const sshTarget = url.searchParams.get("ssh");
   const agent = url.searchParams.get("agent") ?? undefined;
 
-  // --- Reattach: the session's shell is still running (detached or stolen
-  // from a stale connection) — resume it instead of spawning a fresh one.
+  // --- Reattach: the session's shell is still running (detached, or attached
+  // elsewhere — another window, another device) — join it instead of spawning
+  // a fresh one. Other clients stay attached: displacing them would make two
+  // devices on one pane knock each other off in a loop.
   const existing = sessionId ? ptySessions.get(sessionId) : undefined;
   if (existing && existing.sshTarget === sshTarget) {
     console.log(`[termany] client #${cid} reattached to session ${sessionId} (pid ${existing.pty.pid})`);
     activityTracker.bindAgent(sessionId!, agent);
-    if (existing.ws && existing.ws !== ws) {
-      try {
-        existing.ws.close();
-      } catch {
-        /* already closing */
-      }
-    }
-    existing.ws = ws;
+    existing.clients.add(ws);
     existing.detachedAt = null;
 
     ws.on("message", (raw) => {
@@ -1989,8 +2121,7 @@ wss.on("connection", async (ws: WebSocket, req) => {
       }
     });
     ws.on("close", () => {
-      if (existing.ws !== ws) return; // a newer connection already replaced us
-      existing.ws = null;
+      if (!existing.clients.delete(ws) || existing.clients.size > 0) return;
       existing.detachedAt = Date.now();
       if (existing.ring.dirty) {
         try {
@@ -2062,11 +2193,9 @@ wss.on("connection", async (ws: WebSocket, req) => {
       }
       return;
     }
-    // Detach: leave the shell running so a reconnect can resume it. Guard
-    // against the window-reload race, where a newer connection may already
-    // have taken over this session.
-    if (session.ws !== ws) return;
-    session.ws = null;
+    // Detach: leave the shell running so a reconnect can resume it. Only the
+    // last client leaving detaches it; others may still be watching.
+    if (!session.clients.delete(ws) || session.clients.size > 0) return;
     session.detachedAt = Date.now();
     if (session.ring.dirty) {
       try {
@@ -2125,7 +2254,7 @@ wss.on("connection", async (ws: WebSocket, req) => {
   session = {
     pty,
     ring: sessionId ? newRing(sessionId) : { chunks: [], bytes: 0, dirty: false },
-    ws,
+    clients: new Set([ws]),
     detachedAt: null,
     sshTarget,
   };
@@ -2165,6 +2294,7 @@ async function shutdown() {
     }
   }
   closeAllAcpRuntimes();
+  nex.stop();
   process.exit(0);
 }
 process.on("SIGINT", shutdown);

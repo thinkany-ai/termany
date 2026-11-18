@@ -8,11 +8,11 @@
  * What is NOT shared is where each window is looking, so the active workspace
  * and its page are kept in localStorage under the window's label.
  *
- * PAGES are exclusive, one window at a time. A page owns live terminals, and
- * the PTY server keeps exactly one socket per pane (it closes the previous on
- * reattach), so two windows on one page would fight over every shell in it —
- * and a browser pane is a native child webview, which belongs to exactly one
- * window by construction. The Rust side owns the window → page map; asking for
+ * PAGES are exclusive, one window at a time. The PTY server lets several
+ * clients share a shell (that is how another device works in a workspace that
+ * lives here), but two windows of one app on one page would still fight over each pane's
+ * size, and a browser pane is a native child webview, which belongs to exactly
+ * one window by construction. The Rust side owns the window → page map; asking for
  * a page another window holds raises that window instead of switching.
  *
  * All of this degrades to a single window in a plain browser, where there are

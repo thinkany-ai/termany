@@ -24,7 +24,7 @@ import { addressesEveryone, groupConversationPrompt, groupControllerSessionId, g
 import { agentConversationTopicSessionId, LEGACY_GROUP_TOPIC_ID } from "../agentGroupTopics";
 import { requestGroupDecisionWithFailover } from "../agentGroupDecision";
 import { directReplyPrompt, parsePrivateReply, privateReplyDeliveries, type AgentPrivateMessage } from "../agentPrivateMessages";
-import { apiPath } from "../api";
+import { workspaceApiPath } from "../state/devices";
 import { pastedChatImages, uploadChatImage } from "../chatImagePaste";
 import { useI18n } from "../i18n";
 import { useImeGuard } from "../imeGuard";
@@ -125,7 +125,7 @@ const imageRequestPayload = (attachments: AgentImageAttachment[] | undefined) =>
   attachments?.map(({ path, mimeType }) => ({ path, mimeType }));
 
 const imageSrc = (attachment: AgentImageAttachment) =>
-  apiPath(`/api/fs/media?path=${encodeURIComponent(attachment.path)}`);
+  workspaceApiPath(`/api/fs/media?path=${encodeURIComponent(attachment.path)}`);
 
 function sameCalendarDay(a: number, b: number): boolean {
   return new Date(a).toDateString() === new Date(b).toDateString();
@@ -620,7 +620,7 @@ export function AgentPane({
 
   useEffect(() => {
     let live = true;
-    fetch(apiPath("/api/models"))
+    fetch(workspaceApiPath("/api/models"))
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error(String(response.status)))))
       .then((data: ModelsResponse) => {
         if (live) setModels(data);
@@ -774,7 +774,7 @@ export function AgentPane({
     const params = new URLSearchParams({ paneId: runtimePaneId });
     if (runtimeOwner.agentCwd) params.set("cwd", runtimeOwner.agentCwd);
     params.set("cwdFrom", cwdCandidates(useStore.getState(), runtimeOwner.id).join(","));
-    fetch(apiPath(`/api/agent/acp/cwd?${params}`))
+    fetch(workspaceApiPath(`/api/agent/acp/cwd?${params}`))
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error(String(response.status)))))
       .then((data: { cwd: string; home: string; explicit: boolean }) => {
         if (!live) return;
@@ -846,7 +846,7 @@ export function AgentPane({
     setAcpConfigBusy(true);
     setAcpConfigError(null);
     try {
-      const response = await fetch(apiPath("/api/agent/acp/config"), {
+      const response = await fetch(workspaceApiPath("/api/agent/acp/config"), {
         method: "POST",
         signal: abort.signal,
         headers: { "Content-Type": "application/json" },
@@ -1030,7 +1030,7 @@ export function AgentPane({
     void (async () => {
       try {
         resetInactivityTimer();
-        const response = await fetch(apiPath(endpoint), {
+        const response = await fetch(workspaceApiPath(endpoint), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           signal: abort.signal,
@@ -1213,7 +1213,7 @@ export function AgentPane({
         if (member && replyRuntime && !runtimes.some((runtime) => runtime.id === replyRuntime)) {
           throw new Error(t("agentGroup.memberUnavailable", { name: member.title }));
         }
-        const response = await fetch(apiPath(replyRuntime ? "/api/agent/acp/chat" : "/api/agent/chat"), {
+        const response = await fetch(workspaceApiPath(replyRuntime ? "/api/agent/acp/chat" : "/api/agent/chat"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           signal: attemptAbort?.signal ?? abort.signal,
@@ -1463,7 +1463,7 @@ export function AgentPane({
                   const runtime = configured === undefined ? runtimes[0]?.id ?? "" : configured;
                   return {
                     member,
-                    endpoint: apiPath(runtime ? "/api/agent/acp/chat" : "/api/agent/chat"),
+                    endpoint: workspaceApiPath(runtime ? "/api/agent/acp/chat" : "/api/agent/chat"),
                     target: { paneId: groupControllerSessionId(leaf.id, topicId), agentId: runtime || undefined,
                       model: member.agentModel || models?.defaultModel || undefined,
                       config: runtime ? member.agentConfig?.[runtime] ?? {} : undefined,
@@ -1551,7 +1551,7 @@ export function AgentPane({
     setAttaching(true);
     setAttachmentError(false);
     try {
-      const response = await fetch(apiPath("/api/agent/pick-files"), {
+      const response = await fetch(workspaceApiPath("/api/agent/pick-files"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: abort.signal,
@@ -1618,7 +1618,7 @@ export function AgentPane({
     if (picking) return;
     setPicking(true);
     try {
-      const response = await fetch(apiPath("/api/agent/acp/pick-cwd"), {
+      const response = await fetch(workspaceApiPath("/api/agent/acp/pick-cwd"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: t("agentChat.cwdPick"), defaultPath: cwdInfo?.cwd }),
@@ -1634,7 +1634,7 @@ export function AgentPane({
     }
   };
   const answerPermission = async (permission: PendingPermission, optionId: string) => {
-    const response = await fetch(apiPath("/api/agent/acp/permission"), {
+    const response = await fetch(workspaceApiPath("/api/agent/acp/permission"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ paneId: permission.paneId, requestId: permission.requestId, optionId }),

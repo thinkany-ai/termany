@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { createServer } from "node:net";
 import { promisify } from "node:util";
@@ -8,6 +8,12 @@ const execFileAsync = promisify(execFile);
 const PROBE_TTL_MS = 3_000;
 const SSH_TIMEOUT_MS = 3_000;
 const MAX_BUFFER = 512 * 1024;
+const UPLOAD_TIMEOUT_MS = 30_000;
+// Absolute rather than `~`-relative: the path is pasted into a remote agent
+// CLI, which resolves it from whatever cwd it runs in. Per remote uid, because
+// /tmp is shared and another user's directory would refuse our writes.
+const REMOTE_PASTE_DIR = "/tmp/termany-pastes-$(id -u)";
+const SAFE_FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const CONTROL_DIR = `/tmp/termany-ssh-${process.getuid?.() ?? "user"}-${process.pid}`;
 
 // Prefer tools that can scope listeners to the connected user, so the port
@@ -85,6 +91,36 @@ export function sshForwardControlArgs(
     `127.0.0.1:${localPort}:localhost:${remotePort}`,
     ...args,
   ];
+}
+
+/**
+ * Build a multiplexed command that writes stdin to a file on the remote and
+ * prints the file's absolute path. sshd hands the command to the user's login
+ * shell, which may be fish or csh, so the script runs under `sh -c '…'`: it
+ * must contain no single quote, and the file name no character needing quotes.
+ */
+export function sshUploadControlArgs(
+  args: string[],
+  controlPath: string,
+  fileName: string,
+): string[] {
+  if (!SAFE_FILE_NAME.test(fileName)) throw new Error("invalid remote file name");
+  return [
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "ControlMaster=no",
+    "-S",
+    controlPath,
+    ...args,
+    `sh -c 'umask 077 && d=${REMOTE_PASTE_DIR} && mkdir -p "$d" && cat > "$d/${fileName}" && printf "%s" "$d/${fileName}"'`,
+  ];
+}
+
+/** The remote path printed by the upload command; empty means it never ran. */
+export function parseUploadedPath(stdout: string): string {
+  const path = stdout.trim().split("\n").pop()?.trim() ?? "";
+  return path.startsWith("/") ? path : "";
 }
 
 function controlPathFor(sessionId: string, target: string): string {
@@ -219,6 +255,41 @@ export class SshPortForwarding {
     if (!session || !forward) return;
     await this.runForward(session, forward.localPort, forward.remotePort, "cancel");
     session.forwards.delete(forward.remotePort);
+  }
+
+  /** Write `data` to a file on the session's remote host; resolves to its path. */
+  async uploadFile(sessionId: string, fileName: string, data: Buffer): Promise<string> {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error("not an SSH session");
+    const args = sshUploadControlArgs(session.connectionArgs, session.controlPath, fileName);
+    return new Promise<string>((resolve, reject) => {
+      const child = spawn("ssh", args, { stdio: ["pipe", "pipe", "pipe"] });
+      let stdout = "";
+      let stderr = "";
+      const timer = setTimeout(() => {
+        child.kill("SIGKILL");
+        reject(new Error("remote upload timed out"));
+      }, UPLOAD_TIMEOUT_MS);
+      child.stdout.on("data", (chunk: Buffer) => {
+        if (stdout.length < MAX_BUFFER) stdout += chunk.toString("utf8");
+      });
+      child.stderr.on("data", (chunk: Buffer) => {
+        if (stderr.length < MAX_BUFFER) stderr += chunk.toString("utf8");
+      });
+      child.once("error", (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+      child.once("close", (code) => {
+        clearTimeout(timer);
+        const remotePath = parseUploadedPath(stdout);
+        if (code === 0 && remotePath) resolve(remotePath);
+        else reject(new Error(stderr.trim() || `ssh exited with code ${code}`));
+      });
+      // An EPIPE here means ssh already died; its exit status carries the reason.
+      child.stdin.on("error", () => {});
+      child.stdin.end(data);
+    });
   }
 
   private async runProbe(session: SshPortSession): Promise<number[]> {
