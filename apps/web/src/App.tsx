@@ -12,6 +12,7 @@ import { Settings, type SettingsSection } from "./components/Settings";
 import { fetchSystemUsername } from "./userProfile";
 import { SideRail } from "./components/SideRail";
 import { SplitView } from "./components/SplitView";
+import { ThemeBackdrop } from "./components/ThemeScene";
 import { TreeSidebar } from "./components/TreeSidebar";
 import { WindowControls } from "./components/WindowControls";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
@@ -458,6 +459,7 @@ export function App() {
 
   return (
     <div className={`app${isTauri ? " tauri" : ""}${botEnabled ? "" : " bot-disabled"}`}>
+      <ThemeBackdrop />
       {isTauri && <WindowControls />}
       {isTauri && <ResizeHandles />}
       {botEnabled && <AppTabRail active={appTab} workspaceId={activeWorkspaceId} onChange={handleAppTabChange} />}

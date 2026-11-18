@@ -3,6 +3,8 @@
 // among them; it never computes a color or an in-between frame. No DOM here,
 // so the rules in art/README.md can be tested directly (player.test.ts).
 
+import { gazeToward, type Gaze, type Mood } from "../agent-watch";
+
 export type Step = { frame: string; ms: number };
 export type Tag = { name: string; loop: boolean; steps: Step[] };
 export type Sheet = {
@@ -12,8 +14,8 @@ export type Sheet = {
   tags: Tag[];
 };
 
-export type Gaze = "c" | "l" | "r" | "ur" | "dr";
-export type Mood = "idle" | "alert";
+export { gazeToward };
+export type { Gaze, Mood };
 
 /** What the scene shows at one moment, plus how long that stays true. */
 export type Pose = {
@@ -173,14 +175,4 @@ export function showcasePose(sheets: Sheets, t: number): Pose {
   let next = 10;
   while (next < SHOWCASE_MS && key(showcaseFrames(sheets, t + next)) === now) next += 10;
   return { ...pose, next };
-}
-
-/** Which pupil frame faces a point, seen from the eyes. */
-export function gazeToward(dx: number, dy: number): Gaze {
-  if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return "c";
-  if (dx < 0) return "l";
-  const slope = dy / dx;
-  if (slope < -0.35) return "ur";
-  if (slope > 0.35) return "dr";
-  return "r";
 }
