@@ -1,0 +1,21 @@
+{
+  "name": "@termany/cloud",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "termany.ai gateway: serves the cloud web build and proxies to the user's devices over nex",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/server.cjs --external:bufferutil --external:utf-8-validate",
+    "start": "node dist/server.cjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "nex-sdk": "*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2"
+  }
+}

@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { apiPath, apiUrl, ptyUrl } from "../api";
+import { cloudHome, isCloud } from "../cloud";
 
 /**
  * Workspaces bound to another device.
@@ -162,16 +163,34 @@ export type NexDevice = {
   lastSeenAt: number | null;
 };
 
-/** Talk to THIS machine's nex bridge (never a tunnel). */
+/**
+ * Talk to THIS machine's nex bridge (never a tunnel). On termany.ai that is
+ * the gateway itself (apps/cloud), which answers the same routes for the
+ * browser's sign-in; the home device then stands in for "this device".
+ */
 export async function nexRequest<T>(path: string, body?: unknown): Promise<T> {
-  const response = await fetch(apiPath(`/api/nex/${path}`), {
+  const url = isCloud ? `${location.origin}/api/nex/${path}` : apiPath(`/api/nex/${path}`);
+  const response = await fetch(url, {
     method: body === undefined ? "GET" : "POST",
     headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(typeof data?.error === "string" ? data.error : `HTTP ${response.status}`);
-  return data as T;
+  return (isCloud ? asHomeDevice(path, data) : data) as T;
+}
+
+/** termany.ai: present the home device as "this device" in status and device lists. */
+function asHomeDevice(path: string, data: any): unknown {
+  const home = cloudHome();
+  if (!home) return data;
+  if ((path === "status" || path === "leave") && data?.configured) {
+    return { ...data, deviceId: home.id, deviceName: home.name };
+  }
+  if (path === "devices" && Array.isArray(data?.devices)) {
+    return { ...data, devices: data.devices.map((d: NexDevice) => ({ ...d, isSelf: d.id === home.id })) };
+  }
+  return data;
 }
 
 /** Other devices that could hold a workspace right now; empty when not on a relay. */

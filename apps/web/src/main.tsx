@@ -1,6 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./App";
+import { isCloud, type CloudHome } from "./cloud";
+import { CloudGate } from "./components/CloudGate";
 import { isDemo } from "./demo";
 import { isTauri } from "./env";
 import { loadState, startStateSync, waitForServer } from "./state/sync";
@@ -62,17 +64,29 @@ if (isDemo) {
 // terminal attaches (so its restored screen is in place before the shell paints).
 // If the server never answers we render anyway (degraded), but state saves stay
 // disabled so the real layout in SQLite can't be clobbered by our defaults.
-waitForServer().then(() =>
-  Promise.allSettled([loadState(), loadSnapshots()]).finally(() => {
-    startStateSync();
-    startScrollSync();
-    ReactDOM.createRoot(document.getElementById("root")!).render(
-      <React.StrictMode>
-        <App />
-      </React.StrictMode>
-    );
-    // Extra windows are created hidden so they never appear as an empty
-    // transparent rectangle in front of everything — see revealWindow.
-    revealWindow();
-  })
-);
+function boot(root: ReactDOM.Root) {
+  waitForServer().then(() =>
+    Promise.allSettled([loadState(), loadSnapshots()]).finally(() => {
+      startStateSync();
+      startScrollSync();
+      root.render(
+        <React.StrictMode>
+          <App />
+        </React.StrictMode>
+      );
+      // Extra windows are created hidden so they never appear as an empty
+      // transparent rectangle in front of everything — see revealWindow.
+      revealWindow();
+    })
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root")!);
+if (isCloud) {
+  // termany.ai: sign in and pick the device to run against before anything
+  // talks to "the server" (cloud.ts). The gate resolves with the home device.
+  const onReady = (_home: CloudHome) => boot(root);
+  root.render(<CloudGate onReady={onReady} />);
+} else {
+  boot(root);
+}
