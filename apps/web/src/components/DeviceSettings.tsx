@@ -441,16 +441,15 @@ function MyDevices({
                 <span className="devices-peer-actions">
                   {removing === d.id && p ? (
                     <>
-                      {bound > 0 && (
-                        <span className="ms-hint devices-remove-note">
-                          {t("devices.link.removeWorkspaces", { count: bound })}
-                        </span>
-                      )}
+                      <span className="ms-hint devices-remove-note">
+                        {t(viaAccount ? "devices.link.unpairAsk" : "devices.link.removeAsk", { name: d.name })}
+                        {bound > 0 && ` ${t("devices.link.removeWorkspaces", { count: bound })}`}
+                      </span>
                       <button type="button" className="ms-btn" onClick={() => setRemoving(null)}>
                         {t("devices.cancel")}
                       </button>
                       <button type="button" className="ms-btn primary" onClick={() => void unpair(d, p)}>
-                        {t("devices.link.remove")}
+                        {t("devices.confirm")}
                       </button>
                     </>
                   ) : (
