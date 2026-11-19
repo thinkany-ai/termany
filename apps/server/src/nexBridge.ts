@@ -738,9 +738,9 @@ export class NexBridge {
     try {
       ws = await openStream(client, deviceId, PAIR_SERVICE);
     } catch (err) {
-      if (err instanceof NexApiError && err.status === 404) {
-        throw new NexError("that device needs a newer Termany to connect", 409);
-      }
+      // A slightly older Termany has no pairing service, but may still take
+      // the request through its API (unless it only lets paired devices in).
+      if (err instanceof NexApiError && err.status === 404) return this.#requestThroughApi(client, deviceId, invite);
       throw new NexError(`that device cannot be reached through your account: ${errMessage(err)}`, 502);
     }
     try {
@@ -769,6 +769,36 @@ export class NexBridge {
       throw err instanceof NexError ? err : new NexError(errMessage(err), 502);
     } finally {
       ws.close();
+    }
+  }
+
+  /** The way before PAIR_SERVICE: its Termany API over a plain relay stream. */
+  async #requestThroughApi(client: NexClient, deviceId: string, invite: string): Promise<{ name: string; publicKey: string; invite: string }> {
+    const newer = new NexError("that device needs a newer Termany to connect", 409);
+    const tunnel = await forwardTcp(client, deviceId, NEX_SERVICE, { port: 0, host: "127.0.0.1", direct: false });
+    try {
+      const { port } = tunnel.address() as { port: number };
+      const call = async <T>(path: string, body?: unknown): Promise<T> => {
+        const res = await fetch(`http://127.0.0.1:${port}/api/nex/${path}`, {
+          method: body === undefined ? "GET" : "POST",
+          headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+          body: body === undefined ? undefined : JSON.stringify(body),
+          signal: AbortSignal.timeout(15_000),
+        });
+        const data = (await res.json().catch(() => ({}))) as { error?: unknown };
+        if (res.status === 404) throw newer;
+        if (!res.ok) throw new NexError(typeof data.error === "string" ? data.error : `HTTP ${res.status}`, 502);
+        return data as T;
+      };
+      // Refused outright (it only lets paired devices in): it needs the update.
+      const theirs = await call<PeersInfo>("peers").catch((err: unknown) => {
+        throw err instanceof NexError ? err : newer;
+      });
+      await call("peers/request", { invite });
+      const parsed = this.#peers.preview(theirs.invite);
+      return { name: parsed.name, publicKey: parsed.publicKey, invite: theirs.invite };
+    } finally {
+      tunnel.close();
     }
   }
 

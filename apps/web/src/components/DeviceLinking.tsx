@@ -18,6 +18,41 @@ import { textInputProps } from "../textInputProps";
  */
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+/**
+ * The server explains failures in English for logs; the dialogs say the same
+ * in the user's language and in plain words. Unknown ones pass through.
+ */
+const FRIENDLY: Array<[RegExp, string]> = [
+  [/needs a newer Termany/i, "devices.err.newer"],
+  [/authorization code is from a newer Termany/i, "devices.err.codeNewer"],
+  [/not a Termany authorization code|authorization code is damaged/i, "devices.err.badCode"],
+  [/own authorization code/i, "devices.err.ownCode"],
+  [/code does not match/i, "devices.err.codeMismatch"],
+  [/no device is asking to connect/i, "devices.err.noRequest"],
+  [/too many pending requests/i, "devices.err.tooMany"],
+  [/only accepts end-to-end encrypted connections/i, "devices.err.strict"],
+  [/cannot be reached through your account/i, "devices.err.accountUnreachable"],
+  [/^cannot reach /i, "devices.err.unreachable"],
+];
+
+function useFriendlyError(): (raw: string) => string {
+  const { t } = useI18n();
+  return (raw) => {
+    const hit = FRIENDLY.find(([re]) => re.test(raw));
+    return hit ? t(hit[1]) : raw;
+  };
+}
+
+/** A failure in plain words; the server's own wording stays in the tooltip for troubleshooting. */
+function ErrorLine({ error }: { error: string }) {
+  const friendly = useFriendlyError()(error);
+  return (
+    <div className="ms-test-fail" title={friendly === error ? undefined : error}>
+      {friendly}
+    </div>
+  );
+}
 const POLL_MS = 2_000;
 
 function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
@@ -125,7 +160,7 @@ export function ConnectDialog({ deviceId, onClose }: { deviceId?: string; onClos
         </>
       )}
       {connected && offer && <p className="link-success">✓ {t("devices.link.connected", { name: offer.name })}</p>}
-      {error && <div className="ms-test-fail">{error}</div>}
+      {error && <ErrorLine error={error} />}
       <div className="ws-dialog-actions">
         {connected ? (
           <button type="button" className="ws-dialog-btn primary" autoFocus onClick={() => onClose(true)}>
@@ -194,7 +229,7 @@ export function VerifyDialog({ onClose }: { onClose: (connected: boolean) => voi
       ) : (
         <p className="link-success">✓ {t("devices.link.connected", { name })}</p>
       )}
-      {error && <div className="ms-test-fail">{error}</div>}
+      {error && <ErrorLine error={error} />}
       <div className="ws-dialog-actions">
         {name === null ? (
           <>
