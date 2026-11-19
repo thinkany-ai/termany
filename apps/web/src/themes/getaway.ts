@@ -11,6 +11,44 @@ import coast from "./getaway/coast.jpg";
 // painted coast fills the window; the sidebar, the tab bar and the gaps
 // between panes let it through, and every pane floats on it as a dark card.
 // The theme uses no third-party names, logos, characters, typefaces or artwork.
+
+// Palm silhouettes in the chrome, drawn over the painting for foreground depth.
+// One frond is a crescent from the crown (0,0); rotated copies make a crown.
+// SVG rotates clockwise: 0deg points left, 90 up, 180 right. The set leans low
+// on both sides so the crown droops.
+const PALM_INK = "#170d27";
+const FROND = "M0 0q-16-14-36-6q22 0 36 6z";
+const crown = (fill: string) =>
+  `<g fill="${fill}">${[-45, -15, 20, 70, 110, 160, 195, 225]
+    .map((deg, i) => `<path d="${FROND}" transform="rotate(${deg}) scale(${i % 2 ? 0.85 : 1})"/>`)
+    .join("")}</g>`;
+const svgUrl = (svg: string) => `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+
+// Crowns hanging into the tab bar, a 900x36 tile repeated along its width.
+const TAB_BAR_FRONDS = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 36">
+  <g opacity=".6">
+    <g transform="translate(120 -4) scale(1.1)">${crown(PALM_INK)}</g>
+    <g transform="translate(430 -10) scale(.8)">${crown(PALM_INK)}</g>
+    <g transform="translate(700 -2) scale(1.2)">${crown(PALM_INK)}</g>
+  </g>
+</svg>`;
+
+// Two palms leaning in from the sidebar's right edge, 240x480, bottom-right.
+const SIDEBAR_PALMS = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 480">
+  <g fill="none" stroke="${PALM_INK}" stroke-linecap="round">
+    <path d="M230 482Q238 300 160 110" stroke-width="10"/>
+    <path d="M252 482q-6-120-50-220" stroke-width="7"/>
+  </g>
+  <g transform="translate(160 110) scale(2.1)">${crown(PALM_INK)}</g>
+  <g transform="translate(202 262) scale(1.5)">${crown(PALM_INK)}</g>
+</svg>`;
+
+// One small palm at the foot of the right rail, 40x140.
+const RAIL_PALM = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 140">
+  <path d="M22 142q4-60-6-104" stroke="${PALM_INK}" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <g transform="translate(16 38) scale(.55)">${crown(PALM_INK)}</g>
+</svg>`;
+
 export const getaway: Theme = {
   id: "getaway",
   name: "Getaway",
@@ -28,8 +66,8 @@ export const getaway: Theme = {
   radius: { sm: "6px", md: "8px", lg: "12px" },
   sidebar: { bg: "#1b1531", border: "transparent" },
   chrome: {
-    // The sky shows through the tab bar under a light scrim.
-    topBar: "linear-gradient(rgba(27, 21, 49, 0.45), rgba(27, 21, 49, 0.25))",
+    // The sky shows through the tab bar under a light scrim, with palm crowns.
+    topBar: `${svgUrl(TAB_BAR_FRONDS)} left top / auto 100% repeat-x, linear-gradient(rgba(27, 21, 49, 0.45), rgba(27, 21, 49, 0.25))`,
     topBarBorder: "transparent",
     activeTab: "#171328",
     activeRow: "rgba(255, 178, 198, 0.18)",
@@ -67,6 +105,8 @@ export const getaway: Theme = {
     brightWhite: "#ffffff",
   },
   vars: {
+    "--getaway-sidebar-palms": svgUrl(SIDEBAR_PALMS),
+    "--getaway-rail-palm": svgUrl(RAIL_PALM),
     "--accent-fg": "#171328",
     "--pane-area-bg": "transparent",
     // The Bots conversation stays opaque so long messages read cleanly.

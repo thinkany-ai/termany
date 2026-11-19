@@ -4,7 +4,10 @@ html[data-theme="getaway"] {
   --getaway-sunset: linear-gradient(90deg, #ffd98a, #ff9aa8 35%, #e46fc0 65%, #8b6fd0);
 }
 
-/* Tab bar: white ink over the sky, the active tab a dark pill. */
+/* Tab bar: white ink over the sky, the active tab a dark pill. The base
+   sheet fixes the bar background to the window, which would size the palm
+   tile against the window height; here it scrolls with the bar instead. */
+html[data-theme="getaway"] .htabbar { background-attachment: scroll; }
 html[data-theme="getaway"] .htab {
   color: #fff;
   font-weight: 600;
@@ -24,9 +27,8 @@ html[data-theme="getaway"] .htabbar :is(.bar-btn, .htab-add) {
 /* Terminals: frosted glass over the coast. The backdrop is blurred, so its
    detail does not compete with glyphs, and dimmed before the night scrim, so
    the scene stays visible while dim ANSI colors keep about 4:1 contrast. The
-   xterm canvas is transparent. */
-/* The base sheet paints every pane slot solid --bg; terminal slots drop it so
-   the glass below can show the coast. Other panes keep their solid surface. */
+   xterm canvas is transparent, and the base sheet's solid --bg on the pane
+   slot is dropped for terminal slots only; other panes keep their surface. */
 html[data-theme="getaway"] .pane-slot:has(.term-pane) { background: transparent; }
 html[data-theme="getaway"] .term-pane {
   background: linear-gradient(180deg, rgba(20, 15, 40, 0.62), rgba(24, 17, 46, 0.55));
@@ -43,9 +45,17 @@ html[data-theme="getaway"] .pane-head {
 }
 
 /* Sidebar: dark behind the page list, clearing toward the foot so the
-   beachfront shows through. The empty foot keeps rows off the bright part. */
+   beachfront shows through, with two palms leaning in from the right edge.
+   The empty foot keeps rows off the bright part. */
 html[data-theme="getaway"] .sidebar {
-  background: linear-gradient(180deg, rgba(27, 21, 49, 0.9) 0%, rgba(27, 21, 49, 0.82) 55%, rgba(27, 21, 49, 0.3) 100%);
+  background:
+    var(--getaway-sidebar-palms) right bottom / 240px auto no-repeat,
+    linear-gradient(180deg, rgba(27, 21, 49, 0.9) 0%, rgba(27, 21, 49, 0.82) 55%, rgba(27, 21, 49, 0.3) 100%);
+}
+
+/* Right rail: one small palm at its foot, below the tool icons. */
+html[data-theme="getaway"] .side-rail {
+  background: var(--getaway-rail-palm) center bottom / 40px auto no-repeat, var(--sidebar-bg);
 }
 html[data-theme="getaway"] .sidebar::after {
   content: "";
