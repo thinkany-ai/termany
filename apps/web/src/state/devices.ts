@@ -169,6 +169,8 @@ export type NexDevice = {
   kind?: "relay" | "peer";
   /** Round trip through the cloud, like a ping, last measured. */
   relayRttMs?: number | null;
+  /** It only lets paired devices in and we are not one: end-to-end encrypt to use it. */
+  requiresPairing?: boolean;
 };
 
 /** Settings → Devices → paired devices (GET /api/nex/peers). */

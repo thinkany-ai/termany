@@ -95,15 +95,12 @@ test("End-to-end encrypt an account device that only lets paired devices in", { 
   mini.bridge.addPeer(third.invite("third", null));
   mini.bridge.setStrict(true);
 
-  // The laptop, not paired, cannot open mini's Termany through the account...
-  const { url } = await laptop.bridge.connect(mini.id);
-  const reachable = await new Promise<boolean>((resolve) => {
-    const s = net.connect(Number(new URL(url).port), "127.0.0.1", () => s.write("x"));
-    s.on("data", () => (s.destroy(), resolve(true)));
-    s.on("close", () => resolve(false));
-    s.on("error", () => resolve(false));
-  });
-  assert.equal(reachable, false, "strict mini refuses an unpaired device");
+  // The laptop is told up front that mini needs end-to-end encryption.
+  await waitFor("strict marker", async () => (await laptop.bridge.devices()).find((d) => d.id === mini.id)?.requiresPairing === true);
+  assert.equal((await laptop.bridge.devices()).find((d) => d.id === mini.id)?.connectable, false);
+
+  // ...and cannot open it (connect refuses before even trying).
+  await assert.rejects(laptop.bridge.connect(mini.id));
 
   // ...but can still ask to pair, and mini's user verifies the code.
   const offer = await laptop.bridge.pairWith(mini.id);
@@ -112,6 +109,9 @@ test("End-to-end encrypt an account device that only lets paired devices in", { 
   mini.bridge.verifyCode(offer.code);
   await waitFor("laptop sees the pairing", async () => (await laptop.bridge.checkPeer(offer.publicKey)).connected);
   assert.equal(laptop.bridge.peersInfo().peers[0].pending, false);
+  const after = (await laptop.bridge.devices()).find((d) => d.id === mini.id)!;
+  assert.equal(after.requiresPairing, false);
+  assert.equal(after.connectable, true);
 });
 
 test("a device that already trusts us confirms right away", { skip: !available && `no relay at ${BIN}` }, async () => {

@@ -10468,6 +10468,34 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   font-size: 12px;
   padding: 6px 10px;
 }
+.devices-e2e {
+  font: inherit;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.devices-e2e.on {
+  color: #2563eb;
+  background: color-mix(in srgb, #3b82f6 12%, transparent);
+}
+.devices-e2e.off {
+  color: var(--fg-dim);
+  background: none;
+  border-color: color-mix(in srgb, var(--fg-dim) 35%, transparent);
+}
+.devices-e2e.off.needed {
+  color: #b45309;
+  border-color: color-mix(in srgb, #f59e0b 60%, transparent);
+}
+.devices-e2e.static {
+  cursor: default;
+}
+.devices-e2e:not(.static):hover {
+  filter: brightness(0.95);
+}
 .devices-latency {
   display: inline-flex;
   gap: 6px;

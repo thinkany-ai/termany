@@ -55,6 +55,12 @@ export const NEX_APP = "termany";
  * to type its code here, and the stream reaches nothing else.
  */
 export const PAIR_SERVICE = "termany.pair";
+/**
+ * Advertised while this device only lets paired devices in, so others can say
+ * so up front ("needs end-to-end encryption") instead of offering actions
+ * that would be refused. Reaches nothing.
+ */
+export const STRICT_MARKER = "termany.strict";
 
 /** Where "Sign in with termany.sh" goes; TERMANY_SITE_URL points dev at a local site. */
 const SITE_URL = (process.env.TERMANY_SITE_URL || "https://termany.sh").replace(/\/+$/, "");
@@ -101,6 +107,8 @@ export type NexDevice = {
   kind: "relay" | "peer";
   /** We asked it to connect; it has not verified us yet. */
   pending?: boolean;
+  /** It only lets paired devices in and we are not one: pair (end-to-end encrypt) to use it. */
+  requiresPairing?: boolean;
   /**
    * Round trip to it through the cloud relay, like a ping, last measured
    * (null: not signed in, or not measured yet). The direct path's is
@@ -388,7 +396,11 @@ export class NexBridge {
         throw asNexError(err);
       }
       for (const d of devices) {
-        const connectable = !d.is_self && d.online && d.services.some((s) => s.name === NEX_SERVICE && s.kind === "tcp");
+        const paired = this.#peers.byNexDevice(d.id);
+        const requiresPairing =
+          !d.is_self && d.services.some((s) => s.name === STRICT_MARKER) && (!paired || !!paired.pending);
+        const connectable =
+          !d.is_self && !requiresPairing && d.online && d.services.some((s) => s.name === NEX_SERVICE && s.kind === "tcp");
         // Start measuring both paths to it, so the list can show them before
         // anything is opened there (the first look shows "—").
         if (connectable && !this.#forwards.has(d.id)) void this.#relayForward(d.id, d.name).catch(() => {});
@@ -403,7 +415,8 @@ export class NexBridge {
           connectable,
           lastSeenAt: d.last_seen_at,
           route: this.#route(d.id),
-          paired: !!this.#peers.byNexDevice(d.id),
+          paired: !!paired,
+          requiresPairing,
           kind: "relay",
           relayRttMs: this.#relayMs.get(d.id)?.ms ?? null,
         });
@@ -468,6 +481,9 @@ export class NexBridge {
       );
     }
     if (device.isSelf) throw new NexError("that is this device");
+    if (device.requiresPairing) {
+      throw new NexError(`${device.name} only accepts end-to-end encrypted connections from paired devices`, 409);
+    }
     if (!device.connectable) {
       throw new NexError(
         device.kind === "peer"
@@ -939,6 +955,17 @@ export class NexBridge {
     return this.peersInfo();
   }
 
+  /** What this device offers on the relay; the strict marker only while strict. */
+  #hostServices() {
+    const services = [
+      tcpService(NEX_SERVICE, this.#localAddr),
+      echoService(),
+      handlerService(PAIR_SERVICE, "ws", (ws) => this.#servePairing(ws)),
+    ];
+    if (this.#peers.hostTrust()?.strict) services.push(handlerService(STRICT_MARKER, "ws", (ws) => ws.close()));
+    return services;
+  }
+
   /** Knocks from devices holding our authorization code end up as requests. */
   #pairingOptions(): PairingOptions {
     return {
@@ -966,6 +993,7 @@ export class NexBridge {
       this.#peerHost?.stop();
       this.#peerHost = null;
       this.#host.updateTrust(trust);
+      this.#host.updateServices(this.#hostServices());
       return;
     }
     const peers = trust?.peers ?? [];
@@ -1048,11 +1076,7 @@ export class NexBridge {
     this.#abort = abort;
     const host = new NexHost({
       client: this.#client,
-      services: [
-        tcpService(NEX_SERVICE, this.#localAddr),
-        echoService(),
-        handlerService(PAIR_SERVICE, "ws", (ws) => this.#servePairing(ws)),
-      ],
+      services: this.#hostServices(),
       // A fixed port, so the addresses in an invite stay valid.
       direct: DIRECT ? { port: this.#peers.port } : false,
       trust: this.#peers.hostTrust(),

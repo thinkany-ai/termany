@@ -425,13 +425,17 @@ function MyDevices({
                 ) : (
                   <strong>{d.name}</strong>
                 )}
-                {p && !pending && (
-                  <span className="devices-lock" title={t("devices.method.pairedTitle")}>
-                    🔒
-                  </span>
-                )}
+                <E2eToggle
+                  device={d}
+                  paired={!!p && !pending}
+                  pending={pending}
+                  onEnable={() => setDialog({ kind: "connect", deviceId: d.id })}
+                  onDisable={() => setRemoving(d.id)}
+                />
                 {pending ? (
                   <span className="devices-state">{t("devices.link.pending")}</span>
+                ) : d.requiresPairing ? (
+                  <span className="devices-state">{t("devices.requiresPairing")}</span>
                 ) : !d.connectable ? (
                   <span className="devices-state" title={d.route?.note ?? undefined}>
                     {t(!viaAccount ? "devices.link.unreachable" : d.online ? "devices.notSharing" : "devices.offline")}
@@ -442,7 +446,7 @@ function MyDevices({
                   {removing === d.id && p ? (
                     <>
                       <span className="ms-hint devices-remove-note">
-                        {t(viaAccount ? "devices.link.unpairAsk" : "devices.link.removeAsk", { name: d.name })}
+                        {t(viaAccount ? "devices.e2e.offAsk" : "devices.link.removeAsk", { name: d.name })}
                         {bound > 0 && ` ${t("devices.link.removeWorkspaces", { count: bound })}`}
                       </span>
                       <button type="button" className="ms-btn" onClick={() => setRemoving(null)}>
@@ -454,16 +458,6 @@ function MyDevices({
                     </>
                   ) : (
                     <>
-                      {viaAccount && !p && d.connectable && !isCloud && (
-                        <button
-                          type="button"
-                          className="ms-btn"
-                          title={t("devices.method.pairedTitle")}
-                          onClick={() => setDialog({ kind: "connect", deviceId: d.id })}
-                        >
-                          {t("devices.link.encrypt")}
-                        </button>
-                      )}
                       {d.connectable && (
                         <button
                           type="button"
@@ -476,9 +470,9 @@ function MyDevices({
                           {t("devices.importWorkspace")}
                         </button>
                       )}
-                      {p && !isCloud && (
+                      {p && !viaAccount && !isCloud && (
                         <button type="button" className="ms-btn" onClick={() => setRemoving(d.id)}>
-                          {t(viaAccount ? "devices.link.unpair" : "devices.link.remove")}
+                          {t("devices.link.remove")}
                         </button>
                       )}
                     </>
@@ -493,6 +487,57 @@ function MyDevices({
       {dialog?.kind === "connect" && <ConnectDialog deviceId={dialog.deviceId} onClose={closeDialog} />}
       {dialog?.kind === "verify" && <VerifyDialog onClose={closeDialog} />}
     </div>
+  );
+}
+
+/**
+ * End-to-end encryption for one device, as one switch: "🔒 End-to-end
+ * encrypted" when on, "🔓 Turn on end-to-end encryption" when off. Turning it
+ * on pairs the devices (keys exchanged between them only); turning it off
+ * unpairs, with a confirmation. A device reached only by code is always
+ * encrypted: the badge is not a switch there.
+ */
+function E2eToggle({
+  device,
+  paired,
+  pending,
+  onEnable,
+  onDisable,
+}: {
+  device: NexDevice;
+  paired: boolean;
+  pending: boolean;
+  onEnable: () => void;
+  onDisable: () => void;
+}) {
+  const { t } = useI18n();
+  if (pending) return null;
+  if (device.kind === "peer" || (isCloud && paired)) {
+    return (
+      <span className="devices-e2e on static" title={t("devices.e2e.fixedTitle")}>
+        🔒 {t("devices.e2e.on")}
+      </span>
+    );
+  }
+  if (isCloud) return null;
+  if (paired) {
+    return (
+      <button type="button" className="devices-e2e on" title={t("devices.e2e.onTitle")} onClick={onDisable}>
+        🔒 {t("devices.e2e.on")}
+      </button>
+    );
+  }
+  // Offering it needs the device to answer (online, or asking for exactly this).
+  if (!device.online && !device.requiresPairing) return null;
+  return (
+    <button
+      type="button"
+      className={`devices-e2e off${device.requiresPairing ? " needed" : ""}`}
+      title={t("devices.e2e.offTitle")}
+      onClick={onEnable}
+    >
+      🔓 {t("devices.e2e.enable")}
+    </button>
   );
 }
 
