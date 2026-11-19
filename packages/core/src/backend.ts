@@ -25,6 +25,12 @@ export interface ITerminalBackend {
    * when the backend could observe it (see ShellExit).
    */
   onExit(cb: (reason?: string, exit?: ShellExit) => void): void;
+  /**
+   * Optional: the transport dropped and the backend is reconnecting to the
+   * SAME session (`"reconnecting"`), or got it back (`"connected"`). The shell
+   * keeps running meanwhile; this is not an exit.
+   */
+  onConnectionChange?(cb: (state: "reconnecting" | "connected") => void): void;
   /** Tear down the connection / session. */
   dispose(): void;
 }

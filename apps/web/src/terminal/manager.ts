@@ -1716,7 +1716,28 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
       }
       writeSessionData(id, data);
     });
+    // The connection to the PTY server dropped (a relay hiccup, the device
+    // changing networks, our server restarting) while the shell kept running:
+    // the backend reconnects to the same shell. Say so only if it takes a
+    // moment, so a blip does not scribble over a TUI.
+    let lostNotice: ReturnType<typeof setTimeout> | undefined;
+    let lostShown = false;
+    b.onConnectionChange?.((state) => {
+      if (session.backend !== b) return;
+      clearTimeout(lostNotice);
+      if (state === "reconnecting") {
+        lostNotice = setTimeout(() => {
+          if (session.backend !== b) return;
+          lostShown = true;
+          term.write(`\r\n\x1b[2m[connection lost — reconnecting…]\x1b[0m\r\n`);
+        }, 1_500);
+      } else if (lostShown) {
+        lostShown = false;
+        term.write(`\x1b[2m[reconnected]\x1b[0m\r\n`);
+      }
+    });
     b.onExit((reason, exit) => {
+      clearTimeout(lostNotice);
       if (agentActivities.has(id)) setAgentActivity(id, reason ? "error" : "done");
       if (sshTarget) {
         session.ended = true;

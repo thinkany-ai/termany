@@ -7,6 +7,20 @@ const MAX_CONNECT_ATTEMPTS = 8;
 const RETRY_DELAY_MS = 400; // × attempt number ≈ 11s of patience in total
 
 /**
+ * Close codes that mean the CONNECTION went away, not the shell: 1006 is a
+ * socket that died without a close frame (network drop, a relay or tunnel
+ * stream ending, the server process dying), 1001/1011-1013 a server going
+ * down or restarting. The server keeps the shell running when its client
+ * disconnects and reattaches by session id, so these reconnect to the same
+ * shell instead of being reported as an exit. A deliberate close from the
+ * server (shell exited: 4000 with a payload; a spawn error: 1000/1005 after
+ * printing why) is still an exit.
+ */
+const TRANSPORT_LOSS_CODES = new Set([1001, 1006, 1011, 1012, 1013]);
+const RECONNECT_FIRST_DELAY_MS = 250;
+const RECONNECT_MAX_DELAY_MS = 5_000;
+
+/**
  * Talks to a PTY server over a single WebSocket.
  *
  * Protocol:
@@ -27,6 +41,10 @@ export class WebSocketBackend implements ITerminalBackend {
   private outbox: string[] = [];
   private dataCb?: (data: string) => void;
   private exitCb?: (reason?: string, exit?: ShellExit) => void;
+  private connectionCb?: (state: "reconnecting" | "connected") => void;
+  private reconnecting = false;
+  private reconnectDelay = RECONNECT_FIRST_DELAY_MS;
+  private lastResize: string | undefined;
 
   constructor(url: string, params?: Record<string, string | undefined>) {
     const wsUrl = new URL(url);
@@ -43,6 +61,14 @@ export class WebSocketBackend implements ITerminalBackend {
     this.ws.onopen = () => {
       this.open = true;
       this.everOpened = true;
+      if (this.reconnecting) {
+        this.reconnecting = false;
+        this.reconnectDelay = RECONNECT_FIRST_DELAY_MS;
+        // The size may have changed while we were away; the server only
+        // knows what the last connection told it.
+        if (this.lastResize && !this.outbox.includes(this.lastResize)) this.outbox.push(this.lastResize);
+        this.connectionCb?.("connected");
+      }
       for (const m of this.outbox) this.ws.send(m);
       this.outbox = [];
     };
@@ -54,6 +80,15 @@ export class WebSocketBackend implements ITerminalBackend {
       if (this.disposed) return;
       if (!this.everOpened && this.attempts < MAX_CONNECT_ATTEMPTS) {
         this.retryTimer = setTimeout(() => this.connect(), RETRY_DELAY_MS * this.attempts);
+        return;
+      }
+      if (this.reconnecting || (this.everOpened && TRANSPORT_LOSS_CODES.has(event.code))) {
+        if (!this.reconnecting) {
+          this.reconnecting = true;
+          this.connectionCb?.("reconnecting");
+        }
+        this.retryTimer = setTimeout(() => this.connect(), this.reconnectDelay);
+        this.reconnectDelay = Math.min(this.reconnectDelay * 2, RECONNECT_MAX_DELAY_MS);
         return;
       }
       if (!this.everOpened) {
@@ -74,6 +109,10 @@ export class WebSocketBackend implements ITerminalBackend {
 
   onExit(cb: (reason?: string, exit?: ShellExit) => void) {
     this.exitCb = cb;
+  }
+
+  onConnectionChange(cb: (state: "reconnecting" | "connected") => void) {
+    this.connectionCb = cb;
   }
 
   write(data: string) {
@@ -101,7 +140,11 @@ export class WebSocketBackend implements ITerminalBackend {
 
   private send(msg: ClientMessage) {
     const frame = JSON.stringify(msg);
-    if (this.open) this.ws.send(frame);
-    else this.outbox.push(frame);
+    if (msg.type === "resize") this.lastResize = frame;
+    if (this.open) return this.ws.send(frame);
+    // Keystrokes typed into a dead connection must not run seconds or
+    // minutes later when it comes back: drop them while reconnecting.
+    if (this.reconnecting && msg.type !== "resize") return;
+    this.outbox.push(frame);
   }
 }
