@@ -90,6 +90,8 @@ export type NexDevice = {
   paired: boolean;
   /** "relay": a device of the signed-in account; "peer": a paired device reached without the relay. */
   kind: "relay" | "peer";
+  /** We asked it to connect; it has not verified us yet. */
+  pending?: boolean;
 };
 
 export type PairedDevice = {
@@ -101,6 +103,8 @@ export type PairedDevice = {
   /** Its id on the relay when it was signed in as it made the invite. */
   nexDeviceId: string | null;
   addedAt: number;
+  /** Waiting for it to verify the connection code. */
+  pending: boolean;
 };
 
 export type PeersInfo = {
@@ -261,6 +265,12 @@ export class NexBridge {
     return { url: url.toString() };
   }
 
+  /** The user gave up on the browser sign-in: links already handed out stop working. */
+  loginCancel(): NexStatus {
+    this.#logins.clear();
+    return this.status();
+  }
+
   /** Completes a sign-in this server started; anything else is refused. */
   async loginCallback(code: string, state: string): Promise<NexStatus> {
     const login = this.#logins.get(state);
@@ -332,7 +342,8 @@ export class NexBridge {
       for (const d of devices) {
         out.push({
           id: d.id,
-          name: d.name,
+          // A name given to it here (when connected by code) wins over the account's.
+          name: this.#peers.byNexDevice(d.id)?.alias ?? d.name,
           app: d.app,
           online: d.online,
           isSelf: d.is_self,
@@ -365,9 +376,11 @@ export class NexBridge {
       const id = peerId(p.publicKey);
       const route = this.#route(id);
       const reachable = route?.via === "direct";
+      // Reaching it with our key means it verified us: the wait is over.
+      if (reachable && p.pending && this.#peers.confirm(p.publicKey)) this.#syncPeerHost();
       out.push({
         id,
-        name: p.name,
+        name: p.alias ?? p.name,
         app: NEX_APP,
         online: reachable,
         isSelf: false,
@@ -376,6 +389,7 @@ export class NexBridge {
         route,
         paired: true,
         kind: "peer",
+        pending: !reachable && !!p.pending,
       });
     }
     return out;
@@ -435,6 +449,40 @@ export class NexBridge {
     const address = server.address();
     if (!address || typeof address === "string") throw new NexError("tunnel has no local port", 500);
     return { url: `http://127.0.0.1:${address.port}`, device: { ...device, route: this.#route(device.id) } };
+  }
+
+  /**
+   * Whether each workspace binding still leads anywhere: "ok" (reachable),
+   * "offline" (known, not reachable right now) or "gone" (no longer one of
+   * this device's: signed out of the account it came through, or removed).
+   */
+  async availability(deviceIds: string[]): Promise<Record<string, "ok" | "offline" | "gone">> {
+    // Paired devices: measure now rather than trust the last probe (up to
+    // 15 s old), so a device that just went away reads "offline".
+    const peers = deviceIds
+      .map((id) => (isPeerId(id) ? this.#peers.byId(id) : this.#peers.byNexDevice(id)))
+      .filter((p): p is PairedPeer => !!p && !p.pending);
+    await Promise.all(
+      [...new Set(peers)].map(async (p) => {
+        const forward = await this.#peerForward(p).catch(() => null);
+        if (forward?.paths) await withTimeout(forward.paths.probe(), 2_500);
+      }),
+    );
+    let devices: NexDevice[] = [];
+    try {
+      devices = await this.devices();
+    } catch {
+      // The relay is unreachable: account devices count as offline, not gone.
+      const out: Record<string, "ok" | "offline" | "gone"> = {};
+      for (const id of deviceIds) out[id] = this.#client || this.#peers.byNexDevice(id) || this.#peers.byId(id) ? "offline" : "gone";
+      return out;
+    }
+    const out: Record<string, "ok" | "offline" | "gone"> = {};
+    for (const id of deviceIds.slice(0, 200)) {
+      const device = this.#resolve(devices, id);
+      out[id] = !device ? "gone" : device.connectable ? "ok" : "offline";
+    }
+    return out;
   }
 
   /**
@@ -572,7 +620,7 @@ export class NexBridge {
         502,
       );
     }
-    this.addPeer(authCode);
+    this.addPeer(authCode, { pending: true });
     return { name: target.name, publicKey: target.publicKey, code: pairingCode(this.#peers.identity().publicKey, target.publicKey) };
   }
 
@@ -580,7 +628,7 @@ export class NexBridge {
   async pairWith(deviceId: string): Promise<PairingOffer> {
     if (isPeerId(deviceId) || !this.#client) throw new NexError("that device is not in your account", 409);
     const theirs = await this.#requestThroughAccount(deviceId, this.#ownInvite());
-    this.addPeer(theirs.invite);
+    this.addPeer(theirs.invite, { pending: true });
     return { name: theirs.name, publicKey: theirs.publicKey, code: pairingCode(this.#peers.identity().publicKey, theirs.publicKey) };
   }
 
@@ -660,6 +708,12 @@ export class NexBridge {
 
   /** Step 3 on the connecting device: has the other side verified us yet? */
   async checkPeer(publicKey: string): Promise<{ connected: boolean }> {
+    const result = await this.#reachWithOurKey(publicKey);
+    if (result.connected && this.#peers.confirm(publicKey)) this.#syncPeerHost();
+    return result;
+  }
+
+  async #reachWithOurKey(publicKey: string): Promise<{ connected: boolean }> {
     const peer = this.#peers.peers.find((p) => p.publicKey === publicKey);
     if (!peer) return { connected: false };
     try {
@@ -693,10 +747,10 @@ export class NexBridge {
     return this.peersInfo();
   }
 
-  addPeer(invite: string): PeersInfo {
+  addPeer(invite: string, options: { pending?: boolean } = {}): PeersInfo {
     let peer: PairedPeer;
     try {
-      peer = this.#peers.add(invite);
+      peer = this.#peers.add(invite, options);
     } catch (err) {
       throw asPeerError(err);
     }
@@ -704,6 +758,15 @@ export class NexBridge {
     // Its addresses may have changed: the next connection opens a fresh tunnel.
     this.#closeForward(peerId(peer.publicKey));
     this.#syncPeerHost();
+    return this.peersInfo();
+  }
+
+  renamePeer(publicKey: string, name: string): PeersInfo {
+    try {
+      this.#peers.rename(publicKey, name);
+    } catch (err) {
+      throw asPeerError(err);
+    }
     return this.peersInfo();
   }
 
@@ -874,12 +937,13 @@ function withTimeout(promise: Promise<unknown>, ms: number): Promise<void> {
 function pairedDevice(peer: PairedPeer): PairedDevice {
   return {
     id: peerId(peer.publicKey),
-    name: peer.name,
+    name: peer.alias ?? peer.name,
     publicKey: peer.publicKey,
     fingerprint: fingerprint(peer.publicKey),
     addresses: peer.endpoints.map((e) => (e.host.includes(":") ? `[${e.host}]:${e.port}` : `${e.host}:${e.port}`)),
     nexDeviceId: peer.nexDeviceId,
     addedAt: peer.addedAt,
+    pending: !!peer.pending,
   };
 }
 

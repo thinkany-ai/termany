@@ -743,6 +743,8 @@ const http = createServer((req, res) => {
           const body = await readJson(req, 64_000);
           return nex.loginStart({ deviceName: typeof body?.deviceName === "string" ? body.deviceName : undefined });
         }
+        case "POST /api/nex/login/cancel":
+          return nex.loginCancel();
         case "POST /api/nex/pairing-code":
           return nex.pairingCode();
         case "GET /api/nex/devices":
@@ -755,6 +757,11 @@ const http = createServer((req, res) => {
           return nex.leave();
         case "GET /api/nex/peers":
           return nex.peersInfo();
+        case "POST /api/nex/availability": {
+          const body = await readJson(req, 64_000);
+          const ids = Array.isArray(body?.deviceIds) ? body.deviceIds.filter((id: unknown): id is string => typeof id === "string") : [];
+          return nex.availability(ids);
+        }
         case "POST /api/nex/peers/connect": {
           const body = await readJson(req, 64_000);
           return nex.connectWithCode(String(body?.code ?? ""));
@@ -782,6 +789,10 @@ const http = createServer((req, res) => {
         case "POST /api/nex/peers/decline": {
           const body = await readJson(req, 64_000);
           return nex.declineRequest(String(body?.publicKey ?? ""));
+        }
+        case "POST /api/nex/peers/rename": {
+          const body = await readJson(req, 64_000);
+          return nex.renamePeer(String(body?.publicKey ?? ""), String(body?.name ?? ""));
         }
         case "POST /api/nex/peers/remove": {
           const body = await readJson(req, 64_000);

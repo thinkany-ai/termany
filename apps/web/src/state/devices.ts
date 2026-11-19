@@ -195,6 +195,8 @@ export type PairedDevice = {
   addresses: string[];
   nexDeviceId: string | null;
   addedAt: number;
+  /** Waiting for it to verify the connection code. */
+  pending: boolean;
 };
 
 /** Mirrors NexRoute in apps/server/src/nexBridge.ts. */
@@ -235,6 +237,40 @@ function asHomeDevice(path: string, data: any): unknown {
     return { ...data, devices: data.devices.map((d: NexDevice) => ({ ...d, isSelf: d.id === home.id })) };
   }
   return data;
+}
+
+// --- whether a workspace's device is still there ---------------------------
+
+export type DeviceAvailability = "ok" | "offline" | "gone";
+
+const availability = new Map<string, DeviceAvailability>();
+
+/**
+ * Asks this machine's server whether each device still leads anywhere: "gone"
+ * when it is no longer one of ours (signed out of the account it came
+ * through, or its connection removed), "offline" when it is just not
+ * reachable right now. termany.ai has no such route: everything counts as ok.
+ */
+export async function refreshAvailability(deviceIds: string[]): Promise<Record<string, DeviceAvailability>> {
+  const ids = [...new Set(deviceIds)];
+  if (!ids.length || isCloud) return {};
+  try {
+    const result = await nexRequest<Record<string, DeviceAvailability>>("availability", { deviceIds: ids });
+    for (const [id, state] of Object.entries(result)) availability.set(id, state);
+    notify();
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+/** Last known availability of a device (undefined: not asked yet, or this machine). */
+export function useDeviceAvailability(deviceId: string | null | undefined): DeviceAvailability | undefined {
+  return useSyncExternalStore(subscribeDevices, () => (deviceId ? availability.get(deviceId) : undefined));
+}
+
+export function deviceAvailability(deviceId: string): DeviceAvailability | undefined {
+  return availability.get(deviceId);
 }
 
 /** Other devices that could hold a workspace right now: the account's, and paired ones. */

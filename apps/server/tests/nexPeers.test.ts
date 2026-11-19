@@ -78,6 +78,9 @@ test("connect with an authorization code, verify with the connection code", { sk
   assert.deepEqual(Object.keys(request).sort(), ["name", "publicKey"]);
   assert.equal(request.publicKey, laptop.bridge.peersInfo().publicKey);
   assert.equal((await laptop.bridge.checkPeer(offer.publicKey)).connected, false);
+  // Meanwhile the laptop lists mini as waiting (not "unreachable") and does not let it in yet.
+  assert.equal(laptop.bridge.peersInfo().peers[0].pending, true);
+  assert.equal((await laptop.bridge.devices())[0].pending, true);
 
   // 2. On mini: a wrong code does nothing; the right one (any case, no dash) connects.
   assert.throws(() => mini.bridge.verifyCode("AAAA-AAAA"), /does not match/);
@@ -89,6 +92,10 @@ test("connect with an authorization code, verify with the connection code", { sk
 
   // 3. The laptop sees it went through, and the workspace tunnel works.
   assert.equal((await laptop.bridge.checkPeer(offer.publicKey)).connected, true);
+  assert.equal(laptop.bridge.peersInfo().peers[0].pending, false, "verified: no longer waiting");
+  // ...and now mini can reach the laptop too.
+  const [back] = await mini.bridge.devices();
+  assert.equal(back.connectable, true, JSON.stringify(back.route));
   const [entry] = await laptop.bridge.devices();
   assert.equal(entry.connectable, true, JSON.stringify(entry.route));
   const { url } = await laptop.bridge.connect(entry.id);
@@ -136,4 +143,49 @@ test("a workspace bound to a device's account id still opens through its pairing
   assert.equal(await roundtrip(url, "ws"), "mini:ws");
   // An account id nothing maps to says what to do instead.
   await assert.rejects(laptop.bridge.connect("dev_unknown"), /sign in again, or import it from a paired device/);
+});
+
+test("availability tells ok, offline and gone apart", { skip: !hasPrivateAddress && "no LAN or tailnet address" }, async () => {
+  const mini = await device("mini");
+  const laptop = await device("laptop");
+  const offer = await laptop.bridge.connectWithCode(mini.bridge.peersInfo().invite);
+  mini.bridge.verifyCode(offer.code);
+  await laptop.bridge.checkPeer(offer.publicKey);
+  const [entry] = await laptop.bridge.devices();
+
+  // Signed out, an account-bound id that no pairing maps to is gone for good.
+  assert.deepEqual(await laptop.bridge.availability([entry.id, "dev_from_the_account"]), {
+    [entry.id]: "ok",
+    dev_from_the_account: "gone",
+  });
+  // Mini goes away: still ours, just offline.
+  mini.bridge.stop();
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal((await laptop.bridge.availability([entry.id]))[entry.id], "offline");
+  // Removing the connection: gone.
+  laptop.bridge.removePeer(offer.publicKey);
+  assert.equal((await laptop.bridge.availability([entry.id]))[entry.id], "gone");
+});
+
+test("renaming a connected device sticks; a cancelled sign-in link stops working", { skip: !hasPrivateAddress && "no LAN or tailnet address" }, async () => {
+  const mini = await device("mini");
+  const laptop = await device("laptop");
+  const offer = await laptop.bridge.connectWithCode(mini.bridge.peersInfo().invite);
+  mini.bridge.verifyCode(offer.code);
+  await laptop.bridge.checkPeer(offer.publicKey);
+
+  laptop.bridge.renamePeer(offer.publicKey, "  Mac mini (studio)\n");
+  assert.equal(laptop.bridge.peersInfo().peers[0].name, "Mac mini (studio)");
+  assert.equal((await laptop.bridge.devices())[0].name, "Mac mini (studio)");
+  // Mini re-sends its invite (new addresses): the name given here stays.
+  laptop.bridge.requestPairing(mini.bridge.peersInfo().invite);
+  assert.equal(laptop.bridge.peersInfo().peers[0].name, "Mac mini (studio)");
+  // Clearing the name brings back the device's own.
+  laptop.bridge.renamePeer(offer.publicKey, "");
+  assert.equal(laptop.bridge.peersInfo().peers[0].name, "mac");
+
+  const { url } = laptop.bridge.loginStart({ deviceName: "laptop" });
+  const state = new URL(url).searchParams.get("state")!;
+  laptop.bridge.loginCancel();
+  await assert.rejects(laptop.bridge.loginCallback("code", state), /unknown or expired/);
 });

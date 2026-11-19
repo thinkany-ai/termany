@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { cloudText, isCloud, openDevicePicker } from "../cloud";
 import { useI18n } from "../i18n";
 import { openExternal } from "../openExternal";
+import { useStore } from "../state/store";
 import {
   nexRequest,
+  refreshAvailability,
   type NexDevice,
   type NexRoute,
   type NexStatus,
@@ -97,6 +99,19 @@ function SignIn({ defaultName, onWaiting }: { defaultName: string; onWaiting: ()
       {waiting && <p className="ms-hint">{t("devices.signIn.waiting")}</p>}
       {error && <div className="ms-test-fail">{error}</div>}
       <div className="ms-form-actions">
+        {waiting && (
+          <button
+            type="button"
+            className="ms-btn"
+            onClick={() => {
+              setWaiting(false);
+              // The link the browser holds stops working too.
+              void nexRequest("login/cancel", {}).catch(() => {});
+            }}
+          >
+            {t("devices.cancel")}
+          </button>
+        )}
         <button type="button" className="ms-btn primary" disabled={!deviceName.trim()} onClick={() => void start()}>
           {t(waiting ? "devices.signIn.again" : "devices.signIn.action")}
         </button>
@@ -274,6 +289,70 @@ function RouteBadge({ route }: { route: NexRoute }) {
 }
 
 /**
+ * A connected device's name, renamable in place. The name is only this
+ * machine's label for it; workspaces from it show the new name too.
+ */
+function PeerName({ device, onRenamed }: { device: PairedDevice; onRenamed: (info: PeersInfo) => void }) {
+  const { t } = useI18n();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(device.name);
+
+  const save = async () => {
+    setEditing(false);
+    const next = name.trim();
+    if (!next || next === device.name) return setName(device.name);
+    try {
+      onRenamed(await nexRequest<PeersInfo>("peers/rename", { publicKey: device.publicKey, name: next }));
+      // Workspaces remember the name they were imported under: keep them in step.
+      useStore.setState((s) => ({
+        workspaces: s.workspaces.map((w) =>
+          w.device && (w.device.id === device.id || w.device.id === device.nexDeviceId)
+            ? { ...w, device: { ...w.device, name: next } }
+            : w,
+        ),
+      }));
+    } catch {
+      setName(device.name);
+    }
+  };
+
+  if (editing) {
+    return (
+      <input
+        {...textInputProps}
+        className="devices-rename"
+        autoFocus
+        maxLength={100}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={() => void save()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") void save();
+          if (e.key === "Escape") {
+            setName(device.name);
+            setEditing(false);
+          }
+        }}
+      />
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="devices-name-btn"
+      title={`${t("devices.link.rename")}\n${device.fingerprint}\n${device.addresses.join("\n")}`}
+      onClick={() => {
+        setName(device.name);
+        setEditing(true);
+      }}
+    >
+      <strong>{device.name}</strong>
+      <span className="devices-name-edit">✎</span>
+    </button>
+  );
+}
+
+/**
  * "Connect other devices": this device's authorization code, the two entry
  * points of the flow (see DeviceLinking.tsx) and the devices connected that
  * way. Works without an account; signed in, it adds end-to-end encryption.
@@ -286,11 +365,38 @@ function LinkCard({ onClose }: { onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const [dialog, setDialog] = useState<"connect" | "verify" | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  const workspaces = useStore((s) => s.workspaces);
+
+  /** Workspaces this window has from `p` (under either id it may be known by). */
+  const workspacesFrom = (p: PairedDevice) =>
+    workspaces.filter((w) => w.device && (w.device.id === p.id || (p.nexDeviceId !== null && w.device.id === p.nexDeviceId)));
+
+  /**
+   * Removing a connected device: its workspaces leave with it, unless the
+   * device is still reachable another way (through the signed-in account).
+   */
+  const removeDevice = async (p: PairedDevice) => {
+    const bound = workspacesFrom(p);
+    await act("peers/remove", { publicKey: p.publicKey });
+    setRemoving(null);
+    if (!bound.length) return;
+    const state = await refreshAvailability(bound.map((w) => w.device!.id));
+    const store = useStore.getState();
+    for (const w of bound) if (state[w.device!.id] === "gone") store.deleteWorkspace(w.id);
+  };
 
   const load = useCallback(async () => {
     try {
       const next = await nexRequest<PeersInfo>("peers");
-      setInfo(next);
+      // Devices still waiting to verify us: ask whether they have (this also
+      // covers a dialog closed early, and the path through the account).
+      const waiting = next.peers.filter((p) => p.pending);
+      if (waiting.length) {
+        await Promise.all(waiting.map((p) => nexRequest("peers/check", { publicKey: p.publicKey }).catch(() => {})));
+        setInfo(await nexRequest<PeersInfo>("peers"));
+      } else {
+        setInfo(next);
+      }
       if (next.peers.length) setDevices((await nexRequest<{ devices: NexDevice[] }>("devices")).devices);
       setError(null);
     } catch (err) {
@@ -378,14 +484,21 @@ function LinkCard({ onClose }: { onClose: () => void }) {
             const device = deviceFor(p);
             return (
               <li key={p.publicKey} className="devices-self devices-peer">
-                <span className={`devices-dot ${device?.connectable ? "online" : ""}`} />
-                <strong title={`${p.fingerprint}\n${p.addresses.join("\n")}`}>{p.name}</strong>
+                <span className={`devices-dot ${device?.connectable ? "online" : p.pending ? "pending" : ""}`} />
+                <PeerName device={p} onRenamed={(next) => setInfo(next)} />
                 {/* A device reached without the account has no cloud route to fall back to. */}
-                {device?.route && (device.kind !== "peer" || device.connectable) && <RouteBadge route={device.route} />}
-                {device && !device.connectable && (
-                  <span className="devices-state" title={device.route?.note ?? undefined}>
-                    {t("devices.link.unreachable")}
-                  </span>
+                {!p.pending && device?.route && (device.kind !== "peer" || device.connectable) && (
+                  <RouteBadge route={device.route} />
+                )}
+                {p.pending ? (
+                  <span className="devices-state">{t("devices.link.pending")}</span>
+                ) : (
+                  device &&
+                  !device.connectable && (
+                    <span className="devices-state" title={device.route?.note ?? undefined}>
+                      {t("devices.link.unreachable")}
+                    </span>
+                  )
                 )}
                 <span className="devices-peer-actions">
                   {device?.connectable && device.kind === "peer" && (
@@ -402,14 +515,15 @@ function LinkCard({ onClose }: { onClose: () => void }) {
                   )}
                   {removing === p.publicKey ? (
                     <>
+                      {workspacesFrom(p).length > 0 && (
+                        <span className="ms-hint devices-remove-note">
+                          {t("devices.link.removeWorkspaces", { count: workspacesFrom(p).length })}
+                        </span>
+                      )}
                       <button type="button" className="ms-btn" onClick={() => setRemoving(null)}>
                         {t("devices.cancel")}
                       </button>
-                      <button
-                        type="button"
-                        className="ms-btn primary"
-                        onClick={() => void act("peers/remove", { publicKey: p.publicKey }).then(() => setRemoving(null))}
-                      >
+                      <button type="button" className="ms-btn primary" onClick={() => void removeDevice(p)}>
                         {t("devices.link.remove")}
                       </button>
                     </>

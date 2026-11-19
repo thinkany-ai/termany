@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { connectableDevices, type NexDevice } from "../state/devices";
+import { useEffect, useRef, useState } from "react";
+import { connectableDevices, refreshAvailability, useDeviceAvailability, type NexDevice } from "../state/devices";
 import { useI18n } from "../i18n";
 import { useNativeOccluder } from "../nativeViewOcclusion";
 import { useStore } from "../state/store";
@@ -33,6 +33,24 @@ export function WorkspaceSwitcher({ onOpenSettings }: { onOpenSettings: () => vo
   const updateVersion = useStore((s) => s.updateVersion);
 
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // Which workspaces' devices are still there: on start, and whenever the
+  // menu opens (that is when the user looks at the list).
+  const deviceIds = workspaces.flatMap((w) => (w.device ? [w.device.id] : [])).join(",");
+  const startupChecked = useRef(false);
+  useEffect(() => {
+    if (!deviceIds) return;
+    void refreshAvailability(deviceIds.split(",")).then((result) => {
+      if (startupChecked.current) return;
+      startupChecked.current = true;
+      // Do not open on a workspace that cannot come up: start on this
+      // machine's instead. (Picking it later is still allowed; the gate explains.)
+      const { workspaces: list, activeWorkspace, setActiveWorkspace: activate } = useStore.getState();
+      const active = list.find((w) => w.id === activeWorkspace);
+      const local = list.find((w) => !w.device);
+      if (active?.device && result[active.device.id] && result[active.device.id] !== "ok" && local) activate(local.id);
+    });
+  }, [deviceIds, menuOpen]);
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string; device?: string } | null>(null);
   // The user's other devices, while this machine is on a nex relay. Looked up
@@ -109,6 +127,7 @@ export function WorkspaceSwitcher({ onOpenSettings }: { onOpenSettings: () => vo
                       {w.device.name}
                     </span>
                   )}
+                  {w.device && <DeviceState deviceId={w.device.id} />}
                 </button>
                 <button
                   className="ws-menu-edit"
@@ -234,5 +253,17 @@ export function WorkspaceSwitcher({ onOpenSettings }: { onOpenSettings: () => vo
         </div>
       )}
     </div>
+  );
+}
+
+/** "Offline" / "Unavailable" next to a workspace whose device cannot be reached. */
+function DeviceState({ deviceId }: { deviceId: string }) {
+  const { t } = useI18n();
+  const state = useDeviceAvailability(deviceId);
+  if (!state || state === "ok") return null;
+  return (
+    <span className={`ws-menu-state ${state}`}>
+      {t(state === "gone" ? "workspace.stateGone" : "workspace.stateOffline")}
+    </span>
   );
 }

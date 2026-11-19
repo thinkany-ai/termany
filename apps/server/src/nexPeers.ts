@@ -40,6 +40,13 @@ export type PairedPeer = {
   /** The device's id on the nex relay, when it was signed in when it made the invite. */
   nexDeviceId: string | null;
   addedAt: number;
+  /**
+   * We asked it to connect and it has not verified us yet. It is not let in
+   * here until it has (hostTrust skips it), and the UI says "waiting".
+   */
+  pending?: boolean;
+  /** What the user renamed it to here; survives the device refreshing its own name. */
+  alias?: string;
 };
 
 type PeersFile = {
@@ -124,7 +131,9 @@ export class NexPeers {
   /** What NexHost / PeerHost accept; null while nothing is paired. */
   hostTrust(): HostTrust | null {
     if (this.#state.peers.length === 0) return null;
-    return { identity: this.identity(), peers: this.#state.peers.map((p) => p.publicKey), strict: this.#state.strict };
+    const peers = this.#state.peers.filter((p) => !p.pending).map((p) => p.publicKey);
+    if (peers.length === 0) return null;
+    return { identity: this.identity(), peers, strict: this.#state.strict };
   }
 
   clientTrust(peer: PairedPeer): ClientTrust {
@@ -174,18 +183,51 @@ export class NexPeers {
     return { ...peer, fingerprint: fingerprint(peer.publicKey) };
   }
 
-  /** Adds (or refreshes) a paired device from its invite. */
-  add(invite: string): PairedPeer {
+  /**
+   * Adds (or refreshes) a paired device from its invite. `pending`: we asked
+   * it to connect and wait for it to verify us. Refreshing keeps the state
+   * unless told otherwise.
+   */
+  add(invite: string, options: { pending?: boolean } = {}): PairedPeer {
     const peer = this.preview(invite);
     const { fingerprint: _, pairSecret: __, ...stored } = peer;
     const existing = this.#state.peers.find((p) => p.publicKey === stored.publicKey);
-    const next = existing ? { ...stored, addedAt: existing.addedAt } : stored;
+    const pending = options.pending ?? existing?.pending ?? false;
+    const next: PairedPeer = {
+      ...stored,
+      addedAt: existing?.addedAt ?? stored.addedAt,
+      ...(pending ? { pending: true } : {}),
+      ...(existing?.alias ? { alias: existing.alias } : {}),
+    };
     this.#state = {
       ...this.#state,
       peers: [...this.#state.peers.filter((p) => p.publicKey !== stored.publicKey), next],
     };
     this.#save();
     return next;
+  }
+
+  /** It verified us: from now on it is a connected device both ways. Returns whether anything changed. */
+  confirm(publicKey: string): boolean {
+    const peer = this.#state.peers.find((p) => p.publicKey === publicKey);
+    if (!peer?.pending) return false;
+    this.#state = {
+      ...this.#state,
+      peers: this.#state.peers.map((p) => (p.publicKey === publicKey ? { ...p, pending: undefined } : p)),
+    };
+    this.#save();
+    return true;
+  }
+
+  /** Renames a connected device on this machine only; an empty name restores its own. */
+  rename(publicKey: string, name: string): void {
+    const alias = (name ?? "").trim().replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 100);
+    if (!this.#state.peers.some((p) => p.publicKey === publicKey)) throw new PeerError("that device is not connected", 404);
+    this.#state = {
+      ...this.#state,
+      peers: this.#state.peers.map((p) => (p.publicKey === publicKey ? { ...p, alias: alias || undefined } : p)),
+    };
+    this.#save();
   }
 
   remove(publicKey: string): void {

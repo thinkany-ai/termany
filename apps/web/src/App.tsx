@@ -477,7 +477,7 @@ export function App() {
             <HTabBar />
             <div className="pane-area">
               <div className="pane-card">
-                <DeviceGate device={activeDevice}>
+                <DeviceGate device={activeDevice} workspaceId={activeWorkspaceId}>
                   {htab && <SplitView key={htab.id} htab={htab} />}
                 </DeviceGate>
                 {findOpen && focusedPane && (
@@ -505,7 +505,7 @@ export function App() {
         </>
       )}
       {botEnabled && <div className="agent-workspace-host" hidden={appTab !== "agents"}>
-        <DeviceGate device={activeDevice}>
+        <DeviceGate device={activeDevice} workspaceId={activeWorkspaceId}>
           <AgentWorkspace key={activeWorkspaceId} workspaceId={activeWorkspaceId} visible={appTab === "agents"} />
         </DeviceGate>
       </div>}

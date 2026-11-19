@@ -10396,6 +10396,61 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   background: #22c55e;
   opacity: 1;
 }
+.devices-name-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: text;
+}
+.devices-name-edit {
+  opacity: 0;
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+.devices-name-btn:hover .devices-name-edit,
+.devices-name-btn:focus-visible .devices-name-edit {
+  opacity: 1;
+}
+.devices-rename {
+  font: inherit;
+  font-weight: 600;
+  width: 160px;
+  padding: 2px 6px;
+}
+.devices-remove-note {
+  margin: 0;
+  align-self: center;
+}
+.ws-menu-state {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 4px;
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--fg-dim) 12%, transparent);
+  white-space: nowrap;
+}
+.ws-menu-state.gone {
+  color: #dc2626;
+  background: color-mix(in srgb, #dc2626 10%, transparent);
+}
+.device-gate-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.device-gate-why {
+  opacity: 0.6;
+  font-size: 11px;
+}
+.devices-dot.pending {
+  background: #f59e0b;
+  opacity: 1;
+}
 .devices-state {
   color: var(--fg-dim);
   font-size: 12px;
