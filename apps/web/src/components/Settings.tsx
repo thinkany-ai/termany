@@ -472,7 +472,7 @@ export function Settings({
                       // Transparent terminal palettes (Spreadsheet) still need their
                       // document color beneath the miniature in every active theme.
                       // A theme's background image goes between the two, so a
-                      // see-through terminal (Getaway) shows its artwork here too.
+                      // see-through terminal (Miami) shows its artwork here too.
                       background: `linear-gradient(${item.term.background}, ${item.term.background}), ${
                         item.background?.image ? `url("${item.background.image}") center / cover, ` : ""
                       }${item.colors.bg}`,

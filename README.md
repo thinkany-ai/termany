@@ -188,7 +188,7 @@ bars back. Step through them with ⌥⌘. and ⌥⌘, or open the picker with �
     <td align="center"><img src="docs/themes/excel.png" alt="The Spreadsheet theme: green ribbon tabs, a formula bar, and black terminal text on a white cell grid"><br><b>Spreadsheet</b><br><sub>Light</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/themes/getaway.png" alt="The Getaway theme: frosted-glass terminals over an original beachfront at magic hour, with a neon deco hotel, a pink sports car, a lifeguard tower, a speedboat and a skyline"><br><b>Getaway</b><br><sub>Dark</sub></td>
+    <td align="center"><img src="docs/themes/miami.png" alt="The Miami theme: frosted-glass terminals over an original beachfront at magic hour, with a neon deco hotel, a pink sports car, a lifeguard tower, a speedboat and a skyline"><br><b>Miami</b><br><sub>Dark</sub></td>
     <td></td>
     <td></td>
   </tr>

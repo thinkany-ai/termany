@@ -1,15 +1,15 @@
 import type { Theme } from "./types";
-import "./getaway.css";
+import "./miami.css";
 // Original artwork, generated for this theme: a beachfront at magic hour with
 // a neon deco hotel and an unbadged sports car of no real make in the lower
 // left (where the sidebar shows them), a lifeguard tower, a speedboat, a
 // helicopter and a skyline. It has no people, text or logos and is not
 // derived from any game, film or brand asset.
-import coast from "./getaway/coast.jpg";
+import coast from "./miami/coast.jpg";
 
-// Getaway. A couple on the run along a subtropical coast at magic hour. The
+// Miami. A subtropical beach city at magic hour, after Miami Beach. The
 // painted coast fills the window; the sidebar, the tab bar and the gaps
-// between panes let it through, and every pane floats on it as a dark card.
+// between panes let it through, and every pane floats on it as frosted glass.
 // The theme uses no third-party names, logos, characters, typefaces or artwork.
 
 // A palm icon for the chrome: section headings, the active tab and the
@@ -25,9 +25,9 @@ const PALM_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" f
 </svg>`;
 const svgUrl = (svg: string) => `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 
-export const getaway: Theme = {
-  id: "getaway",
-  name: "Getaway",
+export const miami: Theme = {
+  id: "miami",
+  name: "Miami",
   appearance: "dark",
   colors: {
     bg: "#171328",
@@ -55,7 +55,7 @@ export const getaway: Theme = {
   background: { image: coast, opacity: 0.72 },
   term: {
     // Transparent: each terminal pane is frosted glass over the coast
-    // (getaway.css). The RGB part still matters: xterm's WebGL renderer
+    // (miami.css). The RGB part still matters: xterm's WebGL renderer
     // composites dim text onto this color made opaque, so it is set to the
     // glass's average tint to keep those cells from showing as dark blocks.
     background: "#351c3000",
@@ -83,7 +83,7 @@ export const getaway: Theme = {
     brightWhite: "#ffffff",
   },
   vars: {
-    "--getaway-palm": svgUrl(PALM_ICON),
+    "--miami-palm": svgUrl(PALM_ICON),
     "--accent-fg": "#171328",
     "--pane-area-bg": "transparent",
     // The Bots conversation stays opaque so long messages read cleanly.
