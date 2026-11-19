@@ -767,6 +767,22 @@ const http = createServer((req, res) => {
           const body = await readJson(req, 64_000);
           return nex.removePeer(String(body?.publicKey ?? ""));
         }
+        case "POST /api/nex/peers/pair": {
+          const body = await readJson(req, 64_000);
+          return nex.pairWith(String(body?.deviceId ?? ""));
+        }
+        case "POST /api/nex/peers/request": {
+          const body = await readJson(req, 64_000);
+          return nex.requestPairing(String(body?.invite ?? ""));
+        }
+        case "POST /api/nex/peers/accept": {
+          const body = await readJson(req, 64_000);
+          return nex.acceptRequest(String(body?.publicKey ?? ""));
+        }
+        case "POST /api/nex/peers/decline": {
+          const body = await readJson(req, 64_000);
+          return nex.declineRequest(String(body?.publicKey ?? ""));
+        }
         case "POST /api/nex/peers/strict": {
           const body = await readJson(req, 64_000);
           return nex.setStrict(body?.strict === true);

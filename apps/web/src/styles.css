@@ -10440,6 +10440,24 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
 .devices-peer {
   flex-wrap: wrap;
 }
+.devices-pairing {
+  flex-basis: 100%;
+}
+.devices-code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 20px;
+  letter-spacing: 0.12em;
+  margin: 6px 0 10px;
+}
+.devices-invite-details {
+  margin-top: 8px;
+}
+.devices-invite-details summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--fg-dim);
+  margin-bottom: 8px;
+}
 .devices-peer-actions {
   margin-left: auto;
   display: flex;

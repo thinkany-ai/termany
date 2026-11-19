@@ -178,7 +178,14 @@ export type PeersInfo = {
   strict: boolean;
   signedIn: boolean;
   peers: PairedDevice[];
+  requests: PairingRequest[];
 };
+
+/** Another device asked to pair; both screens show `code`. */
+export type PairingRequest = { name: string; publicKey: string; code: string };
+
+/** Answer to "Pair": confirm `code` matches the other screen, then add `invite`. */
+export type PairingOffer = PairingRequest & { invite: string };
 
 export type PairedDevice = {
   id: string;

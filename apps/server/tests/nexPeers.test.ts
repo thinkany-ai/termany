@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { after, test } from "node:test";
 import { NexBridge } from "../src/nexBridge.ts";
-import { NexPeers, peerId } from "../src/nexPeers.ts";
+import { NexPeers, pairingCode, peerId } from "../src/nexPeers.ts";
 
 const cleanups: Array<() => void | Promise<void>> = [];
 after(async () => {
@@ -92,4 +92,42 @@ test("two devices pair by invite and connect with no account", { skip: !hasPriva
   // Unpairing on the host side locks the laptop out again.
   mini.bridge.removePeer(laptop.bridge.peersInfo().publicKey);
   await assert.rejects(roundtrip(url, "again"));
+});
+
+test("the pairing code is the same on both sides and changes if a key is swapped", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "termany-code-"));
+  cleanups.push(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const a = new NexPeers({ dir, suffix: "-a", port: 1 }).identity().publicKey;
+  const b = new NexPeers({ dir, suffix: "-b", port: 1 }).identity().publicKey;
+  const m = new NexPeers({ dir, suffix: "-m", port: 1 }).identity().publicKey;
+  assert.match(pairingCode(a, b), /^[A-Z2-9]{4}( [A-Z2-9]{4}){3}$/);
+  assert.equal(pairingCode(a, b), pairingCode(b, a));
+  assert.notEqual(pairingCode(a, b), pairingCode(a, m));
+});
+
+test("a pairing request waits for the user, then pairs both ways", { skip: !hasPrivateAddress && "no LAN or tailnet address" }, async () => {
+  const mini = await device("mini");
+  const laptop = await device("laptop");
+  const laptopInfo = laptop.bridge.peersInfo();
+
+  // The laptop asks (what pairWith does through the tunnel); nothing is trusted yet.
+  mini.bridge.requestPairing(laptopInfo.invite);
+  const [request] = mini.bridge.peersInfo().requests;
+  assert.equal(request.publicKey, laptopInfo.publicKey);
+  assert.equal(request.code, pairingCode(laptopInfo.publicKey, mini.bridge.peersInfo().publicKey));
+  assert.equal(mini.bridge.peersInfo().peers.length, 0);
+
+  // Declining forgets it.
+  mini.bridge.declineRequest(request.publicKey);
+  assert.equal(mini.bridge.peersInfo().requests.length, 0);
+  assert.throws(() => mini.bridge.acceptRequest(request.publicKey), /expired/);
+
+  // Ask again; both users confirm the same code on their own screen.
+  mini.bridge.requestPairing(laptopInfo.invite);
+  mini.bridge.acceptRequest(laptopInfo.publicKey);
+  laptop.bridge.addPeer(mini.bridge.peersInfo().invite);
+  const [entry] = await laptop.bridge.devices();
+  assert.equal(entry.connectable, true, JSON.stringify(entry.route));
+  const { url } = await laptop.bridge.connect(entry.id);
+  assert.equal(await roundtrip(url, "yo"), "mini:yo");
 });

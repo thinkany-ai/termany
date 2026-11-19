@@ -199,6 +199,20 @@ export class NexPeers {
   }
 }
 
+/**
+ * The code both devices show while pairing: derived from BOTH public keys,
+ * so if anything in between swapped a key, the two screens disagree. 80 bits,
+ * too many to grind a matching key for in the minutes a request lives.
+ */
+export function pairingCode(a: string, b: string): string {
+  const [x, y] = [normalizePublicKey(a), normalizePublicKey(b)].sort();
+  const digest = createHash("sha256").update(`termany-pairing/v1\n${x}\n${y}`).digest();
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "";
+  for (let i = 0; i < 16; i++) out += alphabet[digest[i]! % 32];
+  return out.match(/.{4}/g)!.join(" ");
+}
+
 /** Stable id a paired device has in device lists and workspace bindings. */
 export function peerId(publicKey: string): string {
   return `peer:${createHash("sha256").update(publicKey).digest("hex").slice(0, 16)}`;

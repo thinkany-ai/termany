@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { cloudText, isCloud, openDevicePicker } from "../cloud";
 import { useI18n } from "../i18n";
 import { openExternal } from "../openExternal";
@@ -8,6 +8,7 @@ import {
   type NexRoute,
   type NexStatus,
   type PairedDevice,
+  type PairingOffer,
   type PeersInfo,
 } from "../state/devices";
 import { textInputProps } from "../textInputProps";
@@ -118,6 +119,33 @@ function Connected({
   const [devicesError, setDevicesError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  /** "Pair" in progress: the device asked, and the code to compare with its screen. */
+  const [offer, setOffer] = useState<(PairingOffer & { deviceId: string; confirmed: boolean }) | null>(null);
+  const [pairing, setPairing] = useState<string | null>(null);
+
+  const startPairing = async (device: NexDevice) => {
+    setActionError(null);
+    setPairing(device.id);
+    try {
+      const next = await nexRequest<PairingOffer>("peers/pair", { deviceId: device.id });
+      setOffer({ ...next, deviceId: device.id, confirmed: false });
+    } catch (err) {
+      setActionError(errorText(err));
+    } finally {
+      setPairing(null);
+    }
+  };
+
+  const confirmPairing = async () => {
+    if (!offer) return;
+    try {
+      await nexRequest("peers/add", { invite: offer.invite });
+      setOffer({ ...offer, confirmed: true });
+      void loadDevices();
+    } catch (err) {
+      setActionError(errorText(err));
+    }
+  };
 
   const loadDevices = useCallback(async () => {
     try {
@@ -212,17 +240,49 @@ function Connected({
                   )}
                 </span>
                 {device.connectable && device.route && <RouteBadge route={device.route} />}
-                {device.connectable && (
-                  <button
-                    type="button"
-                    className="ms-btn devices-import"
-                    onClick={() => {
-                      onClose();
-                      openWorkspaceImport(device.id);
-                    }}
-                  >
-                    {t("devices.importWorkspace")}
-                  </button>
+                <span className="devices-peer-actions">
+                  {device.connectable && !device.paired && device.kind !== "peer" && !isCloud && (
+                    <button
+                      type="button"
+                      className="ms-btn"
+                      disabled={pairing === device.id}
+                      onClick={() => void startPairing(device)}
+                    >
+                      {t("devices.pair.action")}
+                    </button>
+                  )}
+                  {device.connectable && (
+                    <button
+                      type="button"
+                      className="ms-btn"
+                      onClick={() => {
+                        onClose();
+                        openWorkspaceImport(device.id);
+                      }}
+                    >
+                      {t("devices.importWorkspace")}
+                    </button>
+                  )}
+                </span>
+                {offer?.deviceId === device.id && (
+                  <div className="devices-preview devices-pairing">
+                    {offer.confirmed ? (
+                      <p className="ms-hint">{t("devices.pair.otherSide", { name: offer.name })}</p>
+                    ) : (
+                      <>
+                        <p className="ms-hint">{t("devices.pair.compare", { name: offer.name })}</p>
+                        <div className="devices-code">{offer.code}</div>
+                        <div className="ms-form-actions">
+                          <button type="button" className="ms-btn" onClick={() => setOffer(null)}>
+                            {t("devices.cancel")}
+                          </button>
+                          <button type="button" className="ms-btn primary" onClick={() => void confirmPairing()}>
+                            {t("devices.pair.confirm")}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 )}
               </li>
             ))}
@@ -233,15 +293,15 @@ function Connected({
   );
 }
 
-/** "Direct · Tailscale · 6 ms" / "Relay · 180 ms": how this machine reaches a device right now. */
+/** "Direct · 6 ms" / "Via cloud · 180 ms": how this machine reaches a device right now. */
 function RouteBadge({ route }: { route: NexRoute }) {
   const { t } = useI18n();
   const parts = [t(route.via === "direct" ? "devices.routeDirect" : "devices.routeRelay")];
-  if (route.via === "direct" && route.network === "lan") parts.push(t("devices.routeLan"));
-  if (route.via === "direct" && route.network === "tailscale") parts.push("Tailscale");
   if (route.setupMs !== null) parts.push(`${route.setupMs} ms`);
+  // Which network and address is detail for the curious, not something to act on.
+  const network = route.network === "lan" ? t("devices.routeLan") : route.network === "tailscale" ? "Tailscale" : null;
   const title = [
-    route.address,
+    [network, route.address].filter(Boolean).join(" · "),
     route.via === "direct" && route.relaySetupMs !== null ? t("devices.routeRelayWouldBe", { ms: route.relaySetupMs }) : null,
     route.note,
   ]
@@ -337,6 +397,26 @@ function PairedDevices({ onClose }: { onClose: () => void }) {
       <div className="ms-card-title">{t("devices.paired.title")}</div>
       <p className="ms-hint">{t(info.signedIn ? "devices.paired.hintSignedIn" : "devices.paired.hint")}</p>
 
+      {info.requests.map((r) => (
+        <div key={r.publicKey} className="devices-preview devices-pairing">
+          <p className="ms-hint">{t("devices.pair.request", { name: r.name })}</p>
+          <div className="devices-code">{r.code}</div>
+          <div className="ms-form-actions">
+            <button type="button" className="ms-btn" onClick={() => void act("peers/decline", { publicKey: r.publicKey })}>
+              {t("devices.pair.decline")}
+            </button>
+            <button
+              type="button"
+              className="ms-btn primary"
+              onClick={() => void act("peers/accept", { publicKey: r.publicKey })}
+            >
+              {t("devices.pair.confirm")}
+            </button>
+          </div>
+        </div>
+      ))}
+
+      <InviteSection collapsed={info.signedIn}>
       <label className="ms-field">
         <span>{t("devices.paired.yourInvite")}</span>
         <div className="devices-invite">
@@ -378,6 +458,7 @@ function PairedDevices({ onClose }: { onClose: () => void }) {
           </div>
         </div>
       )}
+      </InviteSection>
 
       {info.peers.length > 0 && (
         <ul className="devices-list">
@@ -390,7 +471,8 @@ function PairedDevices({ onClose }: { onClose: () => void }) {
                 <span className="ms-mono devices-fingerprint" title={p.addresses.join("\n")}>
                   {p.fingerprint}
                 </span>
-                {device?.route && <RouteBadge route={device.route} />}
+                {/* A paired device reached without the account has no cloud route to fall back to. */}
+                {device?.route && (device.kind !== "peer" || device.connectable) && <RouteBadge route={device.route} />}
                 {device && !device.connectable && device.route?.note && (
                   <span className="devices-state" title={device.route.note}>
                     {t("devices.paired.unreachable")}
@@ -446,5 +528,17 @@ function PairedDevices({ onClose }: { onClose: () => void }) {
       )}
       {error && <div className="ms-test-fail">{error}</div>}
     </div>
+  );
+}
+
+/** Signed in, pairing is one click from the device list: the invite is the fallback, folded away. */
+function InviteSection({ collapsed, children }: { collapsed: boolean; children: ReactNode }) {
+  const { t } = useI18n();
+  if (!collapsed) return <>{children}</>;
+  return (
+    <details className="devices-invite-details">
+      <summary>{t("devices.paired.byInvite")}</summary>
+      {children}
+    </details>
   );
 }
