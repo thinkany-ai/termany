@@ -10513,10 +10513,11 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   background: none;
   color: inherit;
   font: inherit;
-  cursor: text;
+  /* Looks clickable, because it is: click to rename. */
+  cursor: pointer;
 }
 .devices-name-edit {
-  opacity: 0;
+  opacity: 0.55;
   font-size: 12px;
   color: var(--fg-dim);
 }
