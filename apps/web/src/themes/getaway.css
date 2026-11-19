@@ -4,10 +4,7 @@ html[data-theme="getaway"] {
   --getaway-sunset: linear-gradient(90deg, #ffd98a, #ff9aa8 35%, #e46fc0 65%, #8b6fd0);
 }
 
-/* Tab bar: white ink over the sky, the active tab a dark pill. The base
-   sheet fixes the bar background to the window, which would size the palm
-   tile against the window height; here it scrolls with the bar instead. */
-html[data-theme="getaway"] .htabbar { background-attachment: scroll; }
+/* Tab bar: white ink over the sky, the active tab a dark pill. */
 html[data-theme="getaway"] .htab {
   color: #fff;
   font-weight: 600;
@@ -30,32 +27,33 @@ html[data-theme="getaway"] .htabbar :is(.bar-btn, .htab-add) {
    xterm canvas is transparent, and the base sheet's solid --bg on the pane
    slot is dropped for terminal slots only; other panes keep their surface. */
 html[data-theme="getaway"] .pane-slot:has(.term-pane) { background: transparent; }
+/* Other panes (file tree, diff, browser chrome) get a denser glass, so lists
+   read cleanly and still sit in the same family as the terminals. */
+html[data-theme="getaway"] .pane-slot:not(:has(.term-pane)) {
+  background: rgba(23, 19, 40, 0.85);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
+}
 html[data-theme="getaway"] .term-pane {
   background: linear-gradient(180deg, rgba(20, 15, 40, 0.62), rgba(24, 17, 46, 0.55));
   -webkit-backdrop-filter: blur(6px) brightness(0.55) saturate(1.3);
   backdrop-filter: blur(6px) brightness(0.55) saturate(1.3);
 }
 
-/* Each pane is a card: a solid caption with a sunset hairline under it. The
-   caption keeps its own surface now that terminal slots are transparent. */
+/* Each pane is a card: a frosted caption, more opaque than the terminal
+   glass so its controls read cleanly, with a sunset hairline under it. */
 html[data-theme="getaway"] .pane-head {
-  background: var(--bg-2);
+  background: rgba(29, 23, 51, 0.8);
+  -webkit-backdrop-filter: blur(10px) saturate(1.3);
+  backdrop-filter: blur(10px) saturate(1.3);
   border-bottom: 2px solid transparent;
   border-image: var(--getaway-sunset) 1;
 }
 
 /* Sidebar: dark behind the page list, clearing toward the foot so the
-   beachfront shows through, with two palms leaning in from the right edge.
-   The empty foot keeps rows off the bright part. */
+   beachfront shows through. The empty foot keeps rows off the bright part. */
 html[data-theme="getaway"] .sidebar {
-  background:
-    var(--getaway-sidebar-palms) right bottom / 240px auto no-repeat,
-    linear-gradient(180deg, rgba(27, 21, 49, 0.9) 0%, rgba(27, 21, 49, 0.82) 55%, rgba(27, 21, 49, 0.3) 100%);
-}
-
-/* Right rail: one small palm at its foot, below the tool icons. */
-html[data-theme="getaway"] .side-rail {
-  background: var(--getaway-rail-palm) center bottom / 40px auto no-repeat, var(--sidebar-bg);
+  background: linear-gradient(180deg, rgba(27, 21, 49, 0.9) 0%, rgba(27, 21, 49, 0.82) 55%, rgba(27, 21, 49, 0.3) 100%);
 }
 html[data-theme="getaway"] .sidebar::after {
   content: "";
@@ -83,6 +81,31 @@ html[data-theme="getaway"] .section-title {
 /* Pill-shaped primary actions in pastel pink with plum ink. */
 html[data-theme="getaway"] :is(.ws-dialog-btn.primary, .ms-btn.primary, .ssh-manager-actions button.primary, .agent-send) {
   border-radius: 999px;
+}
+
+/* The palm icon (getaway.ts), as a mask so each spot picks its color:
+   cream before section headings, pink on the active tab, and sunset
+   pink before the workspace name. */
+html[data-theme="getaway"] .section-title::before,
+html[data-theme="getaway"] .htab.active::before,
+html[data-theme="getaway"] .sidebar-workspace-name::before {
+  content: "";
+  display: inline-block;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-right: 5px;
+  vertical-align: -2px;
+  -webkit-mask: var(--getaway-palm) center / contain no-repeat;
+  mask: var(--getaway-palm) center / contain no-repeat;
+}
+html[data-theme="getaway"] .section-title::before { background: #fff3c4; }
+html[data-theme="getaway"] .htab.active::before { background: #ffb2c6; margin-right: 3px; }
+html[data-theme="getaway"] .sidebar-workspace-name::before {
+  width: 17px;
+  height: 17px;
+  vertical-align: -3px;
+  background: #ff6fae;
 }
 
 html[data-theme="getaway"] ::selection { background: #43386e; color: #fff; }

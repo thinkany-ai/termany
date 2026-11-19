@@ -12,42 +12,18 @@ import coast from "./getaway/coast.jpg";
 // between panes let it through, and every pane floats on it as a dark card.
 // The theme uses no third-party names, logos, characters, typefaces or artwork.
 
-// Palm silhouettes in the chrome, drawn over the painting for foreground depth.
-// One frond is a crescent from the crown (0,0); rotated copies make a crown.
-// SVG rotates clockwise: 0deg points left, 90 up, 180 right. The set leans low
-// on both sides so the crown droops.
-const PALM_INK = "#170d27";
-const FROND = "M0 0q-16-14-36-6q22 0 36 6z";
-const crown = (fill: string) =>
-  `<g fill="${fill}">${[-45, -15, 20, 70, 110, 160, 195, 225]
-    .map((deg, i) => `<path d="${FROND}" transform="rotate(${deg}) scale(${i % 2 ? 0.85 : 1})"/>`)
-    .join("")}</g>`;
+// A palm icon for the chrome: section headings, the active tab and the
+// workspace name use it as a CSS mask, so each spot sets its own color.
+const PALM_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#000">
+  <path d="M13.1 9.6c.9 3.9.7 8.1-.7 12.4h-2.3c1.4-4.1 1.6-8.2.9-12z"/>
+  <path d="M12.2 9.2C10 5.2 5.6 4.3 1.8 6.6c3.4-.1 6.4.9 8.9 3.6z"/>
+  <path d="M11.8 9.4C8.4 8.3 4.4 9.8 2.2 13.6c2.9-2 6.3-2.7 9.6-2.4z"/>
+  <path d="M12.2 9.2c-1.9-2.8-2-6.2-.1-9 .1 3 .9 5.8 2 8.4z"/>
+  <path d="M12.2 9.2c.5-4 3.3-6.9 7.4-7.6-2.7 1.9-4.6 4.4-5.6 8z"/>
+  <path d="M12.4 9.4c3.6-1.9 7.9-1.2 10.8 2.2-3.4-1-6.8-.9-9.9.7z"/>
+  <path d="M12.6 9.6c3.2.2 6 2.5 6.8 6.3-1.8-2.6-4.1-4.2-7-4.8z"/>
+</svg>`;
 const svgUrl = (svg: string) => `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
-
-// Crowns hanging into the tab bar, a 900x36 tile repeated along its width.
-const TAB_BAR_FRONDS = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 36">
-  <g opacity=".6">
-    <g transform="translate(120 -4) scale(1.1)">${crown(PALM_INK)}</g>
-    <g transform="translate(430 -10) scale(.8)">${crown(PALM_INK)}</g>
-    <g transform="translate(700 -2) scale(1.2)">${crown(PALM_INK)}</g>
-  </g>
-</svg>`;
-
-// Two palms leaning in from the sidebar's right edge, 240x480, bottom-right.
-const SIDEBAR_PALMS = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 480">
-  <g fill="none" stroke="${PALM_INK}" stroke-linecap="round">
-    <path d="M230 482Q238 300 160 110" stroke-width="10"/>
-    <path d="M252 482q-6-120-50-220" stroke-width="7"/>
-  </g>
-  <g transform="translate(160 110) scale(2.1)">${crown(PALM_INK)}</g>
-  <g transform="translate(202 262) scale(1.5)">${crown(PALM_INK)}</g>
-</svg>`;
-
-// One small palm at the foot of the right rail, 40x140.
-const RAIL_PALM = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 140">
-  <path d="M22 142q4-60-6-104" stroke="${PALM_INK}" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-  <g transform="translate(16 38) scale(.55)">${crown(PALM_INK)}</g>
-</svg>`;
 
 export const getaway: Theme = {
   id: "getaway",
@@ -64,10 +40,10 @@ export const getaway: Theme = {
     accentSoft: "rgba(255, 178, 198, 0.16)",
   },
   radius: { sm: "6px", md: "8px", lg: "12px" },
-  sidebar: { bg: "#1b1531", border: "transparent" },
+  sidebar: { bg: "#1b1531", border: "rgba(255, 255, 255, 0.08)" },
   chrome: {
-    // The sky shows through the tab bar under a light scrim, with palm crowns.
-    topBar: `${svgUrl(TAB_BAR_FRONDS)} left top / auto 100% repeat-x, linear-gradient(rgba(27, 21, 49, 0.45), rgba(27, 21, 49, 0.25))`,
+    // The sky shows through the tab bar under a light scrim.
+    topBar: "linear-gradient(rgba(27, 21, 49, 0.45), rgba(27, 21, 49, 0.25))",
     topBarBorder: "transparent",
     activeTab: "#171328",
     activeRow: "rgba(255, 178, 198, 0.18)",
@@ -78,9 +54,11 @@ export const getaway: Theme = {
   },
   background: { image: coast, opacity: 0.72 },
   term: {
-    // Transparent: each terminal pane paints a near-opaque night scrim over
-    // the coast (getaway.css), dark enough for every ANSI color.
-    background: "#17132800",
+    // Transparent: each terminal pane is frosted glass over the coast
+    // (getaway.css). The RGB part still matters: xterm's WebGL renderer
+    // composites dim text onto this color made opaque, so it is set to the
+    // glass's average tint to keep those cells from showing as dark blocks.
+    background: "#351c3000",
     foreground: "#f4f1ff",
     cursor: "#ffb2c6",
     cursorAccent: "#171328",
@@ -105,8 +83,7 @@ export const getaway: Theme = {
     brightWhite: "#ffffff",
   },
   vars: {
-    "--getaway-sidebar-palms": svgUrl(SIDEBAR_PALMS),
-    "--getaway-rail-palm": svgUrl(RAIL_PALM),
+    "--getaway-palm": svgUrl(PALM_ICON),
     "--accent-fg": "#171328",
     "--pane-area-bg": "transparent",
     // The Bots conversation stays opaque so long messages read cleanly.
