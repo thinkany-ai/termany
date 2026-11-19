@@ -194,6 +194,7 @@ export default {
   "devices.err.strict": "对方只允许端到端加密的设备访问，请先和它开启端到端加密。",
   "devices.err.accountUnreachable": "暂时无法通过账号连到对方设备，请确认它已开机、联网并已登录。",
   "devices.err.unreachable": "连不上对方设备。两台设备需要在同一个 Wi‑Fi 或同一个 Tailscale 网络里，或者都登录同一个 Termany 账号。",
+  "devices.err.loadFailed": "连不上对方设备上的 Termany。如果对方开启了“仅允许端到端加密的设备访问”，请先和它开启端到端加密；否则请确认它在线后重试。",
   "devices.link.strictHint": "开启后，没有开启端到端加密的设备（包括同账号的设备）和 termany.ai 网页版都无法再访问本机；已加密的设备内网、云端照常可用。",
   "devices.link.connectTitle": "连接设备",
   "devices.link.enterAuthCode": "粘贴对方设备的授权码",

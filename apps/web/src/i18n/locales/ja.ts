@@ -103,6 +103,7 @@ export default {
   "devices.err.strict": "相手はエンドツーエンド暗号化したデバイスだけを受け入れます。先に相手とのエンドツーエンド暗号化をオンにしてください。",
   "devices.err.accountUnreachable": "今はアカウント経由で相手に届きません。電源、ネットワーク、サインイン状態を確認してください。",
   "devices.err.unreachable": "相手のデバイスに接続できません。同じ Wi‑Fi か Tailscale ネットワークにいるか、同じ Termany アカウントにサインインしている必要があります。",
+  "devices.err.loadFailed": "相手のデバイスの Termany に接続できませんでした。相手がエンドツーエンド暗号化したデバイスだけを受け入れている場合は、先にエンドツーエンド暗号化をオンにしてください。そうでなければオンラインか確認して再試行してください。",
   "devices.link.strictHint": "オンにすると、エンドツーエンド暗号化していないデバイス（同じアカウントのものも含む）とブラウザの termany.ai はアクセスできなくなります。暗号化済みのデバイスは LAN でもクラウドでも使えます。",
   "devices.link.connectTitle": "デバイスを接続",
   "devices.link.enterAuthCode": "相手のデバイスの認証コードを貼り付け",

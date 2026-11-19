@@ -98,6 +98,7 @@ export default {
   "devices.err.strict": "That device only lets end-to-end encrypted devices in. Turn on end-to-end encryption with it first.",
   "devices.err.accountUnreachable": "That device cannot be reached through your account right now. Check that it is on, online and signed in.",
   "devices.err.unreachable": "Cannot reach that device. Both devices need to be on the same Wi‑Fi or Tailscale network, or signed in to the same Termany account.",
+  "devices.err.loadFailed": "Couldn't reach the Termany on that device. If it only lets end-to-end encrypted devices in, turn on end-to-end encryption with it first; otherwise check that it is online and try again.",
   "devices.link.strictHint": "Devices without end-to-end encryption (including ones in your account) and termany.ai in the browser can no longer reach it. Encrypted devices keep working over LAN and the cloud.",
   "devices.link.connectTitle": "Connect a device",
   "devices.link.enterAuthCode": "Paste the other device's authorization code",

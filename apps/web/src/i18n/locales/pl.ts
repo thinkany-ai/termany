@@ -104,6 +104,7 @@ export default {
   "devices.err.strict": "Tamto urządzenie wpuszcza tylko urządzenia z szyfrowaniem end-to-end. Najpierw włącz z nim szyfrowanie end-to-end.",
   "devices.err.accountUnreachable": "Teraz nie da się dosięgnąć urządzenia przez konto. Sprawdź, czy jest włączone, online i zalogowane.",
   "devices.err.unreachable": "Nie można połączyć się z urządzeniem. Oba muszą być w tej samej sieci Wi‑Fi lub Tailscale albo na tym samym koncie Termany.",
+  "devices.err.loadFailed": "Nie udało się połączyć z Termany na tamtym urządzeniu. Jeśli wpuszcza tylko urządzenia z szyfrowaniem end-to-end, najpierw je z nim włącz; w przeciwnym razie sprawdź, czy jest online, i spróbuj ponownie.",
   "devices.link.strictHint": "Urządzenia bez szyfrowania end-to-end (także z twojego konta) i termany.ai w przeglądarce stracą dostęp. Zaszyfrowane działają dalej przez LAN i chmurę.",
   "devices.link.connectTitle": "Połącz urządzenie",
   "devices.link.enterAuthCode": "Wklej kod autoryzacji drugiego urządzenia",

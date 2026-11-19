@@ -103,6 +103,7 @@ export default {
   "devices.err.strict": "O cihaz yalnızca uçtan uca şifreli cihazları kabul ediyor. Önce onunla uçtan uca şifrelemeyi açın.",
   "devices.err.accountUnreachable": "Şu an o cihaza hesap üzerinden ulaşılamıyor. Açık, çevrimiçi ve oturum açmış olduğunu kontrol edin.",
   "devices.err.unreachable": "O cihaza ulaşılamıyor. İkisi aynı Wi‑Fi veya Tailscale ağında ya da aynı Termany hesabında olmalı.",
+  "devices.err.loadFailed": "O cihazdaki Termany'ye ulaşılamadı. Yalnızca uçtan uca şifreli cihazları kabul ediyorsa önce onunla şifrelemeyi açın; değilse çevrimiçi olduğunu kontrol edip yeniden deneyin.",
   "devices.link.strictHint": "Açıldığında uçtan uca şifrelemesi olmayan cihazlar (hesaptakiler dahil) ve tarayıcıdaki termany.ai artık erişemez. Şifreli cihazlar LAN ve bulut üzerinden çalışmaya devam eder.",
   "devices.link.connectTitle": "Cihaz bağla",
   "devices.link.enterAuthCode": "Diğer cihazın yetkilendirme kodunu yapıştırın",

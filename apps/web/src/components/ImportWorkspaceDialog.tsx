@@ -3,6 +3,7 @@ import { useI18n } from "../i18n";
 import { useNativeOccluder } from "../nativeViewOcclusion";
 import { deviceWorkspaces, type NexDevice } from "../state/devices";
 import { useStore, type Workspace } from "../state/store";
+import { useFriendlyError } from "./DeviceLinking";
 
 const initial = (t: string) => t.trim().charAt(0).toUpperCase() || "?";
 
@@ -29,6 +30,7 @@ export function ImportWorkspaceDialog({
   onClose: () => void;
 }) {
   const { t } = useI18n();
+  const friendly = useFriendlyError();
   const backdropRef = useNativeOccluder<HTMLDivElement>("workspace-import");
   const mounted = useStore((s) => s.workspaces);
   const importWorkspace = useStore((s) => s.importWorkspace);
@@ -78,7 +80,11 @@ export function ImportWorkspaceDialog({
               </select>
             </label>
             <div className="ws-import-list">
-              {error && <p className="ws-import-error">{error}</p>}
+              {error && (
+                <p className="ws-import-error" title={friendly(error) === error ? undefined : error}>
+                  {friendly(error)}
+                </p>
+              )}
               {!error && list === null && <p className="ws-import-hint">{t("workspace.importLoading")}</p>}
               {list?.length === 0 && <p className="ws-import-hint">{t("workspace.importEmpty")}</p>}
               {list?.map((ws) => {

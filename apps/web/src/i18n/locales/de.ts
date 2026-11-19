@@ -103,6 +103,7 @@ export default {
   "devices.err.strict": "Dieses Gerät lässt nur Ende-zu-Ende-verschlüsselte Geräte zu. Schalte zuerst die Ende-zu-Ende-Verschlüsselung mit ihm ein.",
   "devices.err.accountUnreachable": "Das Gerät ist über dein Konto gerade nicht erreichbar. Prüfe, ob es an, online und angemeldet ist.",
   "devices.err.unreachable": "Das Gerät ist nicht erreichbar. Beide Geräte müssen im selben WLAN oder Tailscale-Netz oder im selben Termany-Konto angemeldet sein.",
+  "devices.err.loadFailed": "Das Termany auf diesem Gerät war nicht erreichbar. Lässt es nur Ende-zu-Ende-verschlüsselte Geräte zu, schalte zuerst die Verschlüsselung mit ihm ein; sonst prüfe, ob es online ist, und versuche es erneut.",
   "devices.link.strictHint": "Geräte ohne Ende-zu-Ende-Verschlüsselung (auch im eigenen Konto) und termany.ai im Browser erreichen dieses Gerät dann nicht mehr. Verschlüsselte Geräte funktionieren weiter über LAN und Cloud.",
   "devices.link.connectTitle": "Gerät verbinden",
   "devices.link.enterAuthCode": "Autorisierungscode des anderen Geräts einfügen",

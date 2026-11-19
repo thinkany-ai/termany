@@ -96,6 +96,7 @@ export default {
   "devices.err.strict": "對方只允許端對端加密的裝置存取，請先和它開啟端對端加密。",
   "devices.err.accountUnreachable": "暫時無法透過帳號連到對方裝置，請確認它已開機、連網並已登入。",
   "devices.err.unreachable": "連不上對方裝置。兩台裝置需要在同一個 Wi‑Fi 或同一個 Tailscale 網路裡，或都登入同一個 Termany 帳號。",
+  "devices.err.loadFailed": "連不上對方裝置上的 Termany。如果對方開啟了「僅允許端對端加密的裝置存取」，請先和它開啟端對端加密；否則請確認它在線後重試。",
   "devices.link.strictHint": "開啟後，沒有開啟端對端加密的裝置（包括同帳號的裝置）和 termany.ai 網頁版都無法再存取本機；已加密的裝置內網、雲端照常可用。",
   "devices.link.connectTitle": "連接裝置",
   "devices.link.enterAuthCode": "貼上對方裝置的授權碼",

@@ -103,6 +103,7 @@ export default {
   "devices.err.strict": "Cet appareil n'accepte que les appareils chiffrés de bout en bout. Activez d'abord le chiffrement de bout en bout avec lui.",
   "devices.err.accountUnreachable": "Impossible de joindre cet appareil via votre compte pour l'instant. Vérifiez qu'il est allumé, en ligne et connecté.",
   "devices.err.unreachable": "Impossible de joindre cet appareil. Les deux doivent être sur le même Wi‑Fi ou réseau Tailscale, ou connectés au même compte Termany.",
+  "devices.err.loadFailed": "Impossible de joindre le Termany de cet appareil. S'il n'accepte que les appareils chiffrés de bout en bout, activez d'abord le chiffrement avec lui ; sinon vérifiez qu'il est en ligne et réessayez.",
   "devices.link.strictHint": "Les appareils sans chiffrement de bout en bout (y compris ceux du compte) et termany.ai dans le navigateur ne pourront plus y accéder. Les appareils chiffrés continuent de fonctionner en LAN et via le cloud.",
   "devices.link.connectTitle": "Connecter un appareil",
   "devices.link.enterAuthCode": "Collez le code d'autorisation de l'autre appareil",

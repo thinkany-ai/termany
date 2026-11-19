@@ -103,6 +103,7 @@ export default {
   "devices.err.strict": "Aquele dispositivo só aceita dispositivos com criptografia de ponta a ponta. Ative-a com ele primeiro.",
   "devices.err.accountUnreachable": "No momento não dá para alcançar aquele dispositivo pela sua conta. Confira se está ligado, online e conectado.",
   "devices.err.unreachable": "Não dá para alcançar aquele dispositivo. Os dois precisam estar na mesma Wi‑Fi ou rede Tailscale, ou na mesma conta Termany.",
+  "devices.err.loadFailed": "Não foi possível alcançar o Termany daquele dispositivo. Se ele só aceita dispositivos com criptografia de ponta a ponta, ative-a com ele primeiro; senão, confira se está online e tente de novo.",
   "devices.link.strictHint": "Dispositivos sem criptografia de ponta a ponta (inclusive os da sua conta) e o termany.ai no navegador não conseguirão mais acessá-lo. Os criptografados continuam funcionando pela LAN e pela nuvem.",
   "devices.link.connectTitle": "Conectar um dispositivo",
   "devices.link.enterAuthCode": "Cole o código de autorização do outro dispositivo",

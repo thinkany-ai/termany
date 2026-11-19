@@ -103,6 +103,7 @@ export default {
   "devices.err.strict": "Dat apparaat laat alleen end-to-end versleutelde apparaten toe. Zet eerst end-to-end versleuteling met het aan.",
   "devices.err.accountUnreachable": "Dat apparaat is nu niet bereikbaar via je account. Controleer of het aan staat, online is en ingelogd.",
   "devices.err.unreachable": "Dat apparaat is niet bereikbaar. Beide moeten op dezelfde wifi of hetzelfde Tailscale-netwerk zitten, of in hetzelfde Termany-account ingelogd zijn.",
+  "devices.err.loadFailed": "De Termany op dat apparaat was niet bereikbaar. Laat het alleen end-to-end versleutelde apparaten toe, zet dan eerst versleuteling met het aan; anders controleer of het online is en probeer opnieuw.",
   "devices.link.strictHint": "Apparaten zonder end-to-end versleuteling (ook die in je account) en termany.ai in de browser kunnen er dan niet meer bij. Versleutelde apparaten blijven werken via LAN en cloud.",
   "devices.link.connectTitle": "Apparaat verbinden",
   "devices.link.enterAuthCode": "Plak de autorisatiecode van het andere apparaat",

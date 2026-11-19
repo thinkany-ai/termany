@@ -103,6 +103,7 @@ export default {
   "devices.err.strict": "Ese dispositivo solo admite dispositivos con cifrado de extremo a extremo. Actívalo primero con él.",
   "devices.err.accountUnreachable": "Ahora no se puede llegar a ese dispositivo a través de tu cuenta. Comprueba que esté encendido, en línea y con sesión iniciada.",
   "devices.err.unreachable": "No se puede llegar a ese dispositivo. Ambos deben estar en la misma Wi‑Fi o red de Tailscale, o con sesión en la misma cuenta de Termany.",
+  "devices.err.loadFailed": "No se pudo llegar al Termany de ese dispositivo. Si solo admite dispositivos con cifrado de extremo a extremo, actívalo primero con él; si no, comprueba que esté en línea y reintenta.",
   "devices.link.strictHint": "Los dispositivos sin cifrado de extremo a extremo (incluidos los de tu cuenta) y termany.ai en el navegador ya no podrán acceder. Los cifrados siguen funcionando por LAN y por la nube.",
   "devices.link.connectTitle": "Conectar un dispositivo",
   "devices.link.enterAuthCode": "Pega el código de autorización del otro dispositivo",

@@ -34,9 +34,11 @@ const FRIENDLY: Array<[RegExp, string]> = [
   [/only accepts end-to-end encrypted connections/i, "devices.err.strict"],
   [/cannot be reached through your account/i, "devices.err.accountUnreachable"],
   [/^cannot reach /i, "devices.err.unreachable"],
+  // The browser's own words for a request that never got an answer.
+  [/^(load failed|failed to fetch|networkerror)/i, "devices.err.loadFailed"],
 ];
 
-function useFriendlyError(): (raw: string) => string {
+export function useFriendlyError(): (raw: string) => string {
   const { t } = useI18n();
   return (raw) => {
     const hit = FRIENDLY.find(([re]) => re.test(raw));

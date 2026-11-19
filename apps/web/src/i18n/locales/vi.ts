@@ -103,6 +103,7 @@ export default {
   "devices.err.strict": "Thiết bị đó chỉ cho thiết bị mã hóa đầu cuối truy cập. Hãy bật mã hóa đầu cuối với nó trước.",
   "devices.err.accountUnreachable": "Hiện không thể tới thiết bị đó qua tài khoản. Hãy kiểm tra nó đang bật, có mạng và đã đăng nhập.",
   "devices.err.unreachable": "Không kết nối được thiết bị đó. Hai thiết bị cần cùng Wi‑Fi hoặc mạng Tailscale, hoặc cùng đăng nhập một tài khoản Termany.",
+  "devices.err.loadFailed": "Không kết nối được Termany trên thiết bị đó. Nếu nó chỉ cho thiết bị mã hóa đầu cuối truy cập, hãy bật mã hóa đầu cuối với nó trước; nếu không, hãy kiểm tra nó đang trực tuyến rồi thử lại.",
   "devices.link.strictHint": "Khi bật, thiết bị chưa bật mã hóa đầu cuối (kể cả cùng tài khoản) và termany.ai trên trình duyệt sẽ không truy cập được nữa. Thiết bị đã mã hóa vẫn dùng được qua LAN và đám mây.",
   "devices.link.connectTitle": "Kết nối thiết bị",
   "devices.link.enterAuthCode": "Dán mã ủy quyền của thiết bị kia",

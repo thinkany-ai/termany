@@ -103,6 +103,7 @@ export default {
   "devices.err.strict": "Den enheten släpper bara in end-to-end-krypterade enheter. Slå på end-to-end-kryptering med den först.",
   "devices.err.accountUnreachable": "Enheten går inte att nå via ditt konto just nu. Kontrollera att den är på, online och inloggad.",
   "devices.err.unreachable": "Det går inte att nå enheten. Båda måste vara på samma wifi eller Tailscale-nätverk, eller inloggade på samma Termany-konto.",
+  "devices.err.loadFailed": "Det gick inte att nå Termany på den enheten. Släpper den bara in end-to-end-krypterade enheter, slå först på kryptering med den; annars kontrollera att den är online och försök igen.",
   "devices.link.strictHint": "Enheter utan end-to-end-kryptering (även de i ditt konto) och termany.ai i webbläsaren når den inte längre. Krypterade enheter fungerar vidare via LAN och moln.",
   "devices.link.connectTitle": "Anslut en enhet",
   "devices.link.enterAuthCode": "Klistra in den andra enhetens auktoriseringskod",

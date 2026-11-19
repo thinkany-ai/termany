@@ -397,8 +397,12 @@ export class NexBridge {
       }
       for (const d of devices) {
         const paired = this.#peers.byNexDevice(d.id);
-        const requiresPairing =
-          !d.is_self && d.services.some((s) => s.name === STRICT_MARKER) && (!paired || !!paired.pending);
+        // It says so (marker), or an older Termany shows it by refusing us
+        // a direct-path key ("only accepts paired devices").
+        const strictSeen =
+          d.services.some((s) => s.name === STRICT_MARKER) ||
+          this.#openForwards.get(d.id)?.paths?.status().error === "the device only accepts paired devices";
+        const requiresPairing = !d.is_self && strictSeen && (!paired || !!paired.pending);
         const connectable =
           !d.is_self && !requiresPairing && d.online && d.services.some((s) => s.name === NEX_SERVICE && s.kind === "tcp");
         // Start measuring both paths to it, so the list can show them before

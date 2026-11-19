@@ -103,6 +103,7 @@ export default {
   "devices.err.strict": "Perangkat itu hanya menerima perangkat terenkripsi end-to-end. Aktifkan dulu enkripsi end-to-end dengannya.",
   "devices.err.accountUnreachable": "Perangkat itu belum bisa dijangkau lewat akun Anda. Pastikan menyala, online, dan sudah masuk.",
   "devices.err.unreachable": "Tidak bisa menjangkau perangkat itu. Keduanya harus di Wi‑Fi atau jaringan Tailscale yang sama, atau masuk ke akun Termany yang sama.",
+  "devices.err.loadFailed": "Tidak bisa menjangkau Termany di perangkat itu. Jika hanya menerima perangkat terenkripsi end-to-end, aktifkan dulu enkripsinya; jika tidak, pastikan perangkat online lalu coba lagi.",
   "devices.link.strictHint": "Perangkat tanpa enkripsi end-to-end (termasuk di akun Anda) dan termany.ai di browser tidak bisa mengaksesnya lagi. Perangkat terenkripsi tetap bekerja lewat LAN dan cloud.",
   "devices.link.connectTitle": "Hubungkan perangkat",
   "devices.link.enterAuthCode": "Tempel kode otorisasi perangkat lain",

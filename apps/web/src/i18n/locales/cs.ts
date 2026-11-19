@@ -104,6 +104,7 @@ export default {
   "devices.err.strict": "To zařízení pouští jen zařízení šifrovaná end-to-end. Nejdřív s ním zapněte šifrování end-to-end.",
   "devices.err.accountUnreachable": "Zařízení teď přes účet nedosáhnete. Zkontrolujte, že je zapnuté, online a přihlášené.",
   "devices.err.unreachable": "Zařízení nelze zastihnout. Obě musí být ve stejné Wi‑Fi nebo síti Tailscale, nebo ve stejném účtu Termany.",
+  "devices.err.loadFailed": "Termany na tom zařízení nebylo dostupné. Pokud pouští jen zařízení šifrovaná end-to-end, nejdřív s ním šifrování zapněte; jinak ověřte, že je online, a zkuste to znovu.",
   "devices.link.strictHint": "Zařízení bez šifrování end-to-end (i z vašeho účtu) a termany.ai v prohlížeči se už nepřipojí. Šifrovaná zařízení fungují dál přes LAN i cloud.",
   "devices.link.connectTitle": "Připojit zařízení",
   "devices.link.enterAuthCode": "Vložte autorizační kód druhého zařízení",

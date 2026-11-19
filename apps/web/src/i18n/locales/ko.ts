@@ -103,6 +103,7 @@ export default {
   "devices.err.strict": "상대 기기는 종단 간 암호화된 기기만 받습니다. 먼저 상대와 종단 간 암호화를 켜세요.",
   "devices.err.accountUnreachable": "지금은 계정을 통해 상대 기기에 닿을 수 없습니다. 켜져 있고 온라인이며 로그인되어 있는지 확인하세요.",
   "devices.err.unreachable": "상대 기기에 연결할 수 없습니다. 같은 Wi‑Fi나 Tailscale 네트워크에 있거나 같은 Termany 계정으로 로그인해야 합니다.",
+  "devices.err.loadFailed": "상대 기기의 Termany에 연결하지 못했습니다. 상대가 종단 간 암호화된 기기만 받는다면 먼저 종단 간 암호화를 켜세요. 아니라면 온라인인지 확인하고 다시 시도하세요.",
   "devices.link.strictHint": "켜면 종단 간 암호화를 켜지 않은 기기(같은 계정의 기기 포함)와 브라우저의 termany.ai는 더 이상 접근할 수 없습니다. 암호화된 기기는 LAN과 클라우드 모두에서 계속 사용됩니다.",
   "devices.link.connectTitle": "기기 연결",
   "devices.link.enterAuthCode": "상대 기기의 인증 코드 붙여 넣기",
