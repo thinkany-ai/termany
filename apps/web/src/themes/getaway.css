@@ -1,0 +1,78 @@
+/* Getaway. The coast image behind the window comes from getaway.ts; these
+   rules set the scrims over it, pill shapes and poster headings. */
+html[data-theme="getaway"] {
+  --getaway-sunset: linear-gradient(90deg, #ffd98a, #ff9aa8 35%, #e46fc0 65%, #8b6fd0);
+}
+
+/* Tab bar: white ink over the sky, the active tab a dark pill. */
+html[data-theme="getaway"] .htab {
+  color: #fff;
+  font-weight: 600;
+  border-radius: 999px;
+  text-shadow: 0 1px 2px rgba(27, 21, 49, 0.6);
+}
+html[data-theme="getaway"] .htab:hover { background: rgba(255, 255, 255, 0.18); }
+html[data-theme="getaway"] :is(.htab.active, .htab.active:hover) {
+  box-shadow: none;
+  text-shadow: none;
+}
+html[data-theme="getaway"] .htabbar :is(.bar-btn, .htab-add) {
+  color: #fff;
+  filter: drop-shadow(0 1px 2px rgba(27, 21, 49, 0.6));
+}
+
+/* Terminals: frosted glass over the coast. The backdrop is blurred, so its
+   detail does not compete with glyphs, and dimmed before the night scrim, so
+   the scene stays visible while dim ANSI colors keep about 4:1 contrast. The
+   xterm canvas is transparent. */
+/* The base sheet paints every pane slot solid --bg; terminal slots drop it so
+   the glass below can show the coast. Other panes keep their solid surface. */
+html[data-theme="getaway"] .pane-slot:has(.term-pane) { background: transparent; }
+html[data-theme="getaway"] .term-pane {
+  background: linear-gradient(180deg, rgba(20, 15, 40, 0.62), rgba(24, 17, 46, 0.55));
+  -webkit-backdrop-filter: blur(6px) brightness(0.55) saturate(1.3);
+  backdrop-filter: blur(6px) brightness(0.55) saturate(1.3);
+}
+
+/* Each pane is a card: a solid caption with a sunset hairline under it. The
+   caption keeps its own surface now that terminal slots are transparent. */
+html[data-theme="getaway"] .pane-head {
+  background: var(--bg-2);
+  border-bottom: 2px solid transparent;
+  border-image: var(--getaway-sunset) 1;
+}
+
+/* Sidebar: dark behind the page list, clearing toward the foot so the
+   beachfront shows through. The empty foot keeps rows off the bright part. */
+html[data-theme="getaway"] .sidebar {
+  background: linear-gradient(180deg, rgba(27, 21, 49, 0.9) 0%, rgba(27, 21, 49, 0.82) 55%, rgba(27, 21, 49, 0.3) 100%);
+}
+html[data-theme="getaway"] .sidebar::after {
+  content: "";
+  flex: 0 1 220px;
+  pointer-events: none;
+}
+html[data-theme="getaway"] .sidebar-workspace-name {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  /* Vertical, so the three colors show however short the name is: the span
+     itself stretches to the full row width. */
+  background: linear-gradient(180deg, #ffc07a 10%, #ff6fae 55%, #a979ff 95%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+html[data-theme="getaway"] .section-title {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #fff3c4;
+}
+
+/* Pill-shaped primary actions in pastel pink with plum ink. */
+html[data-theme="getaway"] :is(.ws-dialog-btn.primary, .ms-btn.primary, .ssh-manager-actions button.primary, .agent-send) {
+  border-radius: 999px;
+}
+
+html[data-theme="getaway"] ::selection { background: #43386e; color: #fff; }

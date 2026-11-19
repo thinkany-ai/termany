@@ -72,7 +72,7 @@ function readThemes(tmp) {
   );
   const bundle = path.join(tmp, "themes.mjs");
   // A theme's stylesheet is inlined into the card separately, below.
-  execFileSync(ESBUILD, [entry, "--bundle", "--platform=node", "--format=esm", "--loader:.css=text", `--outfile=${bundle}`, "--log-level=error"]);
+  execFileSync(ESBUILD, [entry, "--bundle", "--platform=node", "--format=esm", "--loader:.css=text", "--loader:.jpg=dataurl", `--outfile=${bundle}`, "--log-level=error"]);
   return JSON.parse(execFileSync(process.execPath, [bundle], { encoding: "utf8" }));
 }
 
