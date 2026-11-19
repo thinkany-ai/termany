@@ -10412,6 +10412,46 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   color: #16a34a;
   background: color-mix(in srgb, #22c55e 14%, transparent);
 }
+.devices-route.paired {
+  color: #2563eb;
+  background: color-mix(in srgb, #3b82f6 14%, transparent);
+}
+.devices-invite {
+  display: flex;
+  gap: 8px;
+}
+.devices-invite input {
+  flex: 1;
+  min-width: 0;
+}
+.devices-fingerprint {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+.devices-preview {
+  margin: 4px 0 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--fg-dim) 8%, transparent);
+}
+.devices-preview .ms-hint {
+  margin: 2px 0;
+}
+.devices-peer {
+  flex-wrap: wrap;
+}
+.devices-peer-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.devices-strict {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 13px;
+}
 .devices-actions {
   justify-content: flex-end;
   align-items: center;

@@ -21,14 +21,29 @@ import { EventEmitter } from "node:events";
 import net from "node:net";
 import os from "node:os";
 import tls from "node:tls";
-import type WebSocket from "ws";
+import WebSocket, { createWebSocketStream } from "ws";
+import type { Duplex } from "node:stream";
 import type { NexClient } from "../client.js";
 import { NexApiError } from "../errors.js";
 import type { Logger } from "./host.js";
 import { closeWs, connectWs, release } from "./wsutil.js";
+import {
+  PAIRED_IDENTITY_PREFIX,
+  normalizePublicKey,
+  pairedIdentity,
+  pairedKey,
+  type ClientTrust,
+  type HostTrust,
+} from "./trust.js";
 
 /** Built-in service that hands out direct-path keys and addresses. Reserved. */
 export const DIRECT_SERVICE = "nex.direct";
+/**
+ * Built-in `tcp` service carrying the direct-path protocol (TLS-PSK +
+ * request line) over a relay stream, for paired devices: end-to-end
+ * encrypted, the relay only sees ciphertext. Reserved.
+ */
+export const E2E_SERVICE = "nex.e2e";
 
 /** TLS 1.2 PSK suites with an ephemeral ECDH exchange (forward secrecy). */
 const CIPHERS = "ECDHE-PSK-CHACHA20-POLY1305:ECDHE-PSK-AES256-CBC-SHA384:ECDHE-PSK-AES128-CBC-SHA256";
@@ -47,7 +62,10 @@ export interface DirectEndpoint {
 /** What `nex.direct` answers: one JSON text message, then the stream closes. */
 export interface DirectInfo {
   v: 1;
-  /** Base64 TLS-PSK key for the device that asked (and only that device). */
+  /**
+   * Base64 TLS-PSK key for the device that asked (and only that device).
+   * Empty when the host only accepts paired devices.
+   */
   key: string;
   endpoints: DirectEndpoint[];
   /** Services that can be reached directly (tcp services with a local port). */
@@ -75,12 +93,16 @@ const LOCAL_CONNECT_TIMEOUT_MS = 5_000;
 type Lookup = (service: string) => { host: string; port: number } | string;
 
 /**
- * Host half: TLS-PSK listeners on this machine's LAN / tailnet addresses that
- * splice authorized connections to local tcp services. Owned by `NexHost`.
+ * Host half: TLS-PSK listeners on this machine's LAN / tailnet addresses (and
+ * TLS over `nex.e2e` relay streams) that splice authorized connections to
+ * local tcp services. Owned by `NexHost`.
  */
 export class DirectServer {
-  readonly #client: NexClient;
-  readonly #options: DirectOptions;
+  /** Null for a host with no relay at all (paired devices only). */
+  readonly #client: NexClient | null;
+  readonly #options: DirectOptions | null;
+  readonly #trust: () => HostTrust | null;
+  #tunnelServer: tls.Server | null = null;
   readonly #lookup: Lookup;
   readonly #services: () => string[];
   readonly #log: Logger;
@@ -94,13 +116,22 @@ export class DirectServer {
    * a revocation takes effect within REVALIDATE_MS once it is back.
    */
   readonly #authorized = new Set<string>();
-  readonly #sockets = new Set<net.Socket>();
+  readonly #sockets = new Set<Duplex>();
   #timers: NodeJS.Timeout[] = [];
   #running = false;
 
-  constructor(options: { client: NexClient; direct: DirectOptions; lookup: Lookup; services: () => string[]; logger?: Logger }) {
+  constructor(options: {
+    client: NexClient | null;
+    /** Where to listen; null: no listeners (paired streams over the relay only). */
+    direct: DirectOptions | null;
+    trust: () => HostTrust | null;
+    lookup: Lookup;
+    services: () => string[];
+    logger?: Logger;
+  }) {
     this.#client = options.client;
     this.#options = options.direct;
+    this.#trust = options.trust;
     this.#lookup = options.lookup;
     this.#services = options.services;
     this.#log = options.logger ?? {};
@@ -130,6 +161,8 @@ export class DirectServer {
     for (const s of this.#sockets) s.destroy();
     this.#sockets.clear();
     this.#authorized.clear();
+    this.#tunnelServer?.close();
+    this.#tunnelServer = null;
   }
 
   /**
@@ -137,10 +170,12 @@ export class DirectServer {
    * device and checked it is in this account, so it becomes authorized.
    */
   info(deviceId: string): DirectInfo {
-    this.#authorized.add(deviceId);
+    // A strict host trusts paired keys only: the relay's word is not enough.
+    const strict = !!this.#trust()?.strict;
+    if (!strict) this.#authorized.add(deviceId);
     return {
       v: 1,
-      key: this.#keyFor(deviceId).toString("base64"),
+      key: strict ? "" : this.#keyFor(deviceId).toString("base64"),
       endpoints: this.endpoints,
       services: this.#services(),
     };
@@ -150,7 +185,34 @@ export class DirectServer {
     return createHmac("sha256", this.#master).update(`nex-direct/v1/${deviceId}`).digest();
   }
 
+  /**
+   * Serves one `nex.e2e` relay stream: the same TLS-PSK handshake and request
+   * line as a direct connection, with the relay WebSocket as the transport.
+   */
+  serveTunnel(ws: WebSocket): void {
+    const duplex = createWebSocketStream(ws);
+    duplex.on("error", () => duplex.destroy());
+    if (!this.#tunnelServer) this.#tunnelServer = this.#tlsServer("relay tunnel");
+    this.#tunnelServer.emit("connection", duplex);
+  }
+
+  #tlsServer(where: string): tls.Server {
+    const server = tls.createServer(
+      {
+        ...TLS_VERSION,
+        ciphers: CIPHERS,
+        handshakeTimeout: SERVER_LINE_TIMEOUT_MS,
+        pskCallback: (_socket, identity) => this.#psk(identity),
+      },
+      (socket) => void this.#serve(socket),
+    );
+    server.on("tlsClientError", (err) => this.#log.debug?.(`direct: handshake on ${where} failed: ${err.message}`));
+    server.on("connection", (raw: net.Socket) => this.#track(raw));
+    return server;
+  }
+
   #wanted(): DirectEndpoint[] {
+    if (!this.#options) return [];
     const port = this.#options.port ?? 0;
     if (this.#options.addresses) {
       return this.#options.addresses.map((host) => ({ host, port, kind: "custom" as const }));
@@ -180,17 +242,7 @@ export class DirectServer {
     }
     for (const [host, endpoint] of wanted) {
       if (this.#listeners.has(host)) continue;
-      const server = tls.createServer(
-        {
-          ...TLS_VERSION,
-          ciphers: CIPHERS,
-          handshakeTimeout: SERVER_LINE_TIMEOUT_MS,
-          pskCallback: (_socket, identity) => this.#psk(identity),
-        },
-        (socket) => void this.#serve(socket),
-      );
-      server.on("tlsClientError", (err) => this.#log.debug?.(`direct: handshake on ${host} failed: ${err.message}`));
-      server.on("connection", (raw: net.Socket) => this.#track(raw));
+      const server = this.#tlsServer(host);
       const entry: { server: tls.Server; endpoint: DirectEndpoint | null } = { server, endpoint: null };
       this.#listeners.set(host, entry);
       server.once("error", (err) => {
@@ -208,14 +260,30 @@ export class DirectServer {
   }
 
   #psk(identity: string): Buffer | null {
-    if (!identity.startsWith(IDENTITY_PREFIX)) return null;
+    const trust = this.#trust();
+    if (identity.startsWith(PAIRED_IDENTITY_PREFIX)) {
+      if (!trust) return null;
+      let peer: string;
+      try {
+        peer = normalizePublicKey(`nexpk1.${identity.slice(PAIRED_IDENTITY_PREFIX.length)}`);
+      } catch {
+        return null;
+      }
+      if (!trust.peers.some((p) => samePublicKey(p, peer))) return null;
+      try {
+        return pairedKey(trust.identity, peer);
+      } catch {
+        return null;
+      }
+    }
+    if (!identity.startsWith(IDENTITY_PREFIX) || trust?.strict) return null;
     const deviceId = identity.slice(IDENTITY_PREFIX.length);
     return this.#authorized.has(deviceId) ? this.#keyFor(deviceId) : null;
   }
 
   /** Drops authorized devices that were revoked from the account. */
   async #revalidate(): Promise<void> {
-    if (this.#authorized.size === 0) return;
+    if (this.#authorized.size === 0 || !this.#client) return;
     let ids: Set<string>;
     try {
       ids = new Set((await this.#client.devices()).map((d) => d.id));
@@ -230,7 +298,7 @@ export class DirectServer {
 
   async #serve(socket: tls.TLSSocket): Promise<void> {
     this.#track(socket);
-    socket.setNoDelay(true);
+    setNoDelay(socket);
     socket.on("error", () => socket.destroy());
     let request: { service?: unknown; probe?: unknown };
     try {
@@ -262,7 +330,7 @@ export class DirectServer {
     pipeSockets(socket, local);
   }
 
-  #track(socket: net.Socket): void {
+  #track(socket: Duplex): void {
     this.#sockets.add(socket);
     socket.once("close", () => this.#sockets.delete(socket));
   }
@@ -301,8 +369,22 @@ export interface PathStatus {
   error: string | null;
 }
 
+/** Paired-device trust for a client: a value, or a getter read on every dial. */
+export type TrustSource = ClientTrust | null | (() => ClientTrust | null);
+
 export interface DirectPathsOptions {
   logger?: Logger;
+  /**
+   * Dial with the paired key instead of a relay-issued one. With a trust set,
+   * a host that does not accept it is unreachable directly (never a silent
+   * downgrade).
+   */
+  trust?: TrustSource;
+  /**
+   * Fixed addresses to use instead of asking the device over the relay:
+   * works with no relay and no account at all (pair with `trust`).
+   */
+  endpoints?: Array<Omit<DirectEndpoint, "kind"> & { kind?: DirectEndpointKind }>;
   /** How often to re-measure every direct endpoint. Default 15 s. */
   probeIntervalMs?: number;
   /** How often to fetch fresh addresses and key over the relay. Default 5 min. */
@@ -322,13 +404,16 @@ const UNREACHABLE_REDISCOVERY_MS = 5_000;
  * Emits `change` with a {@link PathStatus} whenever the picture changes.
  */
 export class DirectPaths extends EventEmitter<{ change: [PathStatus] }> {
-  readonly #client: NexClient;
+  readonly #client: NexClient | null;
   readonly #device: string;
+  readonly #trust: () => ClientTrust | null;
+  readonly #static: DirectEndpoint[] | null;
   readonly #log: Logger;
   readonly #probeEvery: number;
   readonly #refreshEvery: number;
   #key: Buffer | null = null;
-  #services = new Set<string>();
+  /** Services the host said are reachable directly; null: not known (static endpoints), try any. */
+  #services: Set<string> | null = new Set<string>();
   #paths: PathInfo[] = [];
   #relaySetupMs: number | null = null;
   #error: string | null = "not discovered yet";
@@ -342,10 +427,20 @@ export class DirectPaths extends EventEmitter<{ change: [PathStatus] }> {
   #lastDiscovery = 0;
   #rediscoverAfter = UNREACHABLE_REDISCOVERY_MS;
 
-  constructor(client: NexClient, device: string, options: DirectPathsOptions = {}) {
+  /**
+   * `client` + `device`: discover addresses over the relay. `client` null:
+   * `options.endpoints` and `options.trust` are required (no relay at all).
+   */
+  constructor(client: NexClient | null, device: string, options: DirectPathsOptions = {}) {
     super();
     this.#client = client;
     this.#device = device;
+    const trust = options.trust;
+    this.#trust = typeof trust === "function" ? trust : () => trust ?? null;
+    this.#static = options.endpoints
+      ? options.endpoints.map((e) => ({ host: e.host, port: e.port, kind: e.kind ?? classifyAddress(e.host) ?? "custom" }))
+      : null;
+    if (!client && (!this.#static || !trust)) throw new TypeError("without a relay client, pass endpoints and trust");
     this.#log = options.logger ?? {};
     this.#probeEvery = options.probeIntervalMs ?? 15_000;
     this.#refreshEvery = options.refreshIntervalMs ?? 5 * 60_000;
@@ -380,6 +475,11 @@ export class DirectPaths extends EventEmitter<{ change: [PathStatus] }> {
     });
   }
 
+  /** Re-measures every known path now (e.g. right after pairing changed on the other side). */
+  probe(): Promise<void> {
+    return this.#probeAll();
+  }
+
   status(): PathStatus {
     const best = this.#best();
     return {
@@ -398,7 +498,7 @@ export class DirectPaths extends EventEmitter<{ change: [PathStatus] }> {
    */
   async connect(service: string): Promise<tls.TLSSocket | null> {
     const best = this.#best();
-    if (!best || !this.#key || !this.#services.has(service)) return null;
+    if (!best || !this.#credentials() || (this.#services && !this.#services.has(service))) return null;
     // Generous next to what the probe saw, but never long enough to make a
     // fallback to the relay feel like a hang.
     const timeout = Math.min(2_000, Math.max(500, (best.setupMs ?? 0) * 4));
@@ -411,7 +511,7 @@ export class DirectPaths extends EventEmitter<{ change: [PathStatus] }> {
       best.error = message;
       this.#changed();
       // A rejected key means the host restarted (new keys) or forgot us.
-      if (isAuthFailure(message)) void this.#discover();
+      if (isAuthFailure(message) && !this.#trust()) void this.#discover();
       else setTimeout(() => void this.#probeAll(), 1_000).unref?.();
       return null;
     }
@@ -446,13 +546,25 @@ export class DirectPaths extends EventEmitter<{ change: [PathStatus] }> {
     const run = (async () => {
       let next = this.#refreshEvery;
       try {
+        if (!this.#client) {
+          this.#services = null;
+          this.#paths = this.#static!.map((e) => ({ ...e, setupMs: null, error: null }));
+          this.#error = null;
+          await this.#probeAll();
+          return;
+        }
         const started = performance.now();
         const info = await fetchDirectInfo(this.#client, this.#device);
         this.#relaySetupMs = Math.round(performance.now() - started);
-        this.#key = Buffer.from(info.key, "base64");
+        this.#key = info.key ? Buffer.from(info.key, "base64") : null;
         this.#services = new Set(info.services);
-        this.#paths = info.endpoints.map((e) => ({ host: e.host, port: e.port, kind: e.kind, setupMs: null, error: null }));
-        this.#error = this.#paths.length ? null : "the device has no LAN or tailnet address";
+        const endpoints = this.#static ?? info.endpoints;
+        this.#paths = endpoints.map((e) => ({ host: e.host, port: e.port, kind: e.kind, setupMs: null, error: null }));
+        this.#error = !this.#credentials()
+          ? "the device only accepts paired devices"
+          : this.#paths.length
+            ? null
+            : "the device has no LAN or tailnet address";
         await this.#probeAll();
       } catch (err) {
         const message = errText(err);
@@ -500,16 +612,24 @@ export class DirectPaths extends EventEmitter<{ change: [PathStatus] }> {
           } catch (err) {
             p.setupMs = null;
             p.error = errText(err);
-            if (isAuthFailure(p.error)) authFailed = true;
+            if (isAuthFailure(p.error)) {
+              authFailed = true;
+              if (this.#trust()) p.error = "the device has not paired with this one (or its key changed)";
+            }
           }
         }),
       );
       if (JSON.stringify(this.status()) !== before) this.#changed();
       if (!this.#running) return;
-      if (authFailed) return void setTimeout(() => void this.#discover(), 0).unref?.();
+      // A rejected relay-issued key means the host restarted (new keys): fetch
+      // a fresh one right away. A rejected PAIRED key is the user's to fix
+      // (the other side has not paired yet), so it only gets the slow retry.
+      const staleRelayKey = authFailed && !this.#trust() && !!this.#client;
       // Nothing answers: the host may have restarted on new ports or moved
       // networks. Ask it again, backing off so an unreachable host stays cheap.
-      if (this.#paths.every((p) => p.setupMs === null)) {
+      if (staleRelayKey && Date.now() - this.#lastDiscovery >= 1_000) {
+        void this.#discover();
+      } else if (this.#paths.every((p) => p.setupMs === null)) {
         if (Date.now() - this.#lastDiscovery >= this.#rediscoverAfter) {
           this.#rediscoverAfter = Math.min(this.#rediscoverAfter * 2, this.#refreshEvery);
           void this.#discover();
@@ -522,51 +642,108 @@ export class DirectPaths extends EventEmitter<{ change: [PathStatus] }> {
     return this.#probing;
   }
 
+  /** The PSK and identity to dial with: the paired key when trust is set, else the relay-issued one. */
+  #credentials(): { psk: Buffer; identity: string } | null {
+    const trust = this.#trust();
+    if (trust) return pairedCredentials(trust);
+    if (this.#key && this.#client) return { psk: this.#key, identity: `${IDENTITY_PREFIX}${this.#client.deviceId}` };
+    return null;
+  }
+
   #dial(endpoint: DirectEndpoint, request: object, timeoutMs: number): Promise<tls.TLSSocket> {
-    const key = this.#key;
-    if (!key) return Promise.reject(new Error("no direct key"));
-    const identity = `${IDENTITY_PREFIX}${this.#client.deviceId}`;
-    return new Promise<tls.TLSSocket>((resolve, reject) => {
-      let done = false;
-      const socket = tls.connect({
-        host: endpoint.host,
-        port: endpoint.port,
-        ...TLS_VERSION,
-        ciphers: CIPHERS,
-        pskCallback: () => ({ psk: key, identity }),
-        // PSK suites carry no certificate; the shared key authenticates the host.
-        checkServerIdentity: () => undefined,
-      });
-      const fail = (err: Error) => {
+    const credentials = this.#credentials();
+    if (!credentials) return Promise.reject(new Error("no direct key"));
+    return tlsRequest({ host: endpoint.host, port: endpoint.port }, credentials, request, timeoutMs);
+  }
+}
+
+/** Paired PSK + identity for dialing `trust.peer`. */
+function pairedCredentials(trust: ClientTrust): { psk: Buffer; identity: string } {
+  return { psk: pairedKey(trust.identity, trust.peer), identity: pairedIdentity(trust.identity) };
+}
+
+/**
+ * TLS-PSK handshake + request line over TCP (`host`/`port`) or any duplex
+ * (`socket`, e.g. a relay stream). Resolves once the host answered ok.
+ */
+export function tlsRequest(
+  target: { host: string; port: number } | { socket: Duplex },
+  credentials: { psk: Buffer; identity: string },
+  request: object,
+  timeoutMs: number,
+): Promise<tls.TLSSocket> {
+  return new Promise<tls.TLSSocket>((resolve, reject) => {
+    let done = false;
+    const socket = tls.connect({
+      ...target,
+      ...TLS_VERSION,
+      ciphers: CIPHERS,
+      pskCallback: () => credentials,
+      // PSK suites carry no certificate; the shared key authenticates the host.
+      checkServerIdentity: () => undefined,
+    });
+    const fail = (err: Error) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      socket.destroy();
+      reject(err);
+    };
+    const timer = setTimeout(() => fail(new Error(`timed out after ${timeoutMs} ms`)), timeoutMs);
+    socket.once("error", fail);
+    socket.once("secureConnect", () => {
+      setNoDelay(socket);
+      socket.write(`${JSON.stringify(request)}\n`);
+      readLine(socket, timeoutMs).then(({ line, rest }) => {
         if (done) return;
+        let reply: { ok?: unknown; error?: unknown };
+        try {
+          reply = JSON.parse(line);
+        } catch {
+          return fail(new Error("bad reply from host"));
+        }
+        if (reply.ok !== true) return fail(new Error(typeof reply.error === "string" ? reply.error : "rejected"));
         done = true;
         clearTimeout(timer);
-        socket.destroy();
-        reject(err);
-      };
-      const timer = setTimeout(() => fail(new Error(`timed out after ${timeoutMs} ms`)), timeoutMs);
-      socket.once("error", fail);
-      socket.once("secureConnect", () => {
-        socket.setNoDelay(true);
-        socket.write(`${JSON.stringify(request)}\n`);
-        readLine(socket, timeoutMs).then(({ line, rest }) => {
-          if (done) return;
-          let reply: { ok?: unknown; error?: unknown };
-          try {
-            reply = JSON.parse(line);
-          } catch {
-            return fail(new Error("bad reply from host"));
-          }
-          if (reply.ok !== true) return fail(new Error(typeof reply.error === "string" ? reply.error : "rejected"));
-          done = true;
-          clearTimeout(timer);
-          socket.off("error", fail);
-          socket.on("error", () => socket.destroy());
-          if (rest.length) socket.unshift(rest);
-          resolve(socket);
-        }, fail);
-      });
+        socket.off("error", fail);
+        socket.on("error", () => socket.destroy());
+        if (rest.length) socket.unshift(rest);
+        resolve(socket);
+      }, fail);
     });
+  });
+}
+
+/**
+ * A connection to `service` on `device` over the relay, end-to-end encrypted
+ * with the paired key: the relay carries only TLS ciphertext. Fails (never
+ * falls back to plaintext) when the device does not accept this pairing.
+ */
+export async function openPairedStream(
+  client: NexClient,
+  device: string,
+  service: string,
+  trust: ClientTrust,
+  timeoutMs = 15_000,
+): Promise<tls.TLSSocket> {
+  const ticket = await client.ticket(device, E2E_SERVICE).catch((err: unknown) => {
+    if (err instanceof NexApiError && err.status === 404) {
+      throw new Error(`${device} does not accept paired (end-to-end encrypted) connections`);
+    }
+    throw err;
+  });
+  const ws = await connectWs(client.wsUrl(ticket.path), { timeoutMs });
+  const duplex = createWebSocketStream(ws);
+  duplex.on("error", () => duplex.destroy());
+  release(ws);
+  try {
+    return await tlsRequest({ socket: duplex }, pairedCredentials(trust), { service }, timeoutMs);
+  } catch (err) {
+    duplex.destroy();
+    const message = errText(err);
+    throw new Error(
+      isAuthFailure(message) ? `${device} has not paired with this device (or its key changed)` : message,
+    );
   }
 }
 
@@ -607,7 +784,7 @@ export async function fetchDirectInfo(client: NexClient, device: string): Promis
 // ---------- plumbing ----------
 
 /** Reads one `\n`-terminated line; whatever followed it is returned as `rest`. */
-function readLine(socket: net.Socket, timeoutMs: number): Promise<{ line: string; rest: Buffer }> {
+function readLine(socket: Duplex, timeoutMs: number): Promise<{ line: string; rest: Buffer }> {
   return new Promise((resolve, reject) => {
     let buf = Buffer.alloc(0);
     const cleanup = () => {
@@ -642,12 +819,12 @@ function readLine(socket: net.Socket, timeoutMs: number): Promise<{ line: string
 }
 
 /** Splices two sockets until either side is done. */
-export function pipeSockets(a: net.Socket, b: net.Socket): Promise<void> {
-  a.setNoDelay(true);
-  b.setNoDelay(true);
+export function pipeSockets(a: Duplex, b: Duplex): Promise<void> {
+  setNoDelay(a);
+  setNoDelay(b);
   return new Promise((resolve) => {
     let closed = 0;
-    const onClose = (other: net.Socket) => () => {
+    const onClose = (other: Duplex) => () => {
       // Let the pipe flush what it already has, but do not wait on the peer forever.
       other.end();
       setTimeout(() => other.destroy(), 5_000).unref?.();
@@ -678,6 +855,23 @@ function connectTcp(host: string, port: number): Promise<net.Socket> {
       resolve(socket);
     });
   });
+}
+
+/** Nagle off where the transport has it (TCP); a no-op over a relay stream. */
+function setNoDelay(socket: Duplex): void {
+  try {
+    (socket as net.Socket).setNoDelay?.(true);
+  } catch {
+    /* not a TCP socket */
+  }
+}
+
+function samePublicKey(a: string, b: string): boolean {
+  try {
+    return normalizePublicKey(a) === normalizePublicKey(b);
+  } catch {
+    return false;
+  }
 }
 
 function isAuthFailure(message: string): boolean {

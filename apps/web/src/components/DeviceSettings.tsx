@@ -2,7 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 import { cloudText, isCloud, openDevicePicker } from "../cloud";
 import { useI18n } from "../i18n";
 import { openExternal } from "../openExternal";
-import { nexRequest, type NexDevice, type NexRoute, type NexStatus } from "../state/devices";
+import {
+  nexRequest,
+  type NexDevice,
+  type NexRoute,
+  type NexStatus,
+  type PairedDevice,
+  type PeersInfo,
+} from "../state/devices";
 import { textInputProps } from "../textInputProps";
 import { openWorkspaceImport } from "../workspaceSwitcherEvents";
 
@@ -44,6 +51,7 @@ export function DeviceSettings({ onClose }: { onClose: () => void }) {
         <SignIn defaultName={status.defaultDeviceName} onWaiting={refreshStatus} />
       )}
       {status?.configured && <Connected status={status} onChange={setStatus} onClose={onClose} />}
+      {status && !isCloud && <PairedDevices onClose={onClose} />}
     </>
   );
 }
@@ -197,6 +205,7 @@ function Connected({
               <li key={device.id} className="devices-self">
                 <span className={`devices-dot ${device.online ? "online" : ""}`} />
                 <strong>{device.name}</strong>
+                {device.paired && <span className="devices-route paired">{t("devices.paired.badge")}</span>}
                 <span className="devices-state">
                   {t(
                     device.connectable ? "devices.online" : device.online ? "devices.notSharing" : "devices.offline",
@@ -242,5 +251,200 @@ function RouteBadge({ route }: { route: NexRoute }) {
     <span className={`devices-route ${route.via}`} title={title || undefined}>
       {parts.join(" · ")}
     </span>
+  );
+}
+
+/**
+ * Paired devices: pair two Termany installs by pasting each one's invite into
+ * the other. Works with no account (directly over the LAN or a Tailscale
+ * tailnet); signed in, it also makes their traffic end-to-end encrypted
+ * through the relay. The keys never leave the two devices.
+ */
+function PairedDevices({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n();
+  const [info, setInfo] = useState<PeersInfo | null>(null);
+  const [devices, setDevices] = useState<NexDevice[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [invite, setInvite] = useState("");
+  const [preview, setPreview] = useState<PairedDevice | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const next = await nexRequest<PeersInfo>("peers");
+      setInfo(next);
+      if (next.peers.length) setDevices((await nexRequest<{ devices: NexDevice[] }>("devices")).devices);
+      setError(null);
+    } catch (err) {
+      setError(errorText(err));
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    const timer = setInterval(() => void load(), 5000);
+    return () => clearInterval(timer);
+  }, [load]);
+
+  // Show who an invite belongs to as soon as it is pasted, so the user can
+  // compare fingerprints before trusting it.
+  useEffect(() => {
+    setPreview(null);
+    setPreviewError(null);
+    const text = invite.trim();
+    if (!text) return;
+    let cancelled = false;
+    nexRequest<PairedDevice>("peers/preview", { invite: text }).then(
+      (p) => !cancelled && setPreview(p),
+      (err) => !cancelled && setPreviewError(errorText(err)),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [invite]);
+
+  const act = async (path: string, body: unknown) => {
+    try {
+      setInfo(await nexRequest<PeersInfo>(path, body));
+      setError(null);
+      void load();
+      return true;
+    } catch (err) {
+      setError(errorText(err));
+      return false;
+    }
+  };
+
+  const copyInvite = async () => {
+    if (!info) return;
+    try {
+      await navigator.clipboard.writeText(info.invite);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      setError(errorText(err));
+    }
+  };
+
+  if (!info) return error ? <div className="ms-test-fail">{error}</div> : null;
+  const deviceFor = (p: PairedDevice) =>
+    devices.find((d) => d.id === p.id || (p.nexDeviceId !== null && d.id === p.nexDeviceId));
+
+  return (
+    <div className="ms-card">
+      <div className="ms-card-title">{t("devices.paired.title")}</div>
+      <p className="ms-hint">{t(info.signedIn ? "devices.paired.hintSignedIn" : "devices.paired.hint")}</p>
+
+      <label className="ms-field">
+        <span>{t("devices.paired.yourInvite")}</span>
+        <div className="devices-invite">
+          <input {...textInputProps} className="ms-mono" readOnly value={info.invite} onFocus={(e) => e.target.select()} />
+          <button type="button" className="ms-btn" onClick={() => void copyInvite()}>
+            {t(copied ? "devices.paired.copied" : "devices.paired.copy")}
+          </button>
+        </div>
+      </label>
+      <p className="ms-hint">
+        {t("devices.paired.yourFingerprint")} <span className="ms-mono devices-fingerprint">{info.fingerprint}</span>
+      </p>
+
+      <label className="ms-field">
+        <span>{t("devices.paired.add")}</span>
+        <input
+          {...textInputProps}
+          className="ms-mono"
+          placeholder="termany1.…"
+          value={invite}
+          onChange={(e) => setInvite(e.target.value)}
+        />
+      </label>
+      {previewError && <div className="ms-test-fail">{previewError}</div>}
+      {preview && (
+        <div className="devices-preview">
+          <p className="ms-hint">
+            <strong>{preview.name}</strong> · <span className="ms-mono devices-fingerprint">{preview.fingerprint}</span>
+          </p>
+          <p className="ms-hint">{t("devices.paired.checkFingerprint")}</p>
+          <div className="ms-form-actions">
+            <button
+              type="button"
+              className="ms-btn primary"
+              onClick={() => void act("peers/add", { invite: invite.trim() }).then((ok) => ok && setInvite(""))}
+            >
+              {t("devices.paired.addAction")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {info.peers.length > 0 && (
+        <ul className="devices-list">
+          {info.peers.map((p) => {
+            const device = deviceFor(p);
+            return (
+              <li key={p.publicKey} className="devices-self devices-peer">
+                <span className={`devices-dot ${device?.connectable ? "online" : ""}`} />
+                <strong>{p.name}</strong>
+                <span className="ms-mono devices-fingerprint" title={p.addresses.join("\n")}>
+                  {p.fingerprint}
+                </span>
+                {device?.route && <RouteBadge route={device.route} />}
+                {device && !device.connectable && device.route?.note && (
+                  <span className="devices-state" title={device.route.note}>
+                    {t("devices.paired.unreachable")}
+                  </span>
+                )}
+                <span className="devices-peer-actions">
+                {device?.connectable && device.kind === "peer" && (
+                  <button
+                    type="button"
+                    className="ms-btn"
+                    onClick={() => {
+                      onClose();
+                      openWorkspaceImport(device.id);
+                    }}
+                  >
+                    {t("devices.importWorkspace")}
+                  </button>
+                )}
+                {removing === p.publicKey ? (
+                  <>
+                    <button type="button" className="ms-btn" onClick={() => setRemoving(null)}>
+                      {t("devices.cancel")}
+                    </button>
+                    <button
+                      type="button"
+                      className="ms-btn primary"
+                      onClick={() => void act("peers/remove", { publicKey: p.publicKey }).then(() => setRemoving(null))}
+                    >
+                      {t("devices.paired.remove")}
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="ms-btn" onClick={() => setRemoving(p.publicKey)}>
+                    {t("devices.paired.remove")}
+                  </button>
+                )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {info.signedIn && info.peers.length > 0 && (
+        <label className="devices-strict">
+          <input
+            type="checkbox"
+            checked={info.strict}
+            onChange={(e) => void act("peers/strict", { strict: e.target.checked })}
+          />
+          <span>{t("devices.paired.strict")}</span>
+        </label>
+      )}
+      {error && <div className="ms-test-fail">{error}</div>}
+    </div>
   );
 }

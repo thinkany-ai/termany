@@ -19,6 +19,7 @@ import { streamAgentChat } from "./agentChat.js";
 import { compileBotContext } from "./botContext.js";
 import { handleSkillRequest } from "./skillsHttp.js";
 import { NexBridge, NexError } from "./nexBridge.js";
+import { NexPeers, defaultPeerPort } from "./nexPeers.js";
 import { listAgentConfigs, saveAgentConfigs } from "./agentConfig.js";
 import {
   acpRuntimeConfig,
@@ -193,6 +194,11 @@ declare const __TERMANY_BUILD_ID__: string | undefined;
 const nex = new NexBridge({
   file: path.join(os.homedir(), ".termany", PORT === 5174 ? "nex.json" : `nex-${PORT}.json`),
   localPort: PORT,
+  peers: new NexPeers({
+    dir: path.join(os.homedir(), ".termany"),
+    suffix: PORT === 5174 ? "" : `-${PORT}`,
+    port: defaultPeerPort(PORT),
+  }),
 });
 const SERVER_VERSION = typeof __TERMANY_VERSION__ === "string" ? __TERMANY_VERSION__ : "dev";
 const SERVER_BUILD_ID = typeof __TERMANY_BUILD_ID__ === "string" ? __TERMANY_BUILD_ID__ : "dev";
@@ -747,6 +753,24 @@ const http = createServer((req, res) => {
         }
         case "POST /api/nex/leave":
           return nex.leave();
+        case "GET /api/nex/peers":
+          return nex.peersInfo();
+        case "POST /api/nex/peers/preview": {
+          const body = await readJson(req, 64_000);
+          return nex.previewPeer(String(body?.invite ?? ""));
+        }
+        case "POST /api/nex/peers/add": {
+          const body = await readJson(req, 64_000);
+          return nex.addPeer(String(body?.invite ?? ""));
+        }
+        case "POST /api/nex/peers/remove": {
+          const body = await readJson(req, 64_000);
+          return nex.removePeer(String(body?.publicKey ?? ""));
+        }
+        case "POST /api/nex/peers/strict": {
+          const body = await readJson(req, 64_000);
+          return nex.setStrict(body?.strict === true);
+        }
         default:
           throw new NexError("unknown nex endpoint", 404);
       }

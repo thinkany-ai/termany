@@ -3,7 +3,18 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { NexApiError, NexClient, type DeviceCredential } from "nex-sdk";
-import { NexHost, echoService, forwardTcp, tcpService, type ForwardServer, type PathStatus } from "nex-sdk/node";
+import {
+  NexHost,
+  PeerHost,
+  echoService,
+  fingerprint,
+  forwardPeer,
+  forwardTcp,
+  tcpService,
+  type ForwardServer,
+  type PathStatus,
+} from "nex-sdk/node";
+import { NexPeers, PeerError, isPeerId, peerId, type PairedPeer } from "./nexPeers.js";
 
 /**
  * Puts this Termany server on a nex relay so the user's other devices can use
@@ -20,6 +31,11 @@ import { NexHost, echoService, forwardTcp, tcpService, type ForwardServer, type 
  *   connections skip the relay (TLS-PSK, keys handed out over the relay) and
  *   fall back to it per connection when the direct path fails. Set
  *   TERMANY_NEX_DIRECT=0 to stay relay-only.
+ * - Paired devices (nexPeers.ts): keys the user exchanged by pasting invites.
+ *   Signed out, they reach each other over the LAN / tailnet with no relay
+ *   and no account (PeerHost / forwardPeer). Signed in, their traffic is
+ *   end-to-end encrypted even through the relay, and `strict` shuts every
+ *   unpaired device out.
  *
  * The device credential is a bearer secret: kept in its own 0600 file, never
  * logged, never sent to the frontend.
@@ -67,6 +83,32 @@ export type NexDevice = {
   lastSeenAt: number | null;
   /** How this machine reaches the device right now; null until a tunnel to it is open. */
   route: NexRoute | null;
+  /** Paired by invite: traffic is end-to-end encrypted with keys the relay never saw. */
+  paired: boolean;
+  /** "relay": a device of the signed-in account; "peer": a paired device reached without the relay. */
+  kind: "relay" | "peer";
+};
+
+export type PairedDevice = {
+  id: string;
+  name: string;
+  publicKey: string;
+  fingerprint: string;
+  addresses: string[];
+  /** Its id on the relay when it was signed in as it made the invite. */
+  nexDeviceId: string | null;
+  addedAt: number;
+};
+
+export type PeersInfo = {
+  publicKey: string;
+  fingerprint: string;
+  invite: string;
+  /** Port other devices dial for a direct connection. */
+  port: number;
+  strict: boolean;
+  signedIn: boolean;
+  peers: PairedDevice[];
 };
 
 export type NexRoute = {
@@ -118,11 +160,15 @@ export class NexBridge {
   /** Settled tunnels, for reading their route synchronously. */
   readonly #openForwards = new Map<string, ForwardServer>();
   readonly #localPort: number;
+  readonly #peers: NexPeers;
+  /** Serves paired devices while signed out (signed in, NexHost does it). */
+  #peerHost: PeerHost | null = null;
   /** Sign-ins started from this server and not yet completed: state → device name + expiry. */
   readonly #logins = new Map<string, { deviceName: string; expires: number }>();
 
-  constructor(options: { file: string; localPort: number; logger?: Logger }) {
+  constructor(options: { file: string; localPort: number; peers: NexPeers; logger?: Logger }) {
     this.#file = options.file;
+    this.#peers = options.peers;
     this.#localAddr = `127.0.0.1:${options.localPort}`;
     this.#localPort = options.localPort;
     this.#log = options.logger ?? console;
@@ -131,8 +177,8 @@ export class NexBridge {
   /** Comes back online with the saved credential, if this server was set up before. */
   start(): void {
     const saved = readConfig(this.#file);
-    if (!saved) return;
-    this.#apply(saved);
+    if (saved) this.#apply(saved);
+    else this.#syncPeerHost();
   }
 
   status(): NexStatus {
@@ -257,23 +303,66 @@ export class NexBridge {
     }
   }
 
+  /** The account's devices (when signed in) plus paired devices reached without the relay. */
   async devices(): Promise<NexDevice[]> {
-    const { client } = this.#require();
-    try {
-      const devices = await client.devices();
-      return devices.map((d) => ({
-        id: d.id,
-        name: d.name,
-        app: d.app,
-        online: d.online,
-        isSelf: d.is_self,
-        connectable: !d.is_self && d.online && d.services.some((s) => s.name === NEX_SERVICE && s.kind === "tcp"),
-        lastSeenAt: d.last_seen_at,
-        route: this.#route(d.id),
-      }));
-    } catch (err) {
-      throw asNexError(err);
+    const out: NexDevice[] = [];
+    if (this.#client) {
+      let devices;
+      try {
+        devices = await this.#client.devices();
+      } catch (err) {
+        throw asNexError(err);
+      }
+      for (const d of devices) {
+        out.push({
+          id: d.id,
+          name: d.name,
+          app: d.app,
+          online: d.online,
+          isSelf: d.is_self,
+          connectable: !d.is_self && d.online && d.services.some((s) => s.name === NEX_SERVICE && s.kind === "tcp"),
+          lastSeenAt: d.last_seen_at,
+          route: this.#route(d.id),
+          paired: !!this.#peers.byNexDevice(d.id),
+          kind: "relay",
+        });
+      }
     }
+    const listed = new Set(out.map((d) => d.id));
+    const peers = this.#peers.peers.filter((p) => !p.nexDeviceId || !listed.has(p.nexDeviceId));
+    // Opening the tunnel starts probing its addresses: that is how we know
+    // whether a paired device is reachable at all.
+    await Promise.all(
+      peers.map(async (p) => {
+        try {
+          const server = await this.#peerForward(p);
+          await server.paths?.ready(1_500);
+          // Unreachable last time? The other side may have just paired with
+          // us or come online: look again instead of waiting for the next probe.
+          if (server.paths && server.paths.status().route !== "direct") await withTimeout(server.paths.probe(), 2_500);
+        } catch {
+          /* reported as unreachable below */
+        }
+      }),
+    );
+    for (const p of peers) {
+      const id = peerId(p.publicKey);
+      const route = this.#route(id);
+      const reachable = route?.via === "direct";
+      out.push({
+        id,
+        name: p.name,
+        app: NEX_APP,
+        online: reachable,
+        isSelf: false,
+        connectable: reachable,
+        lastSeenAt: null,
+        route,
+        paired: true,
+        kind: "peer",
+      });
+    }
+    return out;
   }
 
   /**
@@ -283,24 +372,61 @@ export class NexBridge {
    * work unchanged.
    */
   async connect(deviceId: string): Promise<{ url: string; device: NexDevice }> {
-    const { client } = this.#require();
     const device = (await this.devices()).find((d) => d.id === deviceId);
-    if (!device) throw new NexError("no such device in this account", 404);
+    if (!device) throw new NexError(isPeerId(deviceId) ? "that device is no longer paired" : "no such device in this account", 404);
     if (device.isSelf) throw new NexError("that is this device");
     if (!device.connectable) {
       throw new NexError(
-        device.online ? `${device.name} is online but its Termany is not sharing` : `${device.name} is offline`,
+        device.kind === "peer"
+          ? `${device.name} does not answer on the LAN or tailnet`
+          : device.online
+            ? `${device.name} is online but its Termany is not sharing`
+            : `${device.name} is offline`,
         409,
       );
     }
-    let forward = this.#forwards.get(deviceId);
-    if (!forward) {
-      forward = forwardTcp(client, deviceId, NEX_SERVICE, {
+    let server: ForwardServer;
+    if (device.kind === "peer") {
+      const peer = this.#peers.byId(deviceId);
+      if (!peer) throw new NexError("that device is no longer paired", 404);
+      server = await this.#peerForward(peer);
+    } else {
+      const { client } = this.#require();
+      server = await this.#forward(deviceId, device.name, () =>
+        forwardTcp(client, deviceId, NEX_SERVICE, {
+          port: 0,
+          host: "127.0.0.1",
+          direct: DIRECT,
+          // Read per connection, so pairing or unpairing applies without a new port.
+          trust: () => {
+            const peer = this.#peers.byNexDevice(deviceId);
+            return peer ? this.#peers.clientTrust(peer) : null;
+          },
+          logger: { warn: (m) => this.#log.warn(`[termany] nex forward: ${m}`) },
+        }),
+      );
+    }
+    const address = server.address();
+    if (!address || typeof address === "string") throw new NexError("tunnel has no local port", 500);
+    return { url: `http://127.0.0.1:${address.port}`, device: { ...device, route: this.#route(deviceId) } };
+  }
+
+  #peerForward(peer: PairedPeer): Promise<ForwardServer> {
+    const id = peerId(peer.publicKey);
+    return this.#forward(id, peer.name, () =>
+      forwardPeer(peer.endpoints, () => this.#peers.clientTrust(peer), NEX_SERVICE, {
         port: 0,
         host: "127.0.0.1",
-        direct: DIRECT,
-        logger: { warn: (m) => this.#log.warn(`[termany] nex forward: ${m}`) },
-      });
+        logger: { warn: (m) => this.#log.warn(`[termany] peer forward: ${m}`) },
+      }),
+    );
+  }
+
+  /** One loopback tunnel per device, reused while this server runs. */
+  #forward(deviceId: string, name: string, open: () => Promise<ForwardServer>): Promise<ForwardServer> {
+    let forward = this.#forwards.get(deviceId);
+    if (!forward) {
+      forward = open();
       this.#forwards.set(deviceId, forward);
       forward.then(
         (server) => {
@@ -314,17 +440,106 @@ export class NexBridge {
             if (key === last) return;
             last = key;
             this.#log.log(
-              `[termany] nex: ${device.name} via ${route.via}${route.address ? ` ${route.address}` : ""}${route.setupMs !== null ? ` (${route.setupMs} ms)` : ""}`,
+              `[termany] nex: ${name} via ${route.via}${route.address ? ` ${route.address}` : ""}${route.setupMs !== null ? ` (${route.setupMs} ms)` : ""}`,
             );
           });
         },
         () => this.#forwards.delete(deviceId),
       );
     }
-    const server = await forward;
-    const address = server.address();
-    if (!address || typeof address === "string") throw new NexError("tunnel has no local port", 500);
-    return { url: `http://127.0.0.1:${address.port}`, device: { ...device, route: this.#route(deviceId) } };
+    return forward;
+  }
+
+  #closeForward(deviceId: string): void {
+    const forward = this.#forwards.get(deviceId);
+    this.#forwards.delete(deviceId);
+    this.#openForwards.delete(deviceId);
+    void forward?.then((server) => server.close()).catch(() => {});
+  }
+
+  // --- paired devices -------------------------------------------------------
+
+  peersInfo(): PeersInfo {
+    const config = this.#config;
+    return {
+      publicKey: this.#peers.identity().publicKey,
+      fingerprint: fingerprint(this.#peers.identity().publicKey),
+      invite: this.#peers.invite(config?.deviceName ?? defaultDeviceName(), config?.credential.device_id ?? null),
+      port: this.#peers.port,
+      strict: this.#peers.strict,
+      signedIn: !!config,
+      peers: this.#peers.peers.map(pairedDevice),
+    };
+  }
+
+  /** Reads an invite so the user can compare fingerprints before adding it. */
+  previewPeer(invite: string): PairedDevice {
+    try {
+      return pairedDevice(this.#peers.preview(invite));
+    } catch (err) {
+      throw asPeerError(err);
+    }
+  }
+
+  addPeer(invite: string): PeersInfo {
+    let peer: PairedPeer;
+    try {
+      peer = this.#peers.add(invite);
+    } catch (err) {
+      throw asPeerError(err);
+    }
+    // Its addresses may have changed: the next connection opens a fresh tunnel.
+    this.#closeForward(peerId(peer.publicKey));
+    this.#syncPeerHost();
+    return this.peersInfo();
+  }
+
+  removePeer(publicKey: string): PeersInfo {
+    const peer = this.#peers.peers.find((p) => p.publicKey === publicKey);
+    this.#peers.remove(publicKey);
+    if (peer) this.#closeForward(peerId(peer.publicKey));
+    this.#syncPeerHost();
+    return this.peersInfo();
+  }
+
+  setStrict(strict: boolean): PeersInfo {
+    if (strict && this.#peers.peers.length === 0) throw new NexError("pair a device first", 409);
+    this.#peers.setStrict(strict);
+    this.#syncPeerHost();
+    return this.peersInfo();
+  }
+
+  /** Points whichever host is serving at the current pairing. */
+  #syncPeerHost(): void {
+    const trust = this.#peers.hostTrust();
+    if (this.#host) {
+      this.#peerHost?.stop();
+      this.#peerHost = null;
+      this.#host.updateTrust(trust);
+      return;
+    }
+    if (!trust) {
+      this.#peerHost?.stop();
+      this.#peerHost = null;
+      return;
+    }
+    if (this.#peerHost) {
+      this.#peerHost.updatePeers(trust.peers);
+      return;
+    }
+    const host = new PeerHost({
+      identity: trust.identity,
+      peers: trust.peers,
+      services: [tcpService(NEX_SERVICE, this.#localAddr)],
+      listen: { port: this.#peers.port },
+      logger: {
+        warn: (m) => this.#log.warn(`[termany] peer: ${m}`),
+        error: (m) => this.#log.error(`[termany] peer: ${m}`),
+      },
+    });
+    host.start();
+    this.#peerHost = host;
+    this.#log.log(`[termany] peer: accepting paired devices on port ${this.#peers.port}`);
   }
 
   #route(deviceId: string): NexRoute | null {
@@ -353,6 +568,8 @@ export class NexBridge {
     } catch {
       /* nothing to forget */
     }
+    // Paired devices keep working without the account.
+    this.#syncPeerHost();
     return this.status();
   }
 
@@ -361,6 +578,8 @@ export class NexBridge {
     this.#abort?.abort();
     this.#abort = null;
     this.#host = null;
+    this.#peerHost?.stop();
+    this.#peerHost = null;
     this.#online = false;
     for (const forward of this.#forwards.values()) {
       void forward.then((server) => server.close()).catch(() => {});
@@ -384,7 +603,9 @@ export class NexBridge {
     const host = new NexHost({
       client: this.#client,
       services: [tcpService(NEX_SERVICE, this.#localAddr), echoService()],
-      direct: DIRECT,
+      // A fixed port, so the addresses in an invite stay valid.
+      direct: DIRECT ? { port: this.#peers.port } : false,
+      trust: this.#peers.hostTrust(),
       logger: {
         warn: (m) => this.#log.warn(`[termany] nex: ${m}`),
         error: (m) => this.#log.error(`[termany] nex: ${m}`),
@@ -410,6 +631,34 @@ export class NexBridge {
   }
 }
 
+function withTimeout(promise: Promise<unknown>, ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    void promise.finally(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
+function pairedDevice(peer: PairedPeer): PairedDevice {
+  return {
+    id: peerId(peer.publicKey),
+    name: peer.name,
+    publicKey: peer.publicKey,
+    fingerprint: fingerprint(peer.publicKey),
+    addresses: peer.endpoints.map((e) => (e.host.includes(":") ? `[${e.host}]:${e.port}` : `${e.host}:${e.port}`)),
+    nexDeviceId: peer.nexDeviceId,
+    addedAt: peer.addedAt,
+  };
+}
+
+function asPeerError(err: unknown): NexError {
+  if (err instanceof NexError) return err;
+  if (err instanceof PeerError) return new NexError(err.message, err.status);
+  return new NexError(errMessage(err), 400);
+}
+
 const RELAY_ONLY: NexRoute = { via: "relay", network: null, address: null, setupMs: null, relaySetupMs: null, note: null };
 
 function toRoute(status: PathStatus): NexRoute {
@@ -419,7 +668,10 @@ function toRoute(status: PathStatus): NexRoute {
     address: status.endpoint ? `${status.endpoint.host}:${status.endpoint.port}` : null,
     setupMs: status.setupMs,
     relaySetupMs: status.relaySetupMs,
-    note: status.route === "relay" ? status.error ?? "direct paths are slower or unreachable" : null,
+    note:
+      status.route === "relay"
+        ? (status.error ?? status.paths.find((p) => p.error)?.error ?? "direct paths are slower or unreachable")
+        : null,
   };
 }
 

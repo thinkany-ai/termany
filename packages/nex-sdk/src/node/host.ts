@@ -7,7 +7,8 @@ import WebSocket from "ws";
 import type { NexClient } from "../client.js";
 import { NexFatalError } from "../errors.js";
 import { CloseCode, PROTOCOL_VERSION, type HostMessage, type ServerMessage } from "../protocol.js";
-import { DIRECT_SERVICE, DirectServer, type DirectEndpoint, type DirectOptions } from "./direct.js";
+import { DIRECT_SERVICE, DirectServer, E2E_SERVICE, type DirectEndpoint, type DirectOptions } from "./direct.js";
+import { normalizePublicKey, type HostTrust } from "./trust.js";
 import { handlerService, serviceInfo, validateServices, type ExposedService } from "./services.js";
 import { HandshakeError, closeWs, connectWs, echo, pipeTcp, pipeWs, release } from "./wsutil.js";
 
@@ -38,6 +39,13 @@ export interface NexHostOptions {
    * default; `true` means LAN + Tailscale on free ports.
    */
   direct?: boolean | DirectOptions;
+  /**
+   * Paired devices (keys exchanged by the user, never by the relay). They
+   * reach tcp services end-to-end encrypted, over direct paths or through
+   * `nex.e2e` relay streams the relay cannot read. With `strict`, nobody
+   * else can reach tcp services at all. Change it with `updateTrust`.
+   */
+  trust?: HostTrust | null;
 }
 
 export interface NexHostEvents {
@@ -71,8 +79,10 @@ export class NexHost extends EventEmitter<NexHostEvents> {
   #running = false;
   readonly #streams = new Set<WebSocket>();
   readonly #locals = new Set<net.Socket | WebSocket>();
-  readonly #direct: DirectServer | null = null;
+  readonly #direct: DirectServer;
   readonly #directService: ExposedService | null = null;
+  readonly #e2eService: ExposedService;
+  #trust: HostTrust | null = null;
 
   constructor(options: NexHostOptions) {
     super();
@@ -80,10 +90,11 @@ export class NexHost extends EventEmitter<NexHostEvents> {
     this.#log = options.logger ?? {};
     this.#onOnline = options.onOnline;
     this.#onOffline = options.onOffline;
-    if (options.direct) {
-      const direct = new DirectServer({
+    this.#trust = checkTrust(options.trust ?? null);
+    const direct = new DirectServer({
         client: this.client,
-        direct: options.direct === true ? {} : options.direct,
+        direct: options.direct ? (options.direct === true ? {} : options.direct) : null,
+        trust: () => this.#trust,
         logger: this.#log,
         lookup: (name) => {
           const svc = this.#services.get(name);
@@ -93,28 +104,43 @@ export class NexHost extends EventEmitter<NexHostEvents> {
         },
         services: () => this.services.filter((s) => s.kind === "tcp" && s.target.type === "tcp").map((s) => s.name),
       });
-      this.#direct = direct;
+    this.#direct = direct;
+    if (options.direct) {
       this.#directService = handlerService(DIRECT_SERVICE, "ws", (ws, info) => {
         ws.send(JSON.stringify(direct.info(info.fromDeviceId)));
         ws.close();
       });
     }
+    this.#e2eService = handlerService(E2E_SERVICE, "tcp", (ws) => direct.serveTunnel(ws));
     this.#checkServices(options.services);
     this.#services = new Map(options.services.map((s) => [s.name, s]));
   }
 
   /** Addresses taking direct connections right now (empty when `direct` is off). */
   get directEndpoints(): DirectEndpoint[] {
-    return this.#direct?.endpoints ?? [];
+    return this.#direct.endpoints;
+  }
+
+  get trust(): HostTrust | null {
+    return this.#trust;
+  }
+
+  /**
+   * Replaces the paired devices (or turns pairing off with null). Applies to
+   * new connections; the service list is re-announced.
+   */
+  updateTrust(trust: HostTrust | null): void {
+    this.#trust = checkTrust(trust);
+    const control = this.#control;
+    if (control && control.readyState === WebSocket.OPEN) this.#send(control, this.#hello());
   }
 
   #checkServices(services: ExposedService[]): void {
     validateServices(services);
-    if (!this.#direct) return;
-    if (services.some((s) => s.name === DIRECT_SERVICE)) {
-      throw new TypeError(`'${DIRECT_SERVICE}' is reserved for direct paths`);
+    for (const reserved of [DIRECT_SERVICE, E2E_SERVICE]) {
+      if (services.some((s) => s.name === reserved)) throw new TypeError(`'${reserved}' is reserved`);
     }
-    if (services.length >= 64) throw new TypeError("at most 63 services when direct paths are on");
+    if (services.length > 62) throw new TypeError("at most 62 services (two names are reserved)");
   }
 
   /** True while the relay considers this device online. */
@@ -147,7 +173,7 @@ export class NexHost extends EventEmitter<NexHostEvents> {
   async run(signal?: AbortSignal): Promise<void> {
     if (this.#running) throw new Error("NexHost.run() is already running");
     this.#running = true;
-    this.#direct?.start();
+    this.#direct.start();
     try {
       let backoff = INITIAL_BACKOFF_MS;
       for (;;) {
@@ -166,7 +192,7 @@ export class NexHost extends EventEmitter<NexHostEvents> {
       }
     } finally {
       this.#running = false;
-      this.#direct?.stop();
+      this.#direct.stop();
       for (const ws of this.#streams) closeWs(ws);
       for (const local of this.#locals) {
         if (local instanceof WebSocket) closeWs(local);
@@ -178,6 +204,7 @@ export class NexHost extends EventEmitter<NexHostEvents> {
   #hello(): HostMessage {
     const services = this.services.map(serviceInfo);
     if (this.#directService) services.push(serviceInfo(this.#directService));
+    if (this.#trust) services.push(serviceInfo(this.#e2eService));
     return { type: "hello", protocol: PROTOCOL_VERSION, services };
   }
 
@@ -302,8 +329,13 @@ export class NexHost extends EventEmitter<NexHostEvents> {
       this.#log.warn?.(`rejecting stream ${streamId} (${service}): ${reason}`);
       this.#send(control, { type: "reject", stream_id: streamId, reason });
     };
-    const svc = this.#services.get(service) ?? (service === DIRECT_SERVICE ? this.#directService : null);
+    const builtin =
+      service === DIRECT_SERVICE ? this.#directService : service === E2E_SERVICE && this.#trust ? this.#e2eService : null;
+    const svc = this.#services.get(service) ?? builtin;
     if (!svc) return reject(`unknown service '${service}'`);
+    if (svc.kind === "tcp" && !builtin && this.#trust?.strict) {
+      return reject("this device only accepts end-to-end encrypted connections from paired devices");
+    }
 
     const accept = async (): Promise<WebSocket | null> => {
       try {
@@ -400,6 +432,11 @@ export class NexHost extends EventEmitter<NexHostEvents> {
       this.#log.error?.(`${event} listener threw: ${errMessage(err)}`);
     }
   }
+}
+
+function checkTrust(trust: HostTrust | null): HostTrust | null {
+  if (!trust) return null;
+  return { ...trust, identity: { ...trust.identity }, peers: trust.peers.map(normalizePublicKey) };
 }
 
 function connectTcp(host: string, port: number): Promise<net.Socket> {

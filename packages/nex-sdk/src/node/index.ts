@@ -6,8 +6,10 @@ export { NexAdmin, type IssueDeviceOptions, type NexAdminOptions } from "./admin
 export {
   DIRECT_SERVICE,
   DirectPaths,
+  E2E_SERVICE,
   classifyAddress,
   fetchDirectInfo,
+  openPairedStream,
   type DirectEndpoint,
   type DirectEndpointKind,
   type DirectInfo,
@@ -15,8 +17,27 @@ export {
   type DirectPathsOptions,
   type PathInfo,
   type PathStatus,
+  type TrustSource,
 } from "./direct.js";
-export { forwardTcp, openStream, type ForwardServer, type ForwardTcpOptions } from "./forward.js";
+export { DEFAULT_PEER_PORT, PeerHost, type PeerHostOptions } from "./peer.js";
+export {
+  PUBLIC_KEY_PREFIX,
+  fingerprint,
+  generateIdentity,
+  normalizePublicKey,
+  pairedKey,
+  type ClientTrust,
+  type HostTrust,
+  type NexIdentity,
+} from "./trust.js";
+export {
+  forwardPeer,
+  forwardTcp,
+  openStream,
+  type ForwardPeerOptions,
+  type ForwardServer,
+  type ForwardTcpOptions,
+} from "./forward.js";
 export { NexHost, type Logger, type NexHostEvents, type NexHostOptions } from "./host.js";
 export {
   echoService,

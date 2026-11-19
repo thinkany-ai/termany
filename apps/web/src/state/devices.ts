@@ -163,6 +163,31 @@ export type NexDevice = {
   lastSeenAt: number | null;
   /** How this machine reaches the device; null until a tunnel to it has been opened. */
   route?: NexRoute | null;
+  /** Paired by invite: end-to-end encrypted with keys the relay never saw. */
+  paired?: boolean;
+  /** "peer": a paired device reached over the LAN / tailnet without the relay. */
+  kind?: "relay" | "peer";
+};
+
+/** Settings → Devices → paired devices (GET /api/nex/peers). */
+export type PeersInfo = {
+  publicKey: string;
+  fingerprint: string;
+  invite: string;
+  port: number;
+  strict: boolean;
+  signedIn: boolean;
+  peers: PairedDevice[];
+};
+
+export type PairedDevice = {
+  id: string;
+  name: string;
+  publicKey: string;
+  fingerprint: string;
+  addresses: string[];
+  nexDeviceId: string | null;
+  addedAt: number;
 };
 
 /** Mirrors NexRoute in apps/server/src/nexBridge.ts. */
@@ -205,10 +230,13 @@ function asHomeDevice(path: string, data: any): unknown {
   return data;
 }
 
-/** Other devices that could hold a workspace right now; empty when not on a relay. */
+/** Other devices that could hold a workspace right now: the account's, and paired ones. */
 export async function connectableDevices(): Promise<NexDevice[]> {
-  const status = await nexRequest<NexStatus>("status");
-  if (!status.configured) return [];
+  // Signed out, paired devices (LAN / tailnet, no account) are still listed.
+  if (isCloud) {
+    const status = await nexRequest<NexStatus>("status");
+    if (!status.configured) return [];
+  }
   const { devices } = await nexRequest<{ devices: NexDevice[] }>("devices");
   return devices.filter((d) => !d.isSelf);
 }
