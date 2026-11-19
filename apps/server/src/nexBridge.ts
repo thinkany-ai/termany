@@ -6,7 +6,9 @@ import { NexApiError, NexClient, type DeviceCredential } from "nex-sdk";
 import {
   NexHost,
   PeerHost,
+  describeClose,
   echoService,
+  handlerService,
   fingerprint,
   forwardPeer,
   forwardTcp,
@@ -47,6 +49,12 @@ import { NexPeers, PeerError, isPeerId, normalizeCode, pairingCode, peerId, type
 
 export const NEX_SERVICE = "termany";
 export const NEX_APP = "termany";
+/**
+ * Where an account device knocks to connect (one JSON message each way). It
+ * stays open with "paired devices only" on: a request still needs the user
+ * to type its code here, and the stream reaches nothing else.
+ */
+export const PAIR_SERVICE = "termany.pair";
 
 /** Where "Sign in with termany.sh" goes; TERMANY_SITE_URL points dev at a local site. */
 const SITE_URL = (process.env.TERMANY_SITE_URL || "https://termany.sh").replace(/\/+$/, "");
@@ -719,37 +727,67 @@ export class NexBridge {
   }
 
   /**
-   * Leaves our invite with an account device as a request, over a plain relay
-   * stream (it does not trust us yet, so a paired, end-to-end one would be
-   * refused). Answers with that device's own invite.
+   * Leaves our invite with an account device as a request, through its
+   * pairing service (open even when it only lets paired devices in; the
+   * request still waits for its user). Answers with that device's invite.
    */
   async #requestThroughAccount(deviceId: string, invite: string): Promise<{ name: string; publicKey: string; invite: string }> {
     const client = this.#client;
     if (!client) throw new NexError("not signed in", 409);
-    const tunnel = await forwardTcp(client, deviceId, NEX_SERVICE, { port: 0, host: "127.0.0.1", direct: false });
+    let ws;
     try {
-      const { port } = tunnel.address() as { port: number };
-      const call = async <T>(path: string, body?: unknown): Promise<T> => {
-        const res = await fetch(`http://127.0.0.1:${port}/api/nex/${path}`, {
-          method: body === undefined ? "GET" : "POST",
-          headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-          body: body === undefined ? undefined : JSON.stringify(body),
-          signal: AbortSignal.timeout(15_000),
-        });
-        const data = (await res.json().catch(() => ({}))) as { error?: unknown };
-        if (res.status === 404) throw new NexError("that device needs a newer Termany to connect", 409);
-        if (!res.ok) throw new NexError(typeof data.error === "string" ? data.error : `HTTP ${res.status}`, 502);
-        return data as T;
-      };
-      const theirs = await call<PeersInfo>("peers").catch((err: unknown) => {
-        throw new NexError(`that device cannot be reached through your account: ${errMessage(err)}`, 502);
-      });
-      await call("peers/request", { invite });
-      const name = this.#peers.preview(theirs.invite).name;
-      return { name, publicKey: theirs.publicKey, invite: theirs.invite };
-    } finally {
-      tunnel.close();
+      ws = await openStream(client, deviceId, PAIR_SERVICE);
+    } catch (err) {
+      if (err instanceof NexApiError && err.status === 404) {
+        throw new NexError("that device needs a newer Termany to connect", 409);
+      }
+      throw new NexError(`that device cannot be reached through your account: ${errMessage(err)}`, 502);
     }
+    try {
+      const reply = await new Promise<{ ok?: unknown; error?: unknown; invite?: unknown }>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("the device did not answer")), 15_000);
+        ws.once("message", (data) => {
+          clearTimeout(timer);
+          try {
+            resolve(JSON.parse(data.toString()));
+          } catch {
+            reject(new Error("unexpected answer"));
+          }
+        });
+        ws.once("close", (code, reason) => {
+          clearTimeout(timer);
+          reject(new Error(describeClose(code, reason.toString())));
+        });
+        ws.send(JSON.stringify({ invite }));
+      });
+      if (reply.ok !== true || typeof reply.invite !== "string") {
+        throw new Error(typeof reply.error === "string" ? reply.error : "the device refused");
+      }
+      const theirs = this.#peers.preview(reply.invite);
+      return { name: theirs.name, publicKey: theirs.publicKey, invite: reply.invite };
+    } catch (err) {
+      throw err instanceof NexError ? err : new NexError(errMessage(err), 502);
+    } finally {
+      ws.close();
+    }
+  }
+
+  /** The other side of #requestThroughAccount: one request in, our invite out. */
+  #servePairing(ws: import("ws").WebSocket): void {
+    const timer = setTimeout(() => ws.close(), 15_000);
+    ws.once("message", (data) => {
+      clearTimeout(timer);
+      let reply: object;
+      try {
+        const invite = (JSON.parse(data.toString()) as { invite?: unknown }).invite;
+        if (typeof invite !== "string") throw new NexError("malformed request");
+        this.requestPairing(invite);
+        reply = { ok: true, invite: this.#ownInvite() };
+      } catch (err) {
+        reply = { ok: false, error: errMessage(err) };
+      }
+      ws.send(JSON.stringify(reply), () => ws.close());
+    });
   }
 
   /** Another device asks to connect; it waits until the user types its code here. */
@@ -980,7 +1018,11 @@ export class NexBridge {
     this.#abort = abort;
     const host = new NexHost({
       client: this.#client,
-      services: [tcpService(NEX_SERVICE, this.#localAddr), echoService()],
+      services: [
+        tcpService(NEX_SERVICE, this.#localAddr),
+        echoService(),
+        handlerService(PAIR_SERVICE, "ws", (ws) => this.#servePairing(ws)),
+      ],
       // A fixed port, so the addresses in an invite stay valid.
       direct: DIRECT ? { port: this.#peers.port } : false,
       trust: this.#peers.hostTrust(),
