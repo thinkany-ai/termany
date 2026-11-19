@@ -181,11 +181,11 @@ export type PeersInfo = {
   requests: PairingRequest[];
 };
 
-/** Another device asked to pair; both screens show `code`. */
-export type PairingRequest = { name: string; publicKey: string; code: string };
+/** A device asking to connect; its code is only on its own screen. */
+export type PairingRequest = { name: string; publicKey: string };
 
-/** Answer to "Pair": confirm `code` matches the other screen, then add `invite`. */
-export type PairingOffer = PairingRequest & { invite: string };
+/** Step 1's answer on the connecting device: show `code` until the other side verifies. */
+export type PairingOffer = { name: string; publicKey: string; code: string };
 
 export type PairedDevice = {
   id: string;

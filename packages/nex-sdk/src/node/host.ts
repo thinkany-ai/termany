@@ -7,7 +7,14 @@ import WebSocket from "ws";
 import type { NexClient } from "../client.js";
 import { NexFatalError } from "../errors.js";
 import { CloseCode, PROTOCOL_VERSION, type HostMessage, type ServerMessage } from "../protocol.js";
-import { DIRECT_SERVICE, DirectServer, E2E_SERVICE, type DirectEndpoint, type DirectOptions } from "./direct.js";
+import {
+  DIRECT_SERVICE,
+  DirectServer,
+  E2E_SERVICE,
+  type DirectEndpoint,
+  type DirectOptions,
+  type PairingOptions,
+} from "./direct.js";
 import { normalizePublicKey, type HostTrust } from "./trust.js";
 import { handlerService, serviceInfo, validateServices, type ExposedService } from "./services.js";
 import { HandshakeError, closeWs, connectWs, echo, pipeTcp, pipeWs, release } from "./wsutil.js";
@@ -46,6 +53,8 @@ export interface NexHostOptions {
    * else can reach tcp services at all. Change it with `updateTrust`.
    */
   trust?: HostTrust | null;
+  /** Accept pairing requests on the direct listeners (needs `direct`). */
+  pairing?: PairingOptions | null;
 }
 
 export interface NexHostEvents {
@@ -83,6 +92,7 @@ export class NexHost extends EventEmitter<NexHostEvents> {
   readonly #directService: ExposedService | null = null;
   readonly #e2eService: ExposedService;
   #trust: HostTrust | null = null;
+  #pairingOptions: PairingOptions | null = null;
 
   constructor(options: NexHostOptions) {
     super();
@@ -91,10 +101,12 @@ export class NexHost extends EventEmitter<NexHostEvents> {
     this.#onOnline = options.onOnline;
     this.#onOffline = options.onOffline;
     this.#trust = checkTrust(options.trust ?? null);
+    this.#pairingOptions = options.pairing ?? null;
     const direct = new DirectServer({
         client: this.client,
         direct: options.direct ? (options.direct === true ? {} : options.direct) : null,
         trust: () => this.#trust,
+        pairing: () => this.#pairingOptions,
         logger: this.#log,
         lookup: (name) => {
           const svc = this.#services.get(name);
@@ -133,6 +145,11 @@ export class NexHost extends EventEmitter<NexHostEvents> {
     this.#trust = checkTrust(trust);
     const control = this.#control;
     if (control && control.readyState === WebSocket.OPEN) this.#send(control, this.#hello());
+  }
+
+  /** Opens, changes or (null) closes pairing requests. */
+  updatePairing(pairing: PairingOptions | null): void {
+    this.#pairingOptions = pairing;
   }
 
   #checkServices(services: ExposedService[]): void {

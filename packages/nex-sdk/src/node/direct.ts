@@ -16,7 +16,7 @@
 //     | -- {"service":"ssh"}\n -------------------------------> |
 //     | <-- {"ok":true}\n then raw bytes both ways ------------ |
 
-import { createHmac, randomBytes } from "node:crypto";
+import { createHmac, hkdfSync, randomBytes } from "node:crypto";
 import { EventEmitter } from "node:events";
 import net from "node:net";
 import os from "node:os";
@@ -44,6 +44,58 @@ export const DIRECT_SERVICE = "nex.direct";
  * encrypted, the relay only sees ciphertext. Reserved.
  */
 export const E2E_SERVICE = "nex.e2e";
+
+/** PSK identity prefix of a pairing request (see {@link PairingOptions}). */
+const PAIRING_IDENTITY = "nexpair:1";
+
+/**
+ * Host side of pairing requests: devices that know `secret` (it travels in
+ * an invite / authorization code the user copied) may hand over a request.
+ * Such a connection can do nothing else: it never reaches a service, and the
+ * request means nothing until the user confirms it on this device.
+ */
+export interface PairingOptions {
+  /** At least 16 random bytes; whoever has it may knock, nothing more. */
+  secret: Buffer;
+  /** Returns null to accept the request, or an error to send back. */
+  onRequest: (payload: unknown) => string | null | Promise<string | null>;
+}
+
+/** The TLS-PSK both sides of a pairing request derive from the shared secret. */
+export function pairingKey(secret: Buffer): Buffer {
+  return Buffer.from(hkdfSync("sha256", secret, "nex-pairing/v1", "", 32));
+}
+
+/**
+ * Delivers a pairing request to a host at any of `endpoints` (the first that
+ * accepts wins). Rejects with the host's reason, or why none answered.
+ */
+export async function sendPairingRequest(
+  endpoints: Array<{ host: string; port: number }>,
+  secret: Buffer,
+  payload: unknown,
+  timeoutMs = 4_000,
+): Promise<void> {
+  if (!endpoints.length) throw new Error("no address to reach the device at");
+  const credentials = { psk: pairingKey(secret), identity: PAIRING_IDENTITY };
+  const errors: string[] = [];
+  const attempts = endpoints.map((e) =>
+    tlsRequest(e, credentials, { pair: payload }, timeoutMs).then(
+      (socket) => socket.destroy(),
+      (err: unknown) => {
+        errors.push(errText(err));
+        throw err;
+      },
+    ),
+  );
+  try {
+    await Promise.any(attempts);
+  } catch {
+    // A host that answered with a reason beats "timed out" from the others.
+    const reason = errors.find((e) => !/timed out|ECONNREFUSED|EHOSTUNREACH|ENETUNREACH|ENOTFOUND|EADDRNOTAVAIL|closed/i.test(e));
+    throw new Error(reason ?? "the device does not answer on this network");
+  }
+}
 
 /** TLS 1.2 PSK suites with an ephemeral ECDH exchange (forward secrecy). */
 const CIPHERS = "ECDHE-PSK-CHACHA20-POLY1305:ECDHE-PSK-AES256-CBC-SHA384:ECDHE-PSK-AES128-CBC-SHA256";
@@ -102,6 +154,9 @@ export class DirectServer {
   readonly #client: NexClient | null;
   readonly #options: DirectOptions | null;
   readonly #trust: () => HostTrust | null;
+  readonly #pairing: () => PairingOptions | null;
+  /** Connections that authenticated with the pairing secret: they may only knock. */
+  readonly #pairingSockets = new WeakSet<object>();
   #tunnelServer: tls.Server | null = null;
   readonly #lookup: Lookup;
   readonly #services: () => string[];
@@ -125,6 +180,7 @@ export class DirectServer {
     /** Where to listen; null: no listeners (paired streams over the relay only). */
     direct: DirectOptions | null;
     trust: () => HostTrust | null;
+    pairing?: () => PairingOptions | null;
     lookup: Lookup;
     services: () => string[];
     logger?: Logger;
@@ -132,6 +188,7 @@ export class DirectServer {
     this.#client = options.client;
     this.#options = options.direct;
     this.#trust = options.trust;
+    this.#pairing = options.pairing ?? (() => null);
     this.#lookup = options.lookup;
     this.#services = options.services;
     this.#log = options.logger ?? {};
@@ -202,7 +259,15 @@ export class DirectServer {
         ...TLS_VERSION,
         ciphers: CIPHERS,
         handshakeTimeout: SERVER_LINE_TIMEOUT_MS,
-        pskCallback: (_socket, identity) => this.#psk(identity),
+        pskCallback: (socket, identity) => {
+          if (identity === PAIRING_IDENTITY) {
+            const pairing = this.#pairing();
+            if (!pairing) return null;
+            this.#pairingSockets.add(socket);
+            return pairingKey(pairing.secret);
+          }
+          return this.#psk(identity);
+        },
       },
       (socket) => void this.#serve(socket),
     );
@@ -300,7 +365,7 @@ export class DirectServer {
     this.#track(socket);
     setNoDelay(socket);
     socket.on("error", () => socket.destroy());
-    let request: { service?: unknown; probe?: unknown };
+    let request: { service?: unknown; probe?: unknown; pair?: unknown };
     try {
       const { line, rest } = await readLine(socket, SERVER_LINE_TIMEOUT_MS);
       request = JSON.parse(line);
@@ -309,6 +374,21 @@ export class DirectServer {
       return void socket.destroy();
     }
     const reply = (msg: object) => socket.write(`${JSON.stringify(msg)}\n`);
+    if (this.#pairingSockets.has(socket)) {
+      const pairing = this.#pairing();
+      let error: string | null = "pairing is closed";
+      if (pairing && request.pair !== undefined) {
+        try {
+          error = await pairing.onRequest(request.pair);
+        } catch (err) {
+          error = errText(err);
+        }
+      } else if (request.pair === undefined) {
+        error = "this connection may only ask to pair";
+      }
+      reply(error ? { ok: false, error } : { ok: true });
+      return void socket.end();
+    }
     if (request.probe === true) {
       reply({ ok: true });
       return void socket.end();

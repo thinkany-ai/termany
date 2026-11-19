@@ -755,17 +755,9 @@ const http = createServer((req, res) => {
           return nex.leave();
         case "GET /api/nex/peers":
           return nex.peersInfo();
-        case "POST /api/nex/peers/preview": {
+        case "POST /api/nex/peers/connect": {
           const body = await readJson(req, 64_000);
-          return nex.previewPeer(String(body?.invite ?? ""));
-        }
-        case "POST /api/nex/peers/add": {
-          const body = await readJson(req, 64_000);
-          return nex.addPeer(String(body?.invite ?? ""));
-        }
-        case "POST /api/nex/peers/remove": {
-          const body = await readJson(req, 64_000);
-          return nex.removePeer(String(body?.publicKey ?? ""));
+          return nex.connectWithCode(String(body?.code ?? ""));
         }
         case "POST /api/nex/peers/pair": {
           const body = await readJson(req, 64_000);
@@ -775,13 +767,25 @@ const http = createServer((req, res) => {
           const body = await readJson(req, 64_000);
           return nex.requestPairing(String(body?.invite ?? ""));
         }
-        case "POST /api/nex/peers/accept": {
+        case "POST /api/nex/peers/verify": {
           const body = await readJson(req, 64_000);
-          return nex.acceptRequest(String(body?.publicKey ?? ""));
+          return nex.verifyCode(String(body?.code ?? ""));
+        }
+        case "POST /api/nex/peers/check": {
+          const body = await readJson(req, 64_000);
+          return nex.checkPeer(String(body?.publicKey ?? ""));
+        }
+        case "POST /api/nex/peers/cancel": {
+          const body = await readJson(req, 64_000);
+          return nex.cancelConnect(String(body?.publicKey ?? ""));
         }
         case "POST /api/nex/peers/decline": {
           const body = await readJson(req, 64_000);
           return nex.declineRequest(String(body?.publicKey ?? ""));
+        }
+        case "POST /api/nex/peers/remove": {
+          const body = await readJson(req, 64_000);
+          return nex.removePeer(String(body?.publicKey ?? ""));
         }
         case "POST /api/nex/peers/strict": {
           const body = await readJson(req, 64_000);

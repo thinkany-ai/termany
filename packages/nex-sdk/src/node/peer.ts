@@ -3,7 +3,7 @@
 // user exchanged. See trust.ts for the pairing model and forwardPeer() for
 // the client side.
 
-import { DirectServer, type DirectEndpoint, type DirectOptions } from "./direct.js";
+import { DirectServer, type DirectEndpoint, type DirectOptions, type PairingOptions } from "./direct.js";
 import type { Logger } from "./host.js";
 import { validateServices, type ExposedService } from "./services.js";
 import { normalizePublicKey, type NexIdentity } from "./trust.js";
@@ -22,6 +22,8 @@ export interface PeerHostOptions {
   services: ExposedService[];
   /** Where to listen. Default: LAN + Tailscale addresses on {@link DEFAULT_PEER_PORT}. */
   listen?: DirectOptions;
+  /** Accept pairing requests from devices that have this host's invite. */
+  pairing?: PairingOptions | null;
   logger?: Logger;
 }
 
@@ -30,8 +32,10 @@ export class PeerHost {
   #identity: NexIdentity;
   #peers: string[];
   #services: Map<string, ExposedService>;
+  #pairing: PairingOptions | null;
 
   constructor(options: PeerHostOptions) {
+    this.#pairing = options.pairing ?? null;
     validateServices(options.services);
     this.#identity = { ...options.identity };
     this.#peers = options.peers.map(normalizePublicKey);
@@ -40,6 +44,7 @@ export class PeerHost {
       client: null,
       direct: { port: DEFAULT_PEER_PORT, ...options.listen },
       trust: () => ({ identity: this.#identity, peers: this.#peers, strict: true }),
+      pairing: () => this.#pairing,
       logger: options.logger,
       lookup: (name) => {
         const svc = this.#services.get(name);
@@ -67,6 +72,10 @@ export class PeerHost {
   /** Replaces the paired devices; applies to new connections. */
   updatePeers(peers: string[]): void {
     this.#peers = peers.map(normalizePublicKey);
+  }
+
+  updatePairing(pairing: PairingOptions | null): void {
+    this.#pairing = pairing;
   }
 
   updateServices(services: ExposedService[]): void {

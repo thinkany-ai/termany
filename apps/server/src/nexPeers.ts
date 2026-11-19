@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -42,7 +42,18 @@ export type PairedPeer = {
   addedAt: number;
 };
 
-type PeersFile = { peers: PairedPeer[]; strict: boolean };
+type PeersFile = {
+  peers: PairedPeer[];
+  strict: boolean;
+  /**
+   * Travels inside this device's authorization code: whoever has the code may
+   * ask to connect (and nothing more until the user verifies here).
+   */
+  pairSecret?: string;
+};
+
+/** An authorization code, read: the device, plus the secret that lets us knock. */
+export type ParsedInvite = PairedPeer & { pairSecret: Buffer | null };
 
 export class PeerError extends Error {
   constructor(
@@ -101,6 +112,15 @@ export class NexPeers {
     this.#save();
   }
 
+  /** The secret in this device's authorization code, created on first use. */
+  pairSecret(): Buffer {
+    if (!this.#state.pairSecret) {
+      this.#state = { ...this.#state, pairSecret: randomBytes(16).toString("base64url") };
+      this.#save();
+    }
+    return Buffer.from(this.#state.pairSecret!, "base64url");
+  }
+
   /** What NexHost / PeerHost accept; null while nothing is paired. */
   hostTrust(): HostTrust | null {
     if (this.#state.peers.length === 0) return null;
@@ -128,6 +148,7 @@ export class NexPeers {
       pk: this.identity().publicKey,
       eps: this.endpoints().map((e) => [e.host, e.port, e.kind]),
       dev: nexDeviceId ?? undefined,
+      ps: this.pairSecret().toString("base64url"),
     };
     return INVITE_PREFIX + Buffer.from(JSON.stringify(body)).toString("base64url");
   }
@@ -147,16 +168,16 @@ export class NexPeers {
   }
 
   /** Reads an invite without adding it, so the user can check the fingerprint first. */
-  preview(invite: string): PairedPeer & { fingerprint: string } {
+  preview(invite: string): ParsedInvite & { fingerprint: string } {
     const peer = parseInvite(invite);
-    if (peer.publicKey === this.identity().publicKey) throw new PeerError("this is this device's own invite");
+    if (peer.publicKey === this.identity().publicKey) throw new PeerError("that is this device's own authorization code");
     return { ...peer, fingerprint: fingerprint(peer.publicKey) };
   }
 
   /** Adds (or refreshes) a paired device from its invite. */
   add(invite: string): PairedPeer {
     const peer = this.preview(invite);
-    const { fingerprint: _, ...stored } = peer;
+    const { fingerprint: _, pairSecret: __, ...stored } = peer;
     const existing = this.#state.peers.find((p) => p.publicKey === stored.publicKey);
     const next = existing ? { ...stored, addedAt: existing.addedAt } : stored;
     this.#state = {
@@ -200,17 +221,27 @@ export class NexPeers {
 }
 
 /**
- * The code both devices show while pairing: derived from BOTH public keys,
- * so if anything in between swapped a key, the two screens disagree. 80 bits,
- * too many to grind a matching key for in the minutes a request lives.
+ * The connection code: shown on the device that connects, typed on the one
+ * being connected to. Derived from BOTH public keys, so a request swapped on
+ * the way yields a different code. 40 bits: an attacker cannot see the code
+ * on the user's screen, and a device holds at most 20 pending requests, so
+ * guessing one that matches what the user types is out of reach.
  */
 export function pairingCode(a: string, b: string): string {
   const [x, y] = [normalizePublicKey(a), normalizePublicKey(b)].sort();
   const digest = createHash("sha256").update(`termany-pairing/v1\n${x}\n${y}`).digest();
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "";
-  for (let i = 0; i < 16; i++) out += alphabet[digest[i]! % 32];
-  return out.match(/.{4}/g)!.join(" ");
+  for (let i = 0; i < 8; i++) out += CODE_ALPHABET[digest[i]! % 32];
+  return `${out.slice(0, 4)}-${out.slice(4)}`;
+}
+
+/** No 0/O, 1/I: the code is read off one screen and typed into another. */
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/** A typed code in canonical form (case, spaces and dashes do not matter). */
+export function normalizeCode(code: string): string {
+  const raw = (code ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/0/g, "O").replace(/1/g, "I");
+  return raw.length === 8 ? `${raw.slice(0, 4)}-${raw.slice(4)}` : raw;
 }
 
 /** Stable id a paired device has in device lists and workspace bindings. */
@@ -229,21 +260,21 @@ export function defaultPeerPort(serverPort: number): number {
   return DEFAULT_PEER_PORT + (serverPort === 5174 ? 0 : (serverPort % 100) + 1);
 }
 
-function parseInvite(raw: string): PairedPeer {
-  const text = (raw ?? "").trim();
-  if (!text.startsWith(INVITE_PREFIX)) throw new PeerError(`an invite starts with '${INVITE_PREFIX}'`);
-  let body: { v?: unknown; name?: unknown; pk?: unknown; eps?: unknown; dev?: unknown };
+function parseInvite(raw: string): ParsedInvite {
+  const text = (raw ?? "").replace(/\s+/g, "");
+  if (!text.startsWith(INVITE_PREFIX)) throw new PeerError("that is not a Termany authorization code");
+  let body: { v?: unknown; name?: unknown; pk?: unknown; eps?: unknown; dev?: unknown; ps?: unknown };
   try {
     body = JSON.parse(Buffer.from(text.slice(INVITE_PREFIX.length), "base64url").toString("utf8"));
   } catch {
-    throw new PeerError("this invite is damaged; copy it again");
+    throw new PeerError("this authorization code is damaged; copy it again");
   }
-  if (body.v !== 1 || typeof body.pk !== "string") throw new PeerError("this invite is from a newer Termany; update first");
+  if (body.v !== 1 || typeof body.pk !== "string") throw new PeerError("this authorization code is from a newer Termany; update first");
   let publicKey: string;
   try {
     publicKey = normalizePublicKey(body.pk);
   } catch {
-    throw new PeerError("this invite is damaged; copy it again");
+    throw new PeerError("this authorization code is damaged; copy it again");
   }
   const endpoints: PeerEndpoint[] = [];
   for (const e of Array.isArray(body.eps) ? body.eps.slice(0, 16) : []) {
@@ -260,6 +291,7 @@ function parseInvite(raw: string): PairedPeer {
     endpoints,
     nexDeviceId: typeof body.dev === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(body.dev) ? body.dev : null,
     addedAt: Date.now(),
+    pairSecret: typeof body.ps === "string" && /^[A-Za-z0-9_-]{22,64}$/.test(body.ps) ? Buffer.from(body.ps, "base64url") : null,
   };
 }
 
@@ -269,7 +301,11 @@ function readPeers(file: string): PeersFile {
     const peers = (Array.isArray(parsed.peers) ? parsed.peers : []).filter(
       (p): p is PairedPeer => !!p && typeof p.publicKey === "string" && typeof p.name === "string" && Array.isArray(p.endpoints),
     );
-    return { peers: peers.map((p) => ({ ...p, nexDeviceId: p.nexDeviceId ?? null })), strict: parsed.strict === true && peers.length > 0 };
+    return {
+      peers: peers.map((p) => ({ ...p, nexDeviceId: p.nexDeviceId ?? null })),
+      strict: parsed.strict === true && peers.length > 0,
+      pairSecret: typeof parsed.pairSecret === "string" ? parsed.pairSecret : undefined,
+    };
   } catch {
     return { peers: [], strict: false };
   }

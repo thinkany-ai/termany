@@ -10,11 +10,14 @@ import {
   fingerprint,
   forwardPeer,
   forwardTcp,
+  openPairedStream,
+  sendPairingRequest,
   tcpService,
   type ForwardServer,
+  type PairingOptions,
   type PathStatus,
 } from "nex-sdk/node";
-import { NexPeers, PeerError, isPeerId, pairingCode, peerId, type PairedPeer } from "./nexPeers.js";
+import { NexPeers, PeerError, isPeerId, normalizeCode, pairingCode, peerId, type PairedPeer } from "./nexPeers.js";
 
 /**
  * Puts this Termany server on a nex relay so the user's other devices can use
@@ -113,17 +116,14 @@ export type PeersInfo = {
   requests: PairingRequest[];
 };
 
-export type PairingRequest = {
-  name: string;
-  publicKey: string;
-  /** Shown on both devices; the user confirms they match. */
-  code: string;
-};
+/** A device asking to connect. Its code is deliberately NOT here: it must be typed in from the other screen. */
+export type PairingRequest = { name: string; publicKey: string };
 
-/** What "Pair" on an account device answers: confirm the code, then add `invite`. */
-export type PairingOffer = PairingRequest & { invite: string };
+/** Step 1's answer on the connecting device: show `code`, then poll checkPeer(publicKey). */
+export type PairingOffer = { name: string; publicKey: string; code: string };
 
 const REQUEST_TTL_MS = 10 * 60_000;
+const MAX_REQUESTS = 20;
 
 export type NexRoute = {
   via: "direct" | "relay";
@@ -501,102 +501,196 @@ export class NexBridge {
     void forward?.then((server) => server.close()).catch(() => {});
   }
 
-  // --- paired devices -------------------------------------------------------
+  // --- connecting devices (pairing) ------------------------------------------
+  //
+  // Device A connects to device B:
+  //   1. A's user pastes B's authorization code (B's invite) into A. A now
+  //      trusts B and knocks on B with A's own invite: directly with the
+  //      secret in B's code, or through the account's relay.
+  //   2. A shows a connection code. B's user types it into "Verify access";
+  //      only a pending request with that exact code becomes trusted on B.
+  //   3. A sees B accept its key and reports "connected".
 
   peersInfo(): PeersInfo {
-    const config = this.#config;
     return {
       publicKey: this.#peers.identity().publicKey,
       fingerprint: fingerprint(this.#peers.identity().publicKey),
-      invite: this.#peers.invite(config?.deviceName ?? defaultDeviceName(), config?.credential.device_id ?? null),
+      invite: this.#ownInvite(),
       port: this.#peers.port,
       strict: this.#peers.strict,
-      signedIn: !!config,
+      signedIn: !!this.#config,
       peers: this.#peers.peers.map(pairedDevice),
       requests: this.#pendingRequests(),
     };
   }
 
+  #ownInvite(): string {
+    const config = this.#config;
+    return this.#peers.invite(config?.deviceName ?? defaultDeviceName(), config?.credential.device_id ?? null);
+  }
+
   #pendingRequests(): PairingRequest[] {
     const now = Date.now();
-    const mine = this.#peers.identity().publicKey;
     const out: PairingRequest[] = [];
     for (const [publicKey, r] of this.#requests) {
       if (r.expires < now) this.#requests.delete(publicKey);
-      else out.push({ name: r.name, publicKey, code: pairingCode(mine, publicKey) });
+      else out.push({ name: r.name, publicKey });
     }
     return out;
   }
 
-  /**
-   * "Pair" on one of the account's devices: fetch its invite through the
-   * tunnel and leave ours with it as a request. Nothing is trusted yet: both
-   * users still confirm the code on their own screen. Through the relay, so
-   * only a device of this account can ask, and only one that can already
-   * reach this device's Termany (never with `strict` on and unpaired).
-   */
-  async pairWith(deviceId: string): Promise<PairingOffer> {
-    if (isPeerId(deviceId)) throw new NexError("that device is already paired");
-    const { url, device } = await this.connect(deviceId);
-    const call = async <T>(path: string, body?: unknown): Promise<T> => {
-      const res = await fetch(`${url}/api/nex/${path}`, {
-        method: body === undefined ? "GET" : "POST",
-        headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-        body: body === undefined ? undefined : JSON.stringify(body),
-        signal: AbortSignal.timeout(15_000),
-      });
-      const data = (await res.json().catch(() => ({}))) as { error?: unknown };
-      if (res.status === 404) throw new NexError(`${device.name} needs a newer Termany to pair`, 409);
-      if (!res.ok) throw new NexError(typeof data.error === "string" ? data.error : `HTTP ${res.status}`, 502);
-      return data as T;
-    };
-    const theirs = await call<PeersInfo>("peers");
-    const config = this.#config;
-    await call("peers/request", {
-      invite: this.#peers.invite(config?.deviceName ?? defaultDeviceName(), config?.credential.device_id ?? null),
-    });
-    return {
-      name: device.name,
-      publicKey: theirs.publicKey,
-      invite: theirs.invite,
-      code: pairingCode(this.#peers.identity().publicKey, theirs.publicKey),
-    };
+  /** Step 1 on the connecting device: B's authorization code in, connection code out. */
+  async connectWithCode(authCode: string): Promise<PairingOffer> {
+    let target;
+    try {
+      target = this.#peers.preview(authCode);
+    } catch (err) {
+      throw asPeerError(err);
+    }
+    const payload = { invite: this.#ownInvite() };
+    let delivered = false;
+    let failure = "";
+    if (target.pairSecret && target.endpoints.length) {
+      try {
+        await sendPairingRequest(target.endpoints, target.pairSecret, payload);
+        delivered = true;
+      } catch (err) {
+        failure = errMessage(err);
+      }
+    }
+    if (!delivered && this.#client && target.nexDeviceId) {
+      try {
+        await this.#requestThroughAccount(target.nexDeviceId, payload.invite);
+        delivered = true;
+      } catch (err) {
+        failure = errMessage(err);
+      }
+    }
+    if (!delivered) {
+      throw new NexError(
+        `cannot reach ${target.name}${failure ? ` (${failure})` : ""}: both devices need to be on the same network, or both signed in to the same Termany account`,
+        502,
+      );
+    }
+    this.addPeer(authCode);
+    return { name: target.name, publicKey: target.publicKey, code: pairingCode(this.#peers.identity().publicKey, target.publicKey) };
   }
 
-  /** Another device asks to pair; it waits here until the user confirms or declines. */
+  /** "Connect" next to one of the account's devices: step 1 without copying a code. */
+  async pairWith(deviceId: string): Promise<PairingOffer> {
+    if (isPeerId(deviceId) || !this.#client) throw new NexError("that device is not in your account", 409);
+    const theirs = await this.#requestThroughAccount(deviceId, this.#ownInvite());
+    this.addPeer(theirs.invite);
+    return { name: theirs.name, publicKey: theirs.publicKey, code: pairingCode(this.#peers.identity().publicKey, theirs.publicKey) };
+  }
+
+  /**
+   * Leaves our invite with an account device as a request, over a plain relay
+   * stream (it does not trust us yet, so a paired, end-to-end one would be
+   * refused). Answers with that device's own invite.
+   */
+  async #requestThroughAccount(deviceId: string, invite: string): Promise<{ name: string; publicKey: string; invite: string }> {
+    const client = this.#client;
+    if (!client) throw new NexError("not signed in", 409);
+    const tunnel = await forwardTcp(client, deviceId, NEX_SERVICE, { port: 0, host: "127.0.0.1", direct: false });
+    try {
+      const { port } = tunnel.address() as { port: number };
+      const call = async <T>(path: string, body?: unknown): Promise<T> => {
+        const res = await fetch(`http://127.0.0.1:${port}/api/nex/${path}`, {
+          method: body === undefined ? "GET" : "POST",
+          headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+          body: body === undefined ? undefined : JSON.stringify(body),
+          signal: AbortSignal.timeout(15_000),
+        });
+        const data = (await res.json().catch(() => ({}))) as { error?: unknown };
+        if (res.status === 404) throw new NexError("that device needs a newer Termany to connect", 409);
+        if (!res.ok) throw new NexError(typeof data.error === "string" ? data.error : `HTTP ${res.status}`, 502);
+        return data as T;
+      };
+      const theirs = await call<PeersInfo>("peers").catch((err: unknown) => {
+        throw new NexError(`that device cannot be reached through your account: ${errMessage(err)}`, 502);
+      });
+      await call("peers/request", { invite });
+      const name = this.#peers.preview(theirs.invite).name;
+      return { name, publicKey: theirs.publicKey, invite: theirs.invite };
+    } finally {
+      tunnel.close();
+    }
+  }
+
+  /** Another device asks to connect; it waits until the user types its code here. */
   requestPairing(invite: string): { ok: true } {
-    const peer = this.previewPeer(invite);
+    let peer;
+    try {
+      peer = this.#peers.preview(invite);
+    } catch (err) {
+      throw asPeerError(err);
+    }
     if (this.#peers.peers.some((p) => p.publicKey === peer.publicKey)) {
-      // Already trusted (this side confirmed earlier): refresh its addresses.
+      // Already verified earlier: just refresh its addresses.
       this.#peers.add(invite);
       return { ok: true };
     }
-    if (this.#requests.size >= 20 && !this.#requests.has(peer.publicKey)) {
-      throw new NexError("too many pending pairing requests", 429);
+    this.#pendingRequests(); // drop expired ones first
+    if (this.#requests.size >= MAX_REQUESTS && !this.#requests.has(peer.publicKey)) {
+      throw new NexError("too many pending requests; try again in a few minutes", 429);
     }
     this.#requests.set(peer.publicKey, { invite, name: peer.name, expires: Date.now() + REQUEST_TTL_MS });
+    this.#log.log(`[termany] peer: ${peer.name} asks to connect`);
     return { ok: true };
   }
 
-  acceptRequest(publicKey: string): PeersInfo {
-    const request = this.#requests.get(publicKey);
-    if (!request || request.expires < Date.now()) throw new NexError("that request expired; pair again", 404);
-    this.#requests.delete(publicKey);
-    return this.addPeer(request.invite);
+  /** Step 2 on the device being connected to: the typed connection code. */
+  verifyCode(code: string): { name: string; info: PeersInfo } {
+    const typed = normalizeCode(code);
+    const mine = this.#peers.identity().publicKey;
+    this.#pendingRequests();
+    for (const [publicKey, request] of this.#requests) {
+      if (pairingCode(mine, publicKey) !== typed) continue;
+      this.#requests.delete(publicKey);
+      return { name: request.name, info: this.addPeer(request.invite) };
+    }
+    throw new NexError(
+      this.#requests.size
+        ? "that code does not match; check it on the other device"
+        : "no device is asking to connect; start from “Connect device” on the other device",
+      404,
+    );
+  }
+
+  /** Step 3 on the connecting device: has the other side verified us yet? */
+  async checkPeer(publicKey: string): Promise<{ connected: boolean }> {
+    const peer = this.#peers.peers.find((p) => p.publicKey === publicKey);
+    if (!peer) return { connected: false };
+    try {
+      const forward = await this.#peerForward(peer);
+      if (forward.paths) {
+        await withTimeout(forward.paths.probe(), 3_000);
+        if (forward.paths.status().route === "direct") return { connected: true };
+      }
+    } catch {
+      /* try the account below */
+    }
+    if (this.#client && peer.nexDeviceId) {
+      try {
+        const socket = await openPairedStream(this.#client, peer.nexDeviceId, NEX_SERVICE, this.#peers.clientTrust(peer), 8_000);
+        socket.destroy();
+        return { connected: true };
+      } catch {
+        /* not verified yet, or unreachable */
+      }
+    }
+    return { connected: false };
+  }
+
+  /** The user gave up before the other side verified: forget that device again. */
+  cancelConnect(publicKey: string): PeersInfo {
+    return this.removePeer(publicKey);
   }
 
   declineRequest(publicKey: string): PeersInfo {
     this.#requests.delete(publicKey);
     return this.peersInfo();
-  }
-
-  /** Reads an invite so the user can compare fingerprints before adding it. */
-  previewPeer(invite: string): PairedDevice {
-    try {
-      return pairedDevice(this.#peers.preview(invite));
-    } catch (err) {
-      throw asPeerError(err);
-    }
   }
 
   addPeer(invite: string): PeersInfo {
@@ -622,13 +716,33 @@ export class NexBridge {
   }
 
   setStrict(strict: boolean): PeersInfo {
-    if (strict && this.#peers.peers.length === 0) throw new NexError("pair a device first", 409);
+    if (strict && this.#peers.peers.length === 0) throw new NexError("connect a device first", 409);
     this.#peers.setStrict(strict);
     this.#syncPeerHost();
     return this.peersInfo();
   }
 
-  /** Points whichever host is serving at the current pairing. */
+  /** Knocks from devices holding our authorization code end up as requests. */
+  #pairingOptions(): PairingOptions {
+    return {
+      secret: this.#peers.pairSecret(),
+      onRequest: (payload) => {
+        const invite = (payload as { invite?: unknown } | null)?.invite;
+        if (typeof invite !== "string") return "malformed request";
+        try {
+          this.requestPairing(invite);
+          return null;
+        } catch (err) {
+          return errMessage(err);
+        }
+      },
+    };
+  }
+
+  /**
+   * Points whichever host is serving at the current pairing. Signed out, the
+   * peer host always runs: it is how other devices knock with our code.
+   */
   #syncPeerHost(): void {
     const trust = this.#peers.hostTrust();
     if (this.#host) {
@@ -637,20 +751,17 @@ export class NexBridge {
       this.#host.updateTrust(trust);
       return;
     }
-    if (!trust) {
-      this.#peerHost?.stop();
-      this.#peerHost = null;
-      return;
-    }
+    const peers = trust?.peers ?? [];
     if (this.#peerHost) {
-      this.#peerHost.updatePeers(trust.peers);
+      this.#peerHost.updatePeers(peers);
       return;
     }
     const host = new PeerHost({
-      identity: trust.identity,
-      peers: trust.peers,
+      identity: this.#peers.identity(),
+      peers,
       services: [tcpService(NEX_SERVICE, this.#localAddr)],
       listen: { port: this.#peers.port },
+      pairing: this.#pairingOptions(),
       logger: {
         warn: (m) => this.#log.warn(`[termany] peer: ${m}`),
         error: (m) => this.#log.error(`[termany] peer: ${m}`),
@@ -658,7 +769,6 @@ export class NexBridge {
     });
     host.start();
     this.#peerHost = host;
-    this.#log.log(`[termany] peer: accepting paired devices on port ${this.#peers.port}`);
   }
 
   #route(deviceId: string): NexRoute | null {
@@ -725,6 +835,7 @@ export class NexBridge {
       // A fixed port, so the addresses in an invite stay valid.
       direct: DIRECT ? { port: this.#peers.port } : false,
       trust: this.#peers.hostTrust(),
+      pairing: this.#pairingOptions(),
       logger: {
         warn: (m) => this.#log.warn(`[termany] nex: ${m}`),
         error: (m) => this.#log.error(`[termany] nex: ${m}`),

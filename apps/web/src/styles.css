@@ -10440,8 +10440,45 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
 .devices-peer {
   flex-wrap: wrap;
 }
-.devices-pairing {
-  flex-basis: 100%;
+.link-dialog-backdrop {
+  z-index: 1000;
+}
+.link-dialog {
+  width: min(440px, calc(100vw - 32px));
+}
+.link-dialog-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.link-authcode-input {
+  width: 100%;
+  resize: vertical;
+  font-size: 12px;
+  word-break: break-all;
+}
+.link-code {
+  text-align: center;
+  font-size: 28px;
+}
+.link-code-input {
+  font-size: 20px;
+  letter-spacing: 0.12em;
+  text-align: center;
+}
+.link-waiting {
+  text-align: center;
+}
+.link-success {
+  font-size: 15px;
+  color: #16a34a;
+  margin: 8px 0 4px;
+}
+.link-request {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
 }
 .devices-code {
   font-family: var(--font-mono, ui-monospace, monospace);
