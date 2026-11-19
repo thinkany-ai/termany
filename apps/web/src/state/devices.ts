@@ -161,6 +161,18 @@ export type NexDevice = {
   isSelf: boolean;
   connectable: boolean;
   lastSeenAt: number | null;
+  /** How this machine reaches the device; null until a tunnel to it has been opened. */
+  route?: NexRoute | null;
+};
+
+/** Mirrors NexRoute in apps/server/src/nexBridge.ts. */
+export type NexRoute = {
+  via: "direct" | "relay";
+  network: "lan" | "tailscale" | "custom" | null;
+  address: string | null;
+  setupMs: number | null;
+  relaySetupMs: number | null;
+  note: string | null;
 };
 
 /**

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { cloudText, isCloud, openDevicePicker } from "../cloud";
 import { useI18n } from "../i18n";
 import { openExternal } from "../openExternal";
-import { nexRequest, type NexDevice, type NexStatus } from "../state/devices";
+import { nexRequest, type NexDevice, type NexRoute, type NexStatus } from "../state/devices";
 import { textInputProps } from "../textInputProps";
 import { openWorkspaceImport } from "../workspaceSwitcherEvents";
 
@@ -202,6 +202,7 @@ function Connected({
                     device.connectable ? "devices.online" : device.online ? "devices.notSharing" : "devices.offline",
                   )}
                 </span>
+                {device.connectable && device.route && <RouteBadge route={device.route} />}
                 {device.connectable && (
                   <button
                     type="button"
@@ -220,5 +221,26 @@ function Connected({
         )}
       </div>
     </>
+  );
+}
+
+/** "Direct · Tailscale · 6 ms" / "Relay · 180 ms": how this machine reaches a device right now. */
+function RouteBadge({ route }: { route: NexRoute }) {
+  const { t } = useI18n();
+  const parts = [t(route.via === "direct" ? "devices.routeDirect" : "devices.routeRelay")];
+  if (route.via === "direct" && route.network === "lan") parts.push(t("devices.routeLan"));
+  if (route.via === "direct" && route.network === "tailscale") parts.push("Tailscale");
+  if (route.setupMs !== null) parts.push(`${route.setupMs} ms`);
+  const title = [
+    route.address,
+    route.via === "direct" && route.relaySetupMs !== null ? t("devices.routeRelayWouldBe", { ms: route.relaySetupMs }) : null,
+    route.note,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return (
+    <span className={`devices-route ${route.via}`} title={title || undefined}>
+      {parts.join(" · ")}
+    </span>
   );
 }

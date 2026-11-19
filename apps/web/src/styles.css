@@ -10400,6 +10400,18 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   color: var(--fg-dim);
   font-size: 12px;
 }
+.devices-route {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--fg-dim) 12%, transparent);
+  white-space: nowrap;
+}
+.devices-route.direct {
+  color: #16a34a;
+  background: color-mix(in srgb, #22c55e 14%, transparent);
+}
 .devices-actions {
   justify-content: flex-end;
   align-items: center;
