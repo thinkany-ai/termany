@@ -3,7 +3,20 @@
 
 export * from "../index.js";
 export { NexAdmin, type IssueDeviceOptions, type NexAdminOptions } from "./admin.js";
-export { forwardTcp, openStream, type ForwardTcpOptions } from "./forward.js";
+export {
+  DIRECT_SERVICE,
+  DirectPaths,
+  classifyAddress,
+  fetchDirectInfo,
+  type DirectEndpoint,
+  type DirectEndpointKind,
+  type DirectInfo,
+  type DirectOptions,
+  type DirectPathsOptions,
+  type PathInfo,
+  type PathStatus,
+} from "./direct.js";
+export { forwardTcp, openStream, type ForwardServer, type ForwardTcpOptions } from "./forward.js";
 export { NexHost, type Logger, type NexHostEvents, type NexHostOptions } from "./host.js";
 export {
   echoService,

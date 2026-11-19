@@ -7,7 +7,8 @@ import WebSocket from "ws";
 import type { NexClient } from "../client.js";
 import { NexFatalError } from "../errors.js";
 import { CloseCode, PROTOCOL_VERSION, type HostMessage, type ServerMessage } from "../protocol.js";
-import { serviceInfo, validateServices, type ExposedService } from "./services.js";
+import { DIRECT_SERVICE, DirectServer, type DirectEndpoint, type DirectOptions } from "./direct.js";
+import { handlerService, serviceInfo, validateServices, type ExposedService } from "./services.js";
 import { HandshakeError, closeWs, connectWs, echo, pipeTcp, pipeWs, release } from "./wsutil.js";
 
 /** Console-like logger; every method is optional. Pass `console` to see everything. */
@@ -29,6 +30,14 @@ export interface NexHostOptions {
    * host was stopped through its AbortSignal.
    */
   onOffline?: (error: Error | null) => void;
+  /**
+   * Also accept connections straight from other devices of the account over
+   * this machine's LAN / Tailscale addresses (TLS-PSK, keys handed out over
+   * the relay), so clients can skip the relay when they can see this host.
+   * Only `tcp` services with a local port are reachable this way. Off by
+   * default; `true` means LAN + Tailscale on free ports.
+   */
+  direct?: boolean | DirectOptions;
 }
 
 export interface NexHostEvents {
@@ -62,15 +71,50 @@ export class NexHost extends EventEmitter<NexHostEvents> {
   #running = false;
   readonly #streams = new Set<WebSocket>();
   readonly #locals = new Set<net.Socket | WebSocket>();
+  readonly #direct: DirectServer | null = null;
+  readonly #directService: ExposedService | null = null;
 
   constructor(options: NexHostOptions) {
     super();
-    validateServices(options.services);
     this.client = options.client;
-    this.#services = new Map(options.services.map((s) => [s.name, s]));
     this.#log = options.logger ?? {};
     this.#onOnline = options.onOnline;
     this.#onOffline = options.onOffline;
+    if (options.direct) {
+      const direct = new DirectServer({
+        client: this.client,
+        direct: options.direct === true ? {} : options.direct,
+        logger: this.#log,
+        lookup: (name) => {
+          const svc = this.#services.get(name);
+          if (!svc) return `unknown service '${name}'`;
+          if (svc.kind !== "tcp" || svc.target.type !== "tcp") return `service '${name}' is not reachable directly`;
+          return { host: svc.target.host, port: svc.target.port };
+        },
+        services: () => this.services.filter((s) => s.kind === "tcp" && s.target.type === "tcp").map((s) => s.name),
+      });
+      this.#direct = direct;
+      this.#directService = handlerService(DIRECT_SERVICE, "ws", (ws, info) => {
+        ws.send(JSON.stringify(direct.info(info.fromDeviceId)));
+        ws.close();
+      });
+    }
+    this.#checkServices(options.services);
+    this.#services = new Map(options.services.map((s) => [s.name, s]));
+  }
+
+  /** Addresses taking direct connections right now (empty when `direct` is off). */
+  get directEndpoints(): DirectEndpoint[] {
+    return this.#direct?.endpoints ?? [];
+  }
+
+  #checkServices(services: ExposedService[]): void {
+    validateServices(services);
+    if (!this.#direct) return;
+    if (services.some((s) => s.name === DIRECT_SERVICE)) {
+      throw new TypeError(`'${DIRECT_SERVICE}' is reserved for direct paths`);
+    }
+    if (services.length >= 64) throw new TypeError("at most 63 services when direct paths are on");
   }
 
   /** True while the relay considers this device online. */
@@ -88,7 +132,7 @@ export class NexHost extends EventEmitter<NexHostEvents> {
    * Streams already open keep running.
    */
   updateServices(services: ExposedService[]): void {
-    validateServices(services);
+    this.#checkServices(services);
     this.#services = new Map(services.map((s) => [s.name, s]));
     const control = this.#control;
     if (control && control.readyState === WebSocket.OPEN) this.#send(control, this.#hello());
@@ -103,6 +147,7 @@ export class NexHost extends EventEmitter<NexHostEvents> {
   async run(signal?: AbortSignal): Promise<void> {
     if (this.#running) throw new Error("NexHost.run() is already running");
     this.#running = true;
+    this.#direct?.start();
     try {
       let backoff = INITIAL_BACKOFF_MS;
       for (;;) {
@@ -121,6 +166,7 @@ export class NexHost extends EventEmitter<NexHostEvents> {
       }
     } finally {
       this.#running = false;
+      this.#direct?.stop();
       for (const ws of this.#streams) closeWs(ws);
       for (const local of this.#locals) {
         if (local instanceof WebSocket) closeWs(local);
@@ -130,7 +176,9 @@ export class NexHost extends EventEmitter<NexHostEvents> {
   }
 
   #hello(): HostMessage {
-    return { type: "hello", protocol: PROTOCOL_VERSION, services: this.services.map(serviceInfo) };
+    const services = this.services.map(serviceInfo);
+    if (this.#directService) services.push(serviceInfo(this.#directService));
+    return { type: "hello", protocol: PROTOCOL_VERSION, services };
   }
 
   #send(ws: WebSocket, msg: HostMessage): void {
@@ -254,7 +302,7 @@ export class NexHost extends EventEmitter<NexHostEvents> {
       this.#log.warn?.(`rejecting stream ${streamId} (${service}): ${reason}`);
       this.#send(control, { type: "reject", stream_id: streamId, reason });
     };
-    const svc = this.#services.get(service);
+    const svc = this.#services.get(service) ?? (service === DIRECT_SERVICE ? this.#directService : null);
     if (!svc) return reject(`unknown service '${service}'`);
 
     const accept = async (): Promise<WebSocket | null> => {

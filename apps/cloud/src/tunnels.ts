@@ -91,6 +91,9 @@ export class Tunnels {
       const server = forwardTcp(client, deviceId, NEX_SERVICE, {
         port: 0,
         host: "127.0.0.1",
+        // The gateway is never on a user's LAN or tailnet; trying their
+        // private addresses from here would only probe our own network.
+        direct: false,
         logger: { warn: (m) => console.warn(`[cloud] tunnel ${deviceId}: ${m}`) },
       });
       const created: Tunnel = {

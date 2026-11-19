@@ -1,10 +1,9 @@
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
-import type { Server } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { NexApiError, NexClient, type DeviceCredential } from "nex-sdk";
-import { NexHost, echoService, forwardTcp, tcpService } from "nex-sdk/node";
+import { NexHost, echoService, forwardTcp, tcpService, type ForwardServer, type PathStatus } from "nex-sdk/node";
 
 /**
  * Puts this Termany server on a nex relay so the user's other devices can use
@@ -17,6 +16,10 @@ import { NexHost, echoService, forwardTcp, tcpService } from "nex-sdk/node";
  * - Client side: `connect(deviceId)` listens on a loopback port and tunnels
  *   every connection to that device's `termany` service. A window pointed at
  *   that port IS a window on the other machine.
+ * - Direct paths: when two devices share a LAN or a Tailscale tailnet, those
+ *   connections skip the relay (TLS-PSK, keys handed out over the relay) and
+ *   fall back to it per connection when the direct path fails. Set
+ *   TERMANY_NEX_DIRECT=0 to stay relay-only.
  *
  * The device credential is a bearer secret: kept in its own 0600 file, never
  * logged, never sent to the frontend.
@@ -28,6 +31,7 @@ export const NEX_APP = "termany";
 /** Where "Sign in with termany.sh" goes; TERMANY_SITE_URL points dev at a local site. */
 const SITE_URL = (process.env.TERMANY_SITE_URL || "https://termany.sh").replace(/\/+$/, "");
 const LOGIN_TTL_MS = 10 * 60_000;
+const DIRECT = process.env.TERMANY_NEX_DIRECT !== "0";
 
 type SavedConfig = {
   server: string;
@@ -61,6 +65,20 @@ export type NexDevice = {
   /** Online and exposing the `termany` service right now. */
   connectable: boolean;
   lastSeenAt: number | null;
+  /** How this machine reaches the device right now; null until a tunnel to it is open. */
+  route: NexRoute | null;
+};
+
+export type NexRoute = {
+  via: "direct" | "relay";
+  /** Direct only: which network, and the address in use. */
+  network: "lan" | "tailscale" | "custom" | null;
+  address: string | null;
+  /** Time to open one connection over this route, from the last measurement. */
+  setupMs: number | null;
+  relaySetupMs: number | null;
+  /** Why direct is not used, when it is not. */
+  note: string | null;
 };
 
 export type NexSetupInput = {
@@ -96,7 +114,9 @@ export class NexBridge {
   #abort: AbortController | null = null;
   #online = false;
   #error: string | null = null;
-  readonly #forwards = new Map<string, Promise<Server>>();
+  readonly #forwards = new Map<string, Promise<ForwardServer>>();
+  /** Settled tunnels, for reading their route synchronously. */
+  readonly #openForwards = new Map<string, ForwardServer>();
   readonly #localPort: number;
   /** Sign-ins started from this server and not yet completed: state → device name + expiry. */
   readonly #logins = new Map<string, { deviceName: string; expires: number }>();
@@ -249,6 +269,7 @@ export class NexBridge {
         isSelf: d.is_self,
         connectable: !d.is_self && d.online && d.services.some((s) => s.name === NEX_SERVICE && s.kind === "tcp"),
         lastSeenAt: d.last_seen_at,
+        route: this.#route(d.id),
       }));
     } catch (err) {
       throw asNexError(err);
@@ -277,15 +298,39 @@ export class NexBridge {
       forward = forwardTcp(client, deviceId, NEX_SERVICE, {
         port: 0,
         host: "127.0.0.1",
+        direct: DIRECT,
         logger: { warn: (m) => this.#log.warn(`[termany] nex forward: ${m}`) },
       });
       this.#forwards.set(deviceId, forward);
-      forward.catch(() => this.#forwards.delete(deviceId));
+      forward.then(
+        (server) => {
+          if (this.#forwards.get(deviceId) !== forward) return;
+          this.#openForwards.set(deviceId, server);
+          let last = "";
+          server.paths?.on("change", (status) => {
+            const route = toRoute(status);
+            // Probes re-measure every few seconds; only a new route is news.
+            const key = `${route.via} ${route.address}`;
+            if (key === last) return;
+            last = key;
+            this.#log.log(
+              `[termany] nex: ${device.name} via ${route.via}${route.address ? ` ${route.address}` : ""}${route.setupMs !== null ? ` (${route.setupMs} ms)` : ""}`,
+            );
+          });
+        },
+        () => this.#forwards.delete(deviceId),
+      );
     }
     const server = await forward;
     const address = server.address();
     if (!address || typeof address === "string") throw new NexError("tunnel has no local port", 500);
-    return { url: `http://127.0.0.1:${address.port}`, device };
+    return { url: `http://127.0.0.1:${address.port}`, device: { ...device, route: this.#route(deviceId) } };
+  }
+
+  #route(deviceId: string): NexRoute | null {
+    const server = this.#openForwards.get(deviceId);
+    if (!server) return null;
+    return server.paths ? toRoute(server.paths.status()) : { ...RELAY_ONLY, note: "direct paths are turned off" };
   }
 
   /** Signs this device out of the relay: revoke it, stop serving, forget the credential. */
@@ -321,6 +366,7 @@ export class NexBridge {
       void forward.then((server) => server.close()).catch(() => {});
     }
     this.#forwards.clear();
+    this.#openForwards.clear();
   }
 
   #require(): { client: NexClient; config: SavedConfig } {
@@ -338,6 +384,7 @@ export class NexBridge {
     const host = new NexHost({
       client: this.#client,
       services: [tcpService(NEX_SERVICE, this.#localAddr), echoService()],
+      direct: DIRECT,
       logger: {
         warn: (m) => this.#log.warn(`[termany] nex: ${m}`),
         error: (m) => this.#log.error(`[termany] nex: ${m}`),
@@ -361,6 +408,19 @@ export class NexBridge {
       this.#error = errMessage(err);
     });
   }
+}
+
+const RELAY_ONLY: NexRoute = { via: "relay", network: null, address: null, setupMs: null, relaySetupMs: null, note: null };
+
+function toRoute(status: PathStatus): NexRoute {
+  return {
+    via: status.route,
+    network: status.endpoint?.kind ?? null,
+    address: status.endpoint ? `${status.endpoint.host}:${status.endpoint.port}` : null,
+    setupMs: status.setupMs,
+    relaySetupMs: status.relaySetupMs,
+    note: status.route === "relay" ? status.error ?? "direct paths are slower or unreachable" : null,
+  };
 }
 
 function normalizeServer(raw: string): string {
