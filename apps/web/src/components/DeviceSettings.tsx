@@ -180,16 +180,19 @@ function ThisDevice({
             })
           }
         />
-        <span className="devices-me-account">
-          {status.configured ? (
-            <>
-              {t("devices.signedIn")} <span className="ms-mono">{status.account ?? status.server}</span>
-            </>
-          ) : (
-            t(waiting ? "devices.signIn.waiting" : "devices.signedOut")
-          )}
-        </span>
         <span className="devices-peer-actions">
+          {/* The account sits with the button that acts on it. */}
+          {!confirmLeave && (
+            <span className="devices-me-account devices-remove-note">
+              {status.configured ? (
+                <>
+                  {t("devices.signedIn")} <span className="ms-mono">{status.account ?? status.server}</span>
+                </>
+              ) : (
+                t(waiting ? "devices.signIn.waiting" : "devices.signedOut")
+              )}
+            </span>
+          )}
           {status.configured ? (
             confirmLeave ? (
               <>
