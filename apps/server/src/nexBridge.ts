@@ -14,13 +14,24 @@ import {
   forwardTcp,
   openPairedStream,
   openStream,
+  pairedKey,
   sendPairingRequest,
   tcpService,
   type ForwardServer,
   type PairingOptions,
   type PathStatus,
 } from "nex-sdk/node";
-import { NexPeers, PeerError, isPeerId, normalizeCode, pairingCode, peerId, type PairedPeer } from "./nexPeers.js";
+import { createHmac, timingSafeEqual } from "node:crypto";
+import {
+  NexPeers,
+  PeerError,
+  identityService,
+  isPeerId,
+  normalizeCode,
+  pairingCode,
+  peerId,
+  type PairedPeer,
+} from "./nexPeers.js";
 
 /**
  * Puts this Termany server on a nex relay so the user's other devices can use
@@ -396,6 +407,13 @@ export class NexBridge {
         throw asNexError(err);
       }
       for (const d of devices) {
+        // A device connected by code that is also in the account: its
+        // advertised key id tells us they are one device.
+        const idService = d.services.find((s) => s.name.startsWith("termany.id."));
+        if (idService) {
+          const known = this.#peers.byId(`peer:${idService.name.slice("termany.id.".length)}`);
+          if (known) this.#peers.linkNexDevice(known.publicKey, d.id);
+        }
         const paired = this.#peers.byNexDevice(d.id);
         // It says so (marker), or an older Termany shows it by refusing us
         // a direct-path key ("only accepts paired devices").
@@ -411,8 +429,8 @@ export class NexBridge {
         if (connectable) this.#measureRelay(d.id);
         out.push({
           id: d.id,
-          // A name given to it here (when connected by code) wins over the account's.
-          name: this.#peers.byNexDevice(d.id)?.alias ?? d.name,
+          // A name given to it here wins over the account's.
+          name: paired?.alias ?? this.#peers.aliasFor(d.id) ?? d.name,
           app: d.app,
           online: d.online,
           isSelf: d.is_self,
@@ -822,6 +840,30 @@ export class NexBridge {
     }
   }
 
+  /** Proof that the sender holds our pairing (only the two devices can compute it). */
+  #unpairProof(peerKey: string): string {
+    return createHmac("sha256", pairedKey(this.#peers.identity(), peerKey)).update("termany-unpair/v1").digest("base64url");
+  }
+
+  async #notifyUnpair(peer: PairedPeer): Promise<void> {
+    const client = this.#client;
+    if (!client || !peer.nexDeviceId || peer.pending) return;
+    let ws;
+    try {
+      ws = await openStream(client, peer.nexDeviceId, PAIR_SERVICE);
+      ws.send(JSON.stringify({ unpair: this.#peers.identity().publicKey, proof: this.#unpairProof(peer.publicKey) }));
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 5_000);
+        ws!.once("message", () => (clearTimeout(timer), resolve()));
+        ws!.once("close", () => (clearTimeout(timer), resolve()));
+      });
+    } catch (err) {
+      this.#log.warn(`[termany] peer: could not tell ${peer.name} about turning encryption off: ${errMessage(err)}`);
+    } finally {
+      ws?.close();
+    }
+  }
+
   /** The other side of #requestThroughAccount: one request in, our invite out. */
   #servePairing(ws: import("ws").WebSocket): void {
     const timer = setTimeout(() => ws.close(), 15_000);
@@ -829,7 +871,25 @@ export class NexBridge {
       clearTimeout(timer);
       let reply: object;
       try {
-        const invite = (JSON.parse(data.toString()) as { invite?: unknown }).invite;
+        const message = JSON.parse(data.toString()) as { invite?: unknown; unpair?: unknown; proof?: unknown };
+        if (typeof message.unpair === "string" && typeof message.proof === "string") {
+          // The other side turned end-to-end encryption off: follow, if the
+          // proof shows it really is that device.
+          const peer = this.#peers.peers.find((p) => p.publicKey === message.unpair);
+          if (!peer) {
+            reply = { ok: true };
+          } else {
+            const expected = Buffer.from(this.#unpairProof(peer.publicKey));
+            const given = Buffer.from(message.proof);
+            if (expected.length !== given.length || !timingSafeEqual(expected, given)) throw new NexError("bad proof");
+            this.removePeer(peer.publicKey, { notify: false });
+            this.#log.log(`[termany] peer: ${peer.name} turned end-to-end encryption off`);
+            reply = { ok: true };
+          }
+          ws.send(JSON.stringify(reply), () => ws.close());
+          return;
+        }
+        const invite = message.invite;
         if (typeof invite !== "string") throw new NexError("malformed request");
         this.requestPairing(invite);
         reply = { ok: true, invite: this.#ownInvite() };
@@ -935,6 +995,30 @@ export class NexBridge {
     return this.peersInfo();
   }
 
+  /**
+   * "Refresh": measure every way to every device again now, instead of at
+   * the next periodic probe (after changing networks, opening a firewall…).
+   */
+  async remeasure(): Promise<{ ok: true }> {
+    this.#relayMs.clear();
+    const forwards = [...this.#openForwards.values()];
+    await Promise.all(forwards.map((f) => (f.paths ? withTimeout(f.paths.probe(), 3_000) : Promise.resolve())));
+    return { ok: true };
+  }
+
+  /** Names another device here only: a connected-by-code one, or an account device. */
+  renameDevice(deviceId: string, name: string): { ok: true } {
+    const peer = isPeerId(deviceId) ? this.#peers.byId(deviceId) : this.#peers.byNexDevice(deviceId);
+    try {
+      if (peer) this.#peers.rename(peer.publicKey, name);
+      else if (!isPeerId(deviceId)) this.#peers.setAlias(deviceId, name);
+      else throw new NexError("that device is no longer connected", 404);
+    } catch (err) {
+      throw asPeerError(err);
+    }
+    return { ok: true };
+  }
+
   renamePeer(publicKey: string, name: string): PeersInfo {
     try {
       this.#peers.rename(publicKey, name);
@@ -944,8 +1028,11 @@ export class NexBridge {
     return this.peersInfo();
   }
 
-  removePeer(publicKey: string): PeersInfo {
+  removePeer(publicKey: string, options: { notify?: boolean } = {}): PeersInfo {
     const peer = this.#peers.peers.find((p) => p.publicKey === publicKey);
+    // Turning encryption off is mutual: tell the other side, or it would keep
+    // a one-sided pairing that only fails later. Best effort.
+    if (peer && options.notify !== false) void this.#notifyUnpair(peer);
     this.#peers.remove(publicKey);
     if (peer) this.#closeForward(peerId(peer.publicKey));
     this.#syncPeerHost();
@@ -967,6 +1054,8 @@ export class NexBridge {
       handlerService(PAIR_SERVICE, "ws", (ws) => this.#servePairing(ws)),
     ];
     if (this.#peers.hostTrust()?.strict) services.push(handlerService(STRICT_MARKER, "ws", (ws) => ws.close()));
+    // Public: lets a device that knows us by code see which account device we are.
+    services.push(handlerService(identityService(this.#peers.identity().publicKey), "ws", (ws) => ws.close()));
     return services;
   }
 

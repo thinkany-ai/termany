@@ -59,6 +59,8 @@ type PeersFile = {
   pairSecret?: string;
   /** This device's name while signed out (signed in, the account's record wins). */
   deviceName?: string;
+  /** Names given here to account devices that are not connected by code (relay id → name). */
+  aliases?: Record<string, string>;
 };
 
 /** An authorization code, read: the device, plus the secret that lets us knock. */
@@ -218,6 +220,33 @@ export class NexPeers {
     return next;
   }
 
+  /**
+   * We learned which account device a code-connected one is (it advertises
+   * its key's id on the relay): remember it, so the two show as one.
+   */
+  linkNexDevice(publicKey: string, nexDeviceId: string): void {
+    if (!this.#state.peers.some((p) => p.publicKey === publicKey && p.nexDeviceId !== nexDeviceId)) return;
+    this.#state = {
+      ...this.#state,
+      peers: this.#state.peers.map((p) => (p.publicKey === publicKey ? { ...p, nexDeviceId } : p)),
+    };
+    this.#save();
+  }
+
+  aliasFor(nexDeviceId: string): string | null {
+    return this.#state.aliases?.[nexDeviceId] ?? null;
+  }
+
+  /** Names an account device here only; an empty name restores its own. */
+  setAlias(nexDeviceId: string, name: string): void {
+    const alias = cleanName(name);
+    const aliases = { ...this.#state.aliases };
+    if (alias) aliases[nexDeviceId] = alias;
+    else delete aliases[nexDeviceId];
+    this.#state = { ...this.#state, aliases };
+    this.#save();
+  }
+
   /** It verified us: from now on it is a connected device both ways. Returns whether anything changed. */
   confirm(publicKey: string): boolean {
     const peer = this.#state.peers.find((p) => p.publicKey === publicKey);
@@ -232,7 +261,7 @@ export class NexPeers {
 
   /** Renames a connected device on this machine only; an empty name restores its own. */
   rename(publicKey: string, name: string): void {
-    const alias = (name ?? "").trim().replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 100);
+    const alias = cleanName(name);
     if (!this.#state.peers.some((p) => p.publicKey === publicKey)) throw new PeerError("that device is not connected", 404);
     this.#state = {
       ...this.#state,
@@ -359,10 +388,23 @@ function readPeers(file: string): PeersFile {
       strict: parsed.strict === true && peers.length > 0,
       pairSecret: typeof parsed.pairSecret === "string" ? parsed.pairSecret : undefined,
       deviceName: typeof parsed.deviceName === "string" && parsed.deviceName.trim() ? parsed.deviceName : undefined,
+      aliases:
+        parsed.aliases && typeof parsed.aliases === "object"
+          ? Object.fromEntries(Object.entries(parsed.aliases).filter((e): e is [string, string] => typeof e[1] === "string"))
+          : undefined,
     };
   } catch {
     return { peers: [], strict: false };
   }
+}
+
+function cleanName(name: string): string {
+  return (name ?? "").trim().replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 100);
+}
+
+/** The relay service a device advertises so others can match it to a code-connected entry. */
+export function identityService(publicKey: string): string {
+  return `termany.id.${peerId(publicKey).slice("peer:".length)}`;
 }
 
 function writeSecret(file: string, value: unknown): void {

@@ -794,6 +794,12 @@ const http = createServer((req, res) => {
           const body = await readJson(req, 64_000);
           return nex.declineRequest(String(body?.publicKey ?? ""));
         }
+        case "POST /api/nex/remeasure":
+          return nex.remeasure();
+        case "POST /api/nex/devices/rename": {
+          const body = await readJson(req, 64_000);
+          return nex.renameDevice(String(body?.deviceId ?? ""), String(body?.name ?? ""));
+        }
         case "POST /api/nex/peers/rename": {
           const body = await readJson(req, 64_000);
           return nex.renamePeer(String(body?.publicKey ?? ""), String(body?.name ?? ""));

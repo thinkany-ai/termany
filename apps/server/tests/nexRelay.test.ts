@@ -128,3 +128,35 @@ test("a device that already trusts us confirms right away", { skip: !available &
   assert.equal(mini.bridge.peersInfo().requests.length, 0, "no request to verify: it already trusts us");
   await waitFor("connected without typing a code", async () => (await laptop.bridge.checkPeer(offer.publicKey)).connected);
 });
+
+test("one row per device, mutual turn-off, local names", { skip: !available && `no relay at ${BIN}` }, async () => {
+  const relay = await startRelay();
+  const miniCred = await NexClient.bootstrap(relay, { accountName: "acct3", deviceName: "mini", app: "termany" });
+  const owner = new NexClient({ server: relay, credential: miniCred });
+  const laptopCred = await NexClient.claim(relay, { code: (await owner.createPairingCode()).code, deviceName: "laptop", app: "termany" });
+  const mini = await device("mini", relay, miniCred);
+  const laptop = await device("laptop", relay, laptopCred);
+
+  // Connected by a code that does not say which account device it is
+  // (made while signed out): still one row once the relay shows mini's key id.
+  const invite = mini.bridge.peersInfo().invite;
+  const body = JSON.parse(Buffer.from(invite.slice("termany1.".length), "base64url").toString());
+  delete body.dev;
+  const offer = await laptop.bridge.connectWithCode("termany1." + Buffer.from(JSON.stringify(body)).toString("base64url"));
+  mini.bridge.verifyCode(offer.code);
+  await waitFor("verified", async () => (await laptop.bridge.checkPeer(offer.publicKey)).connected);
+  await waitFor("one row for mini", async () => {
+    const rows = (await laptop.bridge.devices()).filter((d) => !d.isSelf);
+    return rows.length === 1 && rows[0].id === mini.id && rows[0].paired === true;
+  });
+
+  // Turning end-to-end encryption off on one side turns it off on both.
+  assert.equal(mini.bridge.peersInfo().peers.length, 1);
+  laptop.bridge.removePeer(offer.publicKey);
+  await waitFor("mini follows", () => mini.bridge.peersInfo().peers.length === 0);
+
+  // Any other device can be given a name here, without renaming it elsewhere.
+  laptop.bridge.renameDevice(mini.id, "Studio");
+  assert.equal((await laptop.bridge.devices()).find((d) => d.id === mini.id)?.name, "Studio");
+  assert.equal(mini.bridge.status().configured && mini.bridge.status().deviceName, "mini");
+});

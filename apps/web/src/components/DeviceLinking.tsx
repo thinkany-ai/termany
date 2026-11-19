@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useI18n } from "../i18n";
 import { nexRequest, type PairingOffer } from "../state/devices";
 import { textInputProps } from "../textInputProps";
+import { useImeGuard } from "../imeGuard";
 
 /**
  * Connecting two devices (Settings → Devices):
@@ -197,6 +198,7 @@ export function VerifyDialog({ onClose }: { onClose: (connected: boolean) => voi
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState<string | null>(null);
+  const ime = useImeGuard();
 
   const verify = async () => {
     setBusy(true);
@@ -223,7 +225,9 @@ export function VerifyDialog({ onClose }: { onClose: (connected: boolean) => voi
             maxLength={12}
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
+            {...ime.props}
             onKeyDown={(e) => {
+              if (ime.handled(e)) return;
               if (e.key === "Enter" && code.trim() && !busy) void verify();
             }}
           />

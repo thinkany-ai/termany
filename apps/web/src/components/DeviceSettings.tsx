@@ -3,6 +3,7 @@ import { cloudText, isCloud, openDevicePicker } from "../cloud";
 import { useI18n } from "../i18n";
 import { openExternal } from "../openExternal";
 import { useStore } from "../state/store";
+import { useImeGuard } from "../imeGuard";
 import {
   nexRequest,
   refreshAvailability,
@@ -283,6 +284,9 @@ function ThisDevice({
 /** A name that turns into an input on click: Enter saves, Escape gives up. */
 function InlineName({ name, onSave }: { name: string; onSave: (name: string) => void | Promise<void> }) {
   const { t } = useI18n();
+  // Enter / Escape that only confirm an input-method composition (Latin
+  // letters under a Chinese IME) must not save or cancel the rename.
+  const ime = useImeGuard();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(name);
   const save = () => {
@@ -295,6 +299,7 @@ function InlineName({ name, onSave }: { name: string; onSave: (name: string) => 
     return (
       <input
         {...textInputProps}
+        {...ime.props}
         className="devices-rename"
         autoFocus
         maxLength={100}
@@ -302,6 +307,7 @@ function InlineName({ name, onSave }: { name: string; onSave: (name: string) => 
         onChange={(e) => setValue(e.target.value)}
         onBlur={save}
         onKeyDown={(e) => {
+          if (ime.handled(e)) return;
           if (e.key === "Enter") save();
           if (e.key === "Escape") {
             setValue(name);
@@ -349,7 +355,21 @@ function MyDevices({
   const [dialog, setDialog] = useState<{ kind: "connect"; deviceId?: string } | { kind: "verify" } | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const workspaces = useStore((s) => s.workspaces);
+
+  /** Measure every way to every device now, then reload the list. */
+  const refreshNow = async () => {
+    setRefreshing(true);
+    try {
+      await nexRequest("remeasure", {});
+      await onChange();
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const peerOf = (d: NexDevice) => peers?.peers.find((p) => p.id === d.id || (p.nexDeviceId !== null && p.nexDeviceId === d.id));
   const workspacesFrom = (d: NexDevice, p: PairedDevice) =>
@@ -381,12 +401,35 @@ function MyDevices({
     void onChange();
   };
 
+  /** A name for it on this device only; workspaces from it follow. */
+  const renameDevice = async (d: NexDevice, p: PairedDevice | undefined, name: string) => {
+    try {
+      await nexRequest("devices/rename", { deviceId: d.id, name });
+      const ids = [d.id, p?.id, p?.nexDeviceId].filter(Boolean);
+      useStore.setState((s) => ({
+        workspaces: s.workspaces.map((w) => (w.device && ids.includes(w.device.id) ? { ...w, device: { ...w.device, name } } : w)),
+      }));
+      void onChange();
+    } catch (err) {
+      setError(errorText(err));
+    }
+  };
+
   return (
     <div className="ms-card">
       <div className="ms-head devices-head">
         <div className="ms-card-title">{t("devices.others")}</div>
         {!isCloud && (
           <div className="ms-head-actions devices-actions">
+            <button
+              type="button"
+              className="ms-btn"
+              disabled={refreshing}
+              title={t("devices.refreshTitle")}
+              onClick={() => void refreshNow()}
+            >
+              {t(refreshing ? "devices.refreshing" : "devices.refresh")}
+            </button>
             <button type="button" className="ms-btn" onClick={() => setDialog({ kind: "verify" })}>
               {t("devices.link.verify")}
             </button>
@@ -423,10 +466,10 @@ function MyDevices({
             return (
               <li key={d.id} className="devices-self devices-peer">
                 <span className={`devices-dot ${d.connectable ? "online" : pending ? "pending" : ""}`} />
-                {p && !isCloud ? (
-                  <PeerName device={p} onRenamed={onPeers} />
-                ) : (
+                {isCloud ? (
                   <strong>{d.name}</strong>
+                ) : (
+                  <InlineName name={d.name} onSave={(name) => renameDevice(d, p, name)} />
                 )}
                 <E2eToggle
                   device={d}
@@ -578,67 +621,4 @@ function Latency({ device }: { device: NexDevice }) {
   );
 }
 
-/**
- * A connected device's name, renamable in place. The name is only this
- * machine's label for it; workspaces from it show the new name too.
- */
-function PeerName({ device, onRenamed }: { device: PairedDevice; onRenamed: (info: PeersInfo) => void }) {
-  const { t } = useI18n();
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(device.name);
-
-  const save = async () => {
-    setEditing(false);
-    const next = name.trim();
-    if (!next || next === device.name) return setName(device.name);
-    try {
-      onRenamed(await nexRequest<PeersInfo>("peers/rename", { publicKey: device.publicKey, name: next }));
-      // Workspaces remember the name they were imported under: keep them in step.
-      useStore.setState((s) => ({
-        workspaces: s.workspaces.map((w) =>
-          w.device && (w.device.id === device.id || w.device.id === device.nexDeviceId)
-            ? { ...w, device: { ...w.device, name: next } }
-            : w,
-        ),
-      }));
-    } catch {
-      setName(device.name);
-    }
-  };
-
-  if (editing) {
-    return (
-      <input
-        {...textInputProps}
-        className="devices-rename"
-        autoFocus
-        maxLength={100}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onBlur={() => void save()}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") void save();
-          if (e.key === "Escape") {
-            setName(device.name);
-            setEditing(false);
-          }
-        }}
-      />
-    );
-  }
-  return (
-    <button
-      type="button"
-      className="devices-name-btn"
-      title={`${t("devices.link.rename")}\n${device.fingerprint}\n${device.addresses.join("\n")}`}
-      onClick={() => {
-        setName(device.name);
-        setEditing(true);
-      }}
-    >
-      <strong>{device.name}</strong>
-      <span className="devices-name-edit">✎</span>
-    </button>
-  );
-}
 
