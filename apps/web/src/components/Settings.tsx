@@ -471,7 +471,11 @@ export function Settings({
                     style={{
                       // Transparent terminal palettes (Spreadsheet) still need their
                       // document color beneath the miniature in every active theme.
-                      background: `linear-gradient(${item.term.background}, ${item.term.background}), ${item.colors.bg}`,
+                      // A theme's background image goes between the two, so a
+                      // see-through terminal (Miami) shows its artwork here too.
+                      background: `linear-gradient(${item.term.background}, ${item.term.background}), ${
+                        item.background?.image ? `url("${item.background.image}") center / cover, ` : ""
+                      }${item.colors.bg}`,
                       borderColor: item.colors.border,
                       borderRadius: item.radius.lg,
                     }}
