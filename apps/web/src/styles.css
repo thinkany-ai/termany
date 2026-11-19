@@ -8399,7 +8399,8 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   margin-bottom: 5px;
 }
 .ms-field input,
-.ms-field textarea {
+.ms-field textarea,
+.devices-input {
   width: 100%;
   padding: 8px 10px;
   background: var(--bg);
@@ -8412,7 +8413,8 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   resize: vertical;
 }
 .ms-field input:focus,
-.ms-field textarea:focus {
+.ms-field textarea:focus,
+.devices-input:focus {
   border-color: var(--accent);
 }
 .ms-form-actions {
@@ -10395,6 +10397,52 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
 .devices-dot.online {
   background: #22c55e;
   opacity: 1;
+}
+.devices-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+}
+.devices-field-label {
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+.devices-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.devices-field-row .devices-input {
+  flex: 1;
+  width: auto;
+  min-width: 140px;
+}
+.devices-name-label {
+  font-size: 12px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+.devices-field .ms-hint {
+  margin: 0;
+}
+.devices-signin {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.devices-method {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--fg-dim);
+  border: 1px solid color-mix(in srgb, var(--fg-dim) 30%, transparent);
+  white-space: nowrap;
+}
+.devices-method.paired {
+  color: #2563eb;
+  border-color: color-mix(in srgb, #3b82f6 40%, transparent);
 }
 .devices-name-btn {
   display: inline-flex;
