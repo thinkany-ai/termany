@@ -189,3 +189,18 @@ test("renaming a connected device sticks; a cancelled sign-in link stops working
   laptop.bridge.loginCancel();
   await assert.rejects(laptop.bridge.loginCallback("code", state), /unknown or expired/);
 });
+
+test("renaming this device while signed out: status, invite and the other side see it", { skip: !hasPrivateAddress && "no LAN or tailnet address" }, async () => {
+  const mini = await device("mini");
+  const laptop = await device("laptop");
+  await assert.rejects(mini.bridge.renameSelf("   "), /name is required/);
+  const status = await mini.bridge.renameSelf("Studio Mini");
+  assert.equal(status.configured ? status.deviceName : status.defaultDeviceName, "Studio Mini");
+  const offer = await laptop.bridge.connectWithCode(mini.bridge.peersInfo().invite);
+  assert.equal(offer.name, "Studio Mini");
+  // The paired device list carries a measured LAN time once connected.
+  mini.bridge.verifyCode(offer.code);
+  await laptop.bridge.checkPeer(offer.publicKey);
+  const [entry] = await laptop.bridge.devices();
+  assert.equal(typeof entry.route?.directMs, "number");
+});

@@ -167,6 +167,8 @@ export type NexDevice = {
   paired?: boolean;
   /** "peer": a paired device reached over the LAN / tailnet without the relay. */
   kind?: "relay" | "peer";
+  /** Time to open a connection through the cloud, last measured. */
+  relayMs?: number | null;
 };
 
 /** Settings → Devices → paired devices (GET /api/nex/peers). */
@@ -206,6 +208,8 @@ export type NexRoute = {
   address: string | null;
   setupMs: number | null;
   relaySetupMs: number | null;
+  /** Fastest direct path right now, used or not. */
+  directMs: number | null;
   note: string | null;
 };
 

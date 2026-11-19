@@ -743,6 +743,10 @@ const http = createServer((req, res) => {
           const body = await readJson(req, 64_000);
           return nex.loginStart({ deviceName: typeof body?.deviceName === "string" ? body.deviceName : undefined });
         }
+        case "POST /api/nex/name": {
+          const body = await readJson(req, 64_000);
+          return nex.renameSelf(String(body?.name ?? ""));
+        }
         case "POST /api/nex/login/cancel":
           return nex.loginCancel();
         case "POST /api/nex/pairing-code":

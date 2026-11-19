@@ -10444,6 +10444,38 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   color: #2563eb;
   border-color: color-mix(in srgb, #3b82f6 40%, transparent);
 }
+.devices-me-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.devices-me-account {
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+.devices-me-label {
+  font-size: 12px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+.devices-me-row .devices-code-field {
+  flex: 1;
+  width: auto;
+  min-width: 160px;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+.devices-latency {
+  display: inline-flex;
+  gap: 6px;
+}
+.devices-lock {
+  font-size: 12px;
+  cursor: default;
+}
 .devices-name-btn {
   display: inline-flex;
   align-items: center;

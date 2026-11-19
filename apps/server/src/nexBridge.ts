@@ -11,6 +11,7 @@ import {
   forwardPeer,
   forwardTcp,
   openPairedStream,
+  openStream,
   sendPairingRequest,
   tcpService,
   type ForwardServer,
@@ -92,6 +93,12 @@ export type NexDevice = {
   kind: "relay" | "peer";
   /** We asked it to connect; it has not verified us yet. */
   pending?: boolean;
+  /**
+   * Time to open a connection to it through the cloud relay, last measured
+   * (null: not signed in, or not measured yet). The direct path's is
+   * `route.directMs`; the list shows both side by side.
+   */
+  relayMs?: number | null;
 };
 
 export type PairedDevice = {
@@ -137,6 +144,8 @@ export type NexRoute = {
   /** Time to open one connection over this route, from the last measurement. */
   setupMs: number | null;
   relaySetupMs: number | null;
+  /** Fastest direct path (LAN / tailnet) right now, used or not; null when none answers. */
+  directMs: number | null;
   /** Why direct is not used, when it is not. */
   note: string | null;
 };
@@ -181,6 +190,8 @@ export class NexBridge {
   readonly #peers: NexPeers;
   /** Serves paired devices while signed out (signed in, NexHost does it). */
   #peerHost: PeerHost | null = null;
+  /** Relay setup time per account device, measured while the device list is looked at. */
+  readonly #relayMs = new Map<string, { ms: number | null; at: number }>();
   /** Pairing requests from other devices, by public key; held in memory only. */
   readonly #requests = new Map<string, { invite: string; name: string; expires: number }>();
   /** Sign-ins started from this server and not yet completed: state → device name + expiry. */
@@ -203,7 +214,7 @@ export class NexBridge {
 
   status(): NexStatus {
     const config = this.#config;
-    if (!config) return { configured: false, defaultDeviceName: defaultDeviceName() };
+    if (!config) return { configured: false, defaultDeviceName: this.#deviceName() };
     return {
       configured: true,
       server: config.server,
@@ -256,13 +267,38 @@ export class NexBridge {
     const now = Date.now();
     for (const [key, login] of this.#logins) if (login.expires < now) this.#logins.delete(key);
     const state = randomBytes(24).toString("base64url");
-    const deviceName = (input.deviceName ?? "").trim().slice(0, 100) || defaultDeviceName();
+    const deviceName = (input.deviceName ?? "").trim().slice(0, 100) || this.#deviceName();
     this.#logins.set(state, { deviceName, expires: now + LOGIN_TTL_MS });
     const url = new URL(`${SITE_URL}/connect/termany`);
     url.searchParams.set("callback", `http://127.0.0.1:${this.#localPort}/api/nex/login/callback`);
     url.searchParams.set("state", state);
     url.searchParams.set("device", deviceName);
     return { url: url.toString() };
+  }
+
+  #deviceName(): string {
+    return this.#config?.deviceName ?? this.#peers.deviceName ?? defaultDeviceName();
+  }
+
+  /**
+   * Renames this device: in the account when signed in (other devices see
+   * it), and in the authorization code either way.
+   */
+  async renameSelf(name: string): Promise<NexStatus> {
+    const next = (name ?? "").trim().replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 100);
+    if (!next) throw new NexError("a name is required");
+    const config = this.#config;
+    if (config && this.#client) {
+      try {
+        await this.#client.rename(this.#client.deviceId, next);
+      } catch (err) {
+        throw asNexError(err);
+      }
+      this.#config = { ...config, deviceName: next };
+      writeConfig(this.#file, this.#config);
+    }
+    this.#peers.setDeviceName(next);
+    return this.status();
   }
 
   /** The user gave up on the browser sign-in: links already handed out stop working. */
@@ -340,6 +376,11 @@ export class NexBridge {
         throw asNexError(err);
       }
       for (const d of devices) {
+        const connectable = !d.is_self && d.online && d.services.some((s) => s.name === NEX_SERVICE && s.kind === "tcp");
+        // Start measuring both paths to it, so the list can show them before
+        // anything is opened there (the first look shows "—").
+        if (connectable && !this.#forwards.has(d.id)) void this.#relayForward(d.id, d.name).catch(() => {});
+        if (connectable) this.#measureRelay(d.id);
         out.push({
           id: d.id,
           // A name given to it here (when connected by code) wins over the account's.
@@ -347,11 +388,12 @@ export class NexBridge {
           app: d.app,
           online: d.online,
           isSelf: d.is_self,
-          connectable: !d.is_self && d.online && d.services.some((s) => s.name === NEX_SERVICE && s.kind === "tcp"),
+          connectable,
           lastSeenAt: d.last_seen_at,
           route: this.#route(d.id),
           paired: !!this.#peers.byNexDevice(d.id),
           kind: "relay",
+          relayMs: this.#relayMs.get(d.id)?.ms ?? null,
         });
       }
     }
@@ -430,21 +472,7 @@ export class NexBridge {
       if (!peer) throw new NexError("that device is no longer paired", 404);
       server = await this.#peerForward(peer);
     } else {
-      const { client } = this.#require();
-      const relayId = device.id;
-      server = await this.#forward(relayId, device.name, () =>
-        forwardTcp(client, relayId, NEX_SERVICE, {
-          port: 0,
-          host: "127.0.0.1",
-          direct: DIRECT,
-          // Read per connection, so pairing or unpairing applies without a new port.
-          trust: () => {
-            const peer = this.#peers.byNexDevice(relayId);
-            return peer ? this.#peers.clientTrust(peer) : null;
-          },
-          logger: { warn: (m) => this.#log.warn(`[termany] nex forward: ${m}`) },
-        }),
-      );
+      server = await this.#relayForward(device.id, device.name);
     }
     const address = server.address();
     if (!address || typeof address === "string") throw new NexError("tunnel has no local port", 500);
@@ -501,6 +529,43 @@ export class NexBridge {
     }
     const peer = this.#peers.byNexDevice(deviceId);
     return (peer && devices.find((d) => d.id === peerId(peer.publicKey))) || null;
+  }
+
+  /**
+   * Opens (and closes) one relay stream to its echo service, at most every
+   * 15 s: what a connection through the cloud costs to set up right now.
+   */
+  #measureRelay(deviceId: string): void {
+    const client = this.#client;
+    const last = this.#relayMs.get(deviceId);
+    if (!client || (last && Date.now() - last.at < 15_000)) return;
+    this.#relayMs.set(deviceId, { ms: last?.ms ?? null, at: Date.now() });
+    const started = performance.now();
+    openStream(client, deviceId, "echo").then(
+      (ws) => {
+        this.#relayMs.set(deviceId, { ms: Math.max(1, Math.round(performance.now() - started)), at: Date.now() });
+        ws.close();
+      },
+      () => this.#relayMs.set(deviceId, { ms: null, at: Date.now() }),
+    );
+  }
+
+  /** The tunnel to one of the account's devices (direct when it can, the relay otherwise). */
+  #relayForward(relayId: string, name: string): Promise<ForwardServer> {
+    const { client } = this.#require();
+    return this.#forward(relayId, name, () =>
+      forwardTcp(client, relayId, NEX_SERVICE, {
+        port: 0,
+        host: "127.0.0.1",
+        direct: DIRECT,
+        // Read per connection, so pairing or unpairing applies without a new port.
+        trust: () => {
+          const peer = this.#peers.byNexDevice(relayId);
+          return peer ? this.#peers.clientTrust(peer) : null;
+        },
+        logger: { warn: (m) => this.#log.warn(`[termany] nex forward: ${m}`) },
+      }),
+    );
   }
 
   #peerForward(peer: PairedPeer): Promise<ForwardServer> {
@@ -574,7 +639,7 @@ export class NexBridge {
 
   #ownInvite(): string {
     const config = this.#config;
-    return this.#peers.invite(config?.deviceName ?? defaultDeviceName(), config?.credential.device_id ?? null);
+    return this.#peers.invite(this.#deviceName(), config?.credential.device_id ?? null);
   }
 
   #pendingRequests(): PairingRequest[] {
@@ -953,7 +1018,7 @@ function asPeerError(err: unknown): NexError {
   return new NexError(errMessage(err), 400);
 }
 
-const RELAY_ONLY: NexRoute = { via: "relay", network: null, address: null, setupMs: null, relaySetupMs: null, note: null };
+const RELAY_ONLY: NexRoute = { via: "relay", network: null, address: null, setupMs: null, relaySetupMs: null, directMs: null, note: null };
 
 function toRoute(status: PathStatus): NexRoute {
   return {
@@ -962,6 +1027,7 @@ function toRoute(status: PathStatus): NexRoute {
     address: status.endpoint ? `${status.endpoint.host}:${status.endpoint.port}` : null,
     setupMs: status.setupMs,
     relaySetupMs: status.relaySetupMs,
+    directMs: status.paths.reduce<number | null>((best, p) => (p.setupMs !== null && (best === null || p.setupMs < best) ? p.setupMs : best), null),
     note:
       status.route === "relay"
         ? (status.error ?? status.paths.find((p) => p.error)?.error ?? "direct paths are slower or unreachable")

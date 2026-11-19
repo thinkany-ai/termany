@@ -57,6 +57,8 @@ type PeersFile = {
    * ask to connect (and nothing more until the user verifies here).
    */
   pairSecret?: string;
+  /** This device's name while signed out (signed in, the account's record wins). */
+  deviceName?: string;
 };
 
 /** An authorization code, read: the device, plus the secret that lets us knock. */
@@ -108,6 +110,15 @@ export class NexPeers {
 
   get peers(): PairedPeer[] {
     return this.#state.peers;
+  }
+
+  get deviceName(): string | null {
+    return this.#state.deviceName ?? null;
+  }
+
+  setDeviceName(name: string): void {
+    this.#state = { ...this.#state, deviceName: name };
+    this.#save();
   }
 
   get strict(): boolean {
@@ -347,6 +358,7 @@ function readPeers(file: string): PeersFile {
       peers: peers.map((p) => ({ ...p, nexDeviceId: p.nexDeviceId ?? null })),
       strict: parsed.strict === true && peers.length > 0,
       pairSecret: typeof parsed.pairSecret === "string" ? parsed.pairSecret : undefined,
+      deviceName: typeof parsed.deviceName === "string" && parsed.deviceName.trim() ? parsed.deviceName : undefined,
     };
   } catch {
     return { peers: [], strict: false };
