@@ -1,0 +1,7 @@
+**/node_modules
+**/dist
+**/dist-demo
+**/dist-cloud
+apps/desktop/src-tauri
+artifacts
+.git

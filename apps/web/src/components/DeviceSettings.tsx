@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { cloudText, isCloud, openDevicePicker } from "../cloud";
 import { useI18n } from "../i18n";
 import { openExternal } from "../openExternal";
 import { nexRequest, type NexDevice, type NexStatus } from "../state/devices";
@@ -128,7 +129,10 @@ function Connected({
   const leave = async () => {
     setConfirmLeave(false);
     try {
-      onChange(await nexRequest<NexStatus>("leave", {}));
+      const next = await nexRequest<NexStatus>("leave", {});
+      // termany.ai: signing out ends this tab's session; back to the sign-in.
+      if (isCloud) return location.assign("/");
+      onChange(next);
     } catch (err) {
       setActionError(errorText(err));
     }
@@ -155,6 +159,11 @@ function Connected({
             ) : (
               <>
                 <span className="ms-mono devices-account">{status.account ?? status.server}</span>
+                {isCloud && (
+                  <button type="button" className="ms-btn" onClick={openDevicePicker}>
+                    {cloudText("Switch device", "切换设备")}
+                  </button>
+                )}
                 <button type="button" className="ms-btn" onClick={() => setConfirmLeave(true)}>
                   {t(status.account ? "devices.signOut" : "devices.leave")}
                 </button>
