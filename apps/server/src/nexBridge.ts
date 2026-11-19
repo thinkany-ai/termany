@@ -388,8 +388,17 @@ export class NexBridge {
    * work unchanged.
    */
   async connect(deviceId: string): Promise<{ url: string; device: NexDevice }> {
-    const device = (await this.devices()).find((d) => d.id === deviceId);
-    if (!device) throw new NexError(isPeerId(deviceId) ? "that device is no longer paired" : "no such device in this account", 404);
+    const device = this.#resolve(await this.devices(), deviceId);
+    if (!device) {
+      throw new NexError(
+        isPeerId(deviceId)
+          ? "that device is no longer paired"
+          : this.#client
+            ? "no such device in this account"
+            : "this workspace was opened through your Termany account: sign in again, or import it from a paired device",
+        404,
+      );
+    }
     if (device.isSelf) throw new NexError("that is this device");
     if (!device.connectable) {
       throw new NexError(
@@ -403,19 +412,20 @@ export class NexBridge {
     }
     let server: ForwardServer;
     if (device.kind === "peer") {
-      const peer = this.#peers.byId(deviceId);
+      const peer = this.#peers.byId(device.id);
       if (!peer) throw new NexError("that device is no longer paired", 404);
       server = await this.#peerForward(peer);
     } else {
       const { client } = this.#require();
-      server = await this.#forward(deviceId, device.name, () =>
-        forwardTcp(client, deviceId, NEX_SERVICE, {
+      const relayId = device.id;
+      server = await this.#forward(relayId, device.name, () =>
+        forwardTcp(client, relayId, NEX_SERVICE, {
           port: 0,
           host: "127.0.0.1",
           direct: DIRECT,
           // Read per connection, so pairing or unpairing applies without a new port.
           trust: () => {
-            const peer = this.#peers.byNexDevice(deviceId);
+            const peer = this.#peers.byNexDevice(relayId);
             return peer ? this.#peers.clientTrust(peer) : null;
           },
           logger: { warn: (m) => this.#log.warn(`[termany] nex forward: ${m}`) },
@@ -424,7 +434,25 @@ export class NexBridge {
     }
     const address = server.address();
     if (!address || typeof address === "string") throw new NexError("tunnel has no local port", 500);
-    return { url: `http://127.0.0.1:${address.port}`, device: { ...device, route: this.#route(deviceId) } };
+    return { url: `http://127.0.0.1:${address.port}`, device: { ...device, route: this.#route(device.id) } };
+  }
+
+  /**
+   * The listed device a workspace binding means. A workspace remembers the id
+   * it was imported under: the relay id while signed in, `peer:…` while
+   * paired without an account. The same machine can be either, depending on
+   * whether this device is signed in right now, so each id falls back to the
+   * other through the relay id the pairing invite carried.
+   */
+  #resolve(devices: NexDevice[], deviceId: string): NexDevice | null {
+    const exact = devices.find((d) => d.id === deviceId);
+    if (exact) return exact;
+    if (isPeerId(deviceId)) {
+      const relayId = this.#peers.byId(deviceId)?.nexDeviceId;
+      return (relayId && devices.find((d) => d.id === relayId)) || null;
+    }
+    const peer = this.#peers.byNexDevice(deviceId);
+    return (peer && devices.find((d) => d.id === peerId(peer.publicKey))) || null;
   }
 
   #peerForward(peer: PairedPeer): Promise<ForwardServer> {

@@ -131,3 +131,21 @@ test("a pairing request waits for the user, then pairs both ways", { skip: !hasP
   const { url } = await laptop.bridge.connect(entry.id);
   assert.equal(await roundtrip(url, "yo"), "mini:yo");
 });
+
+test("a workspace bound to a device's account id still opens through its pairing", { skip: !hasPrivateAddress && "no LAN or tailnet address" }, async () => {
+  const mini = await device("mini");
+  const laptop = await device("laptop");
+  // Mini made its invite while signed in: the invite carries its relay id.
+  const invite = mini.bridge.peersInfo().invite;
+  const body = JSON.parse(Buffer.from(invite.slice("termany1.".length), "base64url").toString());
+  const withRelayId = "termany1." + Buffer.from(JSON.stringify({ ...body, dev: "dev_mini" })).toString("base64url");
+  laptop.bridge.addPeer(withRelayId);
+  mini.bridge.addPeer(laptop.bridge.peersInfo().invite);
+
+  // Signed out, the workspace's relay id resolves to the paired device.
+  const { url, device: d } = await laptop.bridge.connect("dev_mini");
+  assert.equal(d.kind, "peer");
+  assert.equal(await roundtrip(url, "ws"), "mini:ws");
+  // An account id nothing maps to says what to do instead.
+  await assert.rejects(laptop.bridge.connect("dev_unknown"), /sign in again, or import it from a paired device/);
+});
