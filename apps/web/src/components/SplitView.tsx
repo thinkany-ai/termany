@@ -28,7 +28,11 @@ import {
   subscribeServedUrls,
   type ServedUrl,
 } from "../terminal/servedUrls";
-import { openExternal } from "../openExternal";
+import { openExternal, revealPath } from "../openExternal";
+import { sessionCwd, shortPath, subscribeSessionCwd, tildePath } from "../terminal/paneCwd";
+import { deviceOf } from "../state/devices";
+import { writeClipboard } from "../clipboard";
+import { isTauri } from "../env";
 import { CloseConfirm } from "./CloseConfirm";
 import { AgentHistory } from "./AgentHistory";
 import { AgentUsage } from "./AgentUsage";
@@ -109,6 +113,50 @@ const PANE_VIEWS = [
  * candidate opens on click; several drop down so the right dev server can be
  * picked, forwarded, or closed.
  */
+/**
+ * The shell's current folder, next to the pane title: "~"-abbreviated and
+ * trimmed to the last folders, full path on hover. Click copies it; ⌘/Ctrl-
+ * click reveals it in Finder when the shell runs on this machine. SSH panes
+ * skip it — the server only sees the local ssh client's cwd, not the remote
+ * shell's.
+ */
+function PaneCwd({ leaf }: { leaf: Leaf }) {
+  const { t } = useI18n();
+  const sessionId = terminalSessionId(leaf.id, leaf.sshTarget);
+  const subscribe = useCallback(
+    (onChange: () => void) => subscribeSessionCwd(sessionId, onChange),
+    [sessionId],
+  );
+  const snapshot = useCallback(() => sessionCwd(sessionId), [sessionId]);
+  const value = useSyncExternalStore(subscribe, snapshot, snapshot);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 1200);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  if (!value) return null;
+  const display = tildePath(value.cwd, value.home);
+  const canReveal = isTauri && !deviceOf(leaf.id);
+  const hint = canReveal ? `${t("pane.cwd.copy")} · ${t("pane.cwd.reveal")}` : t("pane.cwd.copy");
+  return (
+    <button
+      className={`pane-head-cwd${copied ? " copied" : ""}`}
+      title={`${value.cwd}\n${hint}`}
+      onClick={(e) => {
+        if (canReveal && (e.metaKey || e.ctrlKey)) {
+          void revealPath(value.cwd);
+          return;
+        }
+        void writeClipboard(value.cwd).then((ok) => setCopied(ok));
+      }}
+    >
+      {copied ? t("pane.cwd.copied") : shortPath(display)}
+    </button>
+  );
+}
+
 function PaneServedUrls({ leaf }: { leaf: Leaf }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -311,7 +359,7 @@ function PaneHeader({
   // (renames instead) or an action button.
   const onHeaderDoubleClick = (e: React.MouseEvent) => {
     if (editing) return;
-    if ((e.target as HTMLElement).closest(".pane-head-title,.pane-head-actions")) return;
+    if ((e.target as HTMLElement).closest(".pane-head-title,.pane-head-actions,.pane-head-cwd")) return;
     toggleMaximize(leaf.id);
   };
 
@@ -361,6 +409,7 @@ function PaneHeader({
           </span>
         )}
       </span>
+      {(leaf.view ?? "terminal") === "terminal" && !leaf.sshTarget && <PaneCwd leaf={leaf} />}
       <span className="pane-head-spacer" />
       <div className="pane-head-actions">
         {(leaf.view ?? "terminal") === "terminal" && <PaneServedUrls leaf={leaf} />}

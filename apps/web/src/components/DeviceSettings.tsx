@@ -2,153 +2,204 @@ import { useCallback, useEffect, useState } from "react";
 import { cloudText, isCloud, openDevicePicker } from "../cloud";
 import { useI18n } from "../i18n";
 import { openExternal } from "../openExternal";
-import { nexRequest, type NexDevice, type NexStatus } from "../state/devices";
+import { useStore } from "../state/store";
+import { useImeGuard } from "../imeGuard";
+import {
+  nexRequest,
+  refreshAvailability,
+  type NexDevice,
+  type NexStatus,
+  type PairedDevice,
+  type PeersInfo,
+} from "../state/devices";
+import { ConnectDialog, VerifyDialog } from "./DeviceLinking";
 import { textInputProps } from "../textInputProps";
 import { openWorkspaceImport } from "../workspaceSwitcherEvents";
 
 /**
- * Settings → Devices: sign this Termany in with a termany.sh account; every
- * Termany signed in with the same account reaches the others. Workspaces then
- * live on whichever device the user picks (see the workspace menu). All the relay work happens in the server
- * (apps/server/src/nexBridge.ts); the credential never reaches the webview.
+ * Settings → Devices, two cards:
+ *
+ * - This device: its name, the Termany account it is signed in to (or the
+ *   sign-in), its authorization code, and who may reach it.
+ * - My devices: every other device ONCE, however it is connected: through
+ *   the same account, paired with an authorization code, or both (then its
+ *   traffic is end-to-end encrypted). Connecting a new one starts here.
+ *
+ * The work happens in the server (apps/server/src/nexBridge.ts); no
+ * credential or private key reaches the webview.
  */
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
+const POLL_MS = 5000;
 
 export function DeviceSettings({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
   const [status, setStatus] = useState<NexStatus | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [peers, setPeers] = useState<PeersInfo | null>(null);
+  const [devices, setDevices] = useState<NexDevice[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  const refreshStatus = useCallback(async () => {
+  const refresh = useCallback(async () => {
     try {
-      setStatus(await nexRequest<NexStatus>("status"));
-      setLoadError(null);
+      const nextStatus = await nexRequest<NexStatus>("status");
+      setStatus(nextStatus);
+      if (!isCloud) {
+        let info = await nexRequest<PeersInfo>("peers");
+        // Devices still to verify us: ask whether they have (covers a dialog
+        // closed early, and the path through the account).
+        const waiting = info.peers.filter((p) => p.pending);
+        if (waiting.length) {
+          await Promise.all(waiting.map((p) => nexRequest("peers/check", { publicKey: p.publicKey }).catch(() => {})));
+          info = await nexRequest<PeersInfo>("peers");
+        }
+        setPeers(info);
+      }
+      // Signed out on termany.ai there is nothing to list; on the desktop,
+      // devices connected by code are listed either way.
+      if (nextStatus.configured || !isCloud) {
+        setDevices((await nexRequest<{ devices: NexDevice[] }>("devices")).devices);
+      }
+      setError(null);
     } catch (err) {
-      setLoadError(errorText(err));
+      setError(errorText(err));
     }
   }, []);
 
   useEffect(() => {
-    void refreshStatus();
-    const timer = setInterval(() => void refreshStatus(), 5000);
+    void refresh();
+    const timer = setInterval(() => void refresh(), POLL_MS);
     return () => clearInterval(timer);
-  }, [refreshStatus]);
+  }, [refresh]);
 
   return (
     <>
       <div className="settings-section-title">{t("devices.title")}</div>
       <p className="ms-hint devices-intro">{t("devices.intro")}</p>
-      {loadError && <div className="ms-test-fail">{loadError}</div>}
-      {status && !status.configured && (
-        <SignIn defaultName={status.defaultDeviceName} onWaiting={refreshStatus} />
+      {error && <div className="ms-test-fail">{error}</div>}
+      {status && <ThisDevice status={status} peers={peers} onChange={refresh} onPeers={setPeers} />}
+      {status && (
+        <MyDevices
+          devices={devices.filter((d) => !d.isSelf)}
+          peers={peers}
+          onChange={refresh}
+          onPeers={setPeers}
+          onClose={onClose}
+        />
       )}
-      {status?.configured && <Connected status={status} onChange={setStatus} onClose={onClose} />}
     </>
   );
 }
 
-function SignIn({ defaultName, onWaiting }: { defaultName: string; onWaiting: () => Promise<void> }) {
+/**
+ * This device, in three lines at most: name (renamable) and account with its
+ * one action; the authorization code; and, when it applies, who may reach it.
+ */
+function ThisDevice({
+  status,
+  peers,
+  onChange,
+  onPeers,
+}: {
+  status: NexStatus;
+  peers: PeersInfo | null;
+  onChange: () => Promise<void>;
+  onPeers: (info: PeersInfo) => void;
+}) {
   const { t } = useI18n();
-  const [deviceName, setDeviceName] = useState(defaultName);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const name = status.configured ? status.deviceName : status.defaultDeviceName;
 
-  // While the browser is out doing the sign-in, check back often so the page
-  // flips to "connected" as soon as the callback lands.
+  // While the browser is out doing the sign-in, check back often so the card
+  // flips to "signed in" as soon as the callback lands.
   useEffect(() => {
     if (!waiting) return;
-    const timer = setInterval(() => void onWaiting(), 1500);
+    if (status.configured) {
+      setWaiting(false);
+      return;
+    }
+    const timer = setInterval(() => void onChange(), 1500);
     const giveUp = setTimeout(() => setWaiting(false), 10 * 60_000);
     return () => {
       clearInterval(timer);
       clearTimeout(giveUp);
     };
-  }, [waiting, onWaiting]);
+  }, [waiting, status.configured, onChange]);
 
-  const start = async () => {
+  const run = async (fn: () => Promise<unknown>) => {
     setError(null);
     try {
-      const { url } = await nexRequest<{ url: string }>("login/start", { deviceName });
-      const failure = await openExternal(url);
-      if (failure) throw new Error(failure);
-      setWaiting(true);
+      await fn();
     } catch (err) {
       setError(errorText(err));
     }
   };
 
-  return (
-    <div className="ms-card">
-      <p className="ms-hint">{t("devices.signIn.hint")}</p>
-      <label className="ms-field">
-        <span>{t("devices.setup.deviceName")}</span>
-        <input {...textInputProps} value={deviceName} onChange={(e) => setDeviceName(e.target.value)} />
-      </label>
-      {waiting && <p className="ms-hint">{t("devices.signIn.waiting")}</p>}
-      {error && <div className="ms-test-fail">{error}</div>}
-      <div className="ms-form-actions">
-        <button type="button" className="ms-btn primary" disabled={!deviceName.trim()} onClick={() => void start()}>
-          {t(waiting ? "devices.signIn.again" : "devices.signIn.action")}
-        </button>
-      </div>
-    </div>
-  );
-}
+  const signIn = () =>
+    run(async () => {
+      const { url } = await nexRequest<{ url: string }>("login/start", { deviceName: name });
+      const failure = await openExternal(url);
+      if (failure) throw new Error(failure);
+      setWaiting(true);
+    });
 
-function Connected({
-  status,
-  onChange,
-  onClose,
-}: {
-  status: Extract<NexStatus, { configured: true }>;
-  onChange: (s: NexStatus) => void;
-  onClose: () => void;
-}) {
-  const { t } = useI18n();
-  const [devices, setDevices] = useState<NexDevice[]>([]);
-  const [devicesError, setDevicesError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [confirmLeave, setConfirmLeave] = useState(false);
-
-  const loadDevices = useCallback(async () => {
-    try {
-      setDevices((await nexRequest<{ devices: NexDevice[] }>("devices")).devices);
-      setDevicesError(null);
-    } catch (err) {
-      setDevicesError(errorText(err));
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadDevices();
-    const timer = setInterval(() => void loadDevices(), 5000);
-    return () => clearInterval(timer);
-  }, [loadDevices]);
-
-  const leave = async () => {
-    setConfirmLeave(false);
-    try {
-      const next = await nexRequest<NexStatus>("leave", {});
+  const leave = () =>
+    run(async () => {
+      setConfirmLeave(false);
+      await nexRequest<NexStatus>("leave", {});
       // termany.ai: signing out ends this tab's session; back to the sign-in.
       if (isCloud) return location.assign("/");
-      onChange(next);
-    } catch (err) {
-      setActionError(errorText(err));
-    }
-  };
+      await onChange();
+    });
 
-  const others = devices.filter((d) => !d.isSelf);
+  const copyCode = () =>
+    run(async () => {
+      if (!peers) return;
+      await navigator.clipboard.writeText(peers.invite);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+
+  const verifiedPeers = peers?.peers.filter((p) => !p.pending).length ?? 0;
 
   return (
-    <>
-      <div className="ms-card">
-        <div className="ms-head">
-          <div className="ms-card-title">{t("devices.thisDevice")}</div>
-          <div className="ms-head-actions devices-actions">
-            {confirmLeave ? (
+    <div className="ms-card devices-me">
+      <div className="ms-card-title">{t("devices.thisDevice")}</div>
+      <div className="devices-me-row">
+        <span
+          className={`devices-dot ${status.configured && status.online ? "online" : ""}`}
+          title={status.configured ? t(status.online ? "devices.online" : "devices.offline") : undefined}
+        />
+        <InlineName
+          name={name}
+          onSave={(next) =>
+            run(async () => {
+              await nexRequest("name", { name: next });
+              await onChange();
+            })
+          }
+        />
+        <span className="devices-peer-actions">
+          {/* The account sits with the button that acts on it. */}
+          {!confirmLeave && (
+            <span className="devices-me-account devices-remove-note">
+              {status.configured ? (
+                <>
+                  {t("devices.signedIn")} <span className="ms-mono">{status.account ?? status.server}</span>
+                </>
+              ) : (
+                t(waiting ? "devices.signIn.waiting" : "devices.signedOut")
+              )}
+            </span>
+          )}
+          {status.configured ? (
+            confirmLeave ? (
               <>
-                <span className="ms-hint">{t(status.account ? "devices.signOutConfirm" : "devices.leaveConfirm")}</span>
+                <span className="ms-hint devices-remove-note">
+                  {t(status.account ? "devices.signOutConfirm" : "devices.leaveConfirm")}
+                </span>
                 <button type="button" className="ms-btn" onClick={() => setConfirmLeave(false)}>
                   {t("devices.cancel")}
                 </button>
@@ -158,7 +209,6 @@ function Connected({
               </>
             ) : (
               <>
-                <span className="ms-mono devices-account">{status.account ?? status.server}</span>
                 {isCloud && (
                   <button type="button" className="ms-btn" onClick={openDevicePicker}>
                     {cloudText("Switch device", "切换设备")}
@@ -168,57 +218,407 @@ function Connected({
                   {t(status.account ? "devices.signOut" : "devices.leave")}
                 </button>
               </>
-            )}
-          </div>
-        </div>
-        <div className="devices-self">
-          <span className={`devices-dot ${status.online ? "online" : ""}`} />
-          <strong>{status.deviceName}</strong>
-          <span className="devices-state">{t(status.online ? "devices.online" : "devices.offline")}</span>
-        </div>
-        {!status.online && status.error && <div className="ms-test-fail">{status.error}</div>}
-        <p className="ms-hint">{t("devices.sharingHint")}</p>
+            )
+          ) : (
+            <>
+              {waiting && (
+                <button
+                  type="button"
+                  className="ms-btn"
+                  onClick={() => {
+                    setWaiting(false);
+                    // The link the browser holds stops working too.
+                    void nexRequest("login/cancel", {}).catch(() => {});
+                  }}
+                >
+                  {t("devices.cancel")}
+                </button>
+              )}
+              <button type="button" className="ms-btn primary" onClick={() => void signIn()}>
+                {t(waiting ? "devices.signIn.again" : "devices.signIn.action")}
+              </button>
+            </>
+          )}
+        </span>
       </div>
+      {status.configured && !status.online && status.error && <div className="ms-test-fail">{status.error}</div>}
 
-      <div className="ms-card">
-        <div className="ms-head">
-          <div className="ms-card-title">{t("devices.others")}</div>
-          <button type="button" className="ms-btn" onClick={() => void loadDevices()}>
-            {t("devices.refresh")}
+      {peers && (
+        <div className="devices-me-row">
+          <span className="devices-me-label">{t("devices.link.authCode")}</span>
+          <input
+            {...textInputProps}
+            className="ms-mono devices-input devices-code-field"
+            readOnly
+            value={peers.invite}
+            title={t("devices.link.codeHint")}
+            onFocus={(e) => e.target.select()}
+          />
+          <button type="button" className="ms-btn" title={t("devices.link.codeHint")} onClick={() => void copyCode()}>
+            {t(copied ? "devices.link.copied" : "devices.link.copy")}
           </button>
         </div>
-        {devicesError && <div className="ms-test-fail">{devicesError}</div>}
-        {actionError && <div className="ms-test-fail">{actionError}</div>}
-        {others.length === 0 ? (
-          <p className="ms-hint">{t("devices.none")}</p>
-        ) : (
-          <ul className="devices-list">
-            {others.map((device) => (
-              <li key={device.id} className="devices-self">
-                <span className={`devices-dot ${device.online ? "online" : ""}`} />
-                <strong>{device.name}</strong>
-                <span className="devices-state">
-                  {t(
-                    device.connectable ? "devices.online" : device.online ? "devices.notSharing" : "devices.offline",
-                  )}
-                </span>
-                {device.connectable && (
-                  <button
-                    type="button"
-                    className="ms-btn devices-import"
-                    onClick={() => {
-                      onClose();
-                      openWorkspaceImport(device.id);
-                    }}
-                  >
-                    {t("devices.importWorkspace")}
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </>
+      )}
+
+      {peers?.signedIn && verifiedPeers > 0 && (
+        <>
+        <label className="devices-strict">
+          <input
+            type="checkbox"
+            checked={peers.strict}
+            onChange={(e) => {
+              const strict = e.target.checked;
+              void run(async () => onPeers(await nexRequest<PeersInfo>("peers/strict", { strict })));
+            }}
+          />
+          <span>{t("devices.link.strict")}</span>
+        </label>
+        <p className="ms-hint devices-strict-hint">{t("devices.link.strictHint")}</p>
+        </>
+      )}
+      {error && <div className="ms-test-fail">{error}</div>}
+    </div>
   );
 }
+
+/** A name that turns into an input on click: Enter saves, Escape gives up. */
+function InlineName({ name, onSave }: { name: string; onSave: (name: string) => void | Promise<void> }) {
+  const { t } = useI18n();
+  // Enter / Escape that only confirm an input-method composition (Latin
+  // letters under a Chinese IME) must not save or cancel the rename.
+  const ime = useImeGuard();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(name);
+  const save = () => {
+    setEditing(false);
+    const next = value.trim();
+    if (next && next !== name) void onSave(next);
+    else setValue(name);
+  };
+  if (editing) {
+    return (
+      <input
+        {...textInputProps}
+        {...ime.props}
+        className="devices-rename"
+        autoFocus
+        maxLength={100}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (ime.handled(e)) return;
+          if (e.key === "Enter") save();
+          if (e.key === "Escape") {
+            setValue(name);
+            setEditing(false);
+          }
+        }}
+      />
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="devices-name-btn"
+      title={t("devices.link.rename")}
+      onClick={() => {
+        setValue(name);
+        setEditing(true);
+      }}
+    >
+      <strong>{name}</strong>
+      <span className="devices-name-edit">✎</span>
+    </button>
+  );
+}
+
+/**
+ * Every other device once. A device reached through the account and also
+ * paired by code is one row with both badges; one waiting to verify us says
+ * so instead of "not reachable".
+ */
+function MyDevices({
+  devices,
+  peers,
+  onChange,
+  onPeers,
+  onClose,
+}: {
+  devices: NexDevice[];
+  peers: PeersInfo | null;
+  onChange: () => Promise<void>;
+  onPeers: (info: PeersInfo) => void;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const [dialog, setDialog] = useState<{ kind: "connect"; deviceId?: string } | { kind: "verify" } | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const workspaces = useStore((s) => s.workspaces);
+
+  /** Measure every way to every device now, then reload the list. */
+  const refreshNow = async () => {
+    setRefreshing(true);
+    try {
+      await nexRequest("remeasure", {});
+      await onChange();
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const peerOf = (d: NexDevice) => peers?.peers.find((p) => p.id === d.id || (p.nexDeviceId !== null && p.nexDeviceId === d.id));
+  const workspacesFrom = (d: NexDevice, p: PairedDevice) =>
+    workspaces.filter((w) => w.device && [d.id, p.id, p.nexDeviceId].includes(w.device.id));
+
+  const act = async (path: string, body: unknown) => {
+    try {
+      onPeers(await nexRequest<PeersInfo>(path, body));
+      setError(null);
+      void onChange();
+    } catch (err) {
+      setError(errorText(err));
+    }
+  };
+
+  /** Unpairing: its workspaces leave too, unless the account still reaches it. */
+  const unpair = async (d: NexDevice, p: PairedDevice) => {
+    const bound = workspacesFrom(d, p);
+    await act("peers/remove", { publicKey: p.publicKey });
+    setRemoving(null);
+    if (!bound.length) return;
+    const state = await refreshAvailability(bound.map((w) => w.device!.id));
+    const store = useStore.getState();
+    for (const w of bound) if (state[w.device!.id] === "gone") store.deleteWorkspace(w.id);
+  };
+
+  const closeDialog = () => {
+    setDialog(null);
+    void onChange();
+  };
+
+  /** A name for it on this device only; workspaces from it follow. */
+  const renameDevice = async (d: NexDevice, p: PairedDevice | undefined, name: string) => {
+    try {
+      await nexRequest("devices/rename", { deviceId: d.id, name });
+      const ids = [d.id, p?.id, p?.nexDeviceId].filter(Boolean);
+      useStore.setState((s) => ({
+        workspaces: s.workspaces.map((w) => (w.device && ids.includes(w.device.id) ? { ...w, device: { ...w.device, name } } : w)),
+      }));
+      void onChange();
+    } catch (err) {
+      setError(errorText(err));
+    }
+  };
+
+  return (
+    <div className="ms-card">
+      <div className="ms-head devices-head">
+        <div className="ms-card-title">{t("devices.others")}</div>
+        {!isCloud && (
+          <div className="ms-head-actions devices-actions">
+            <button
+              type="button"
+              className="ms-btn"
+              disabled={refreshing}
+              title={t("devices.refreshTitle")}
+              onClick={() => void refreshNow()}
+            >
+              {t(refreshing ? "devices.refreshing" : "devices.refresh")}
+            </button>
+            <button type="button" className="ms-btn" onClick={() => setDialog({ kind: "verify" })}>
+              {t("devices.link.verify")}
+            </button>
+            <button type="button" className="ms-btn primary" onClick={() => setDialog({ kind: "connect" })}>
+              {t("devices.link.connect")}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {peers?.requests.map((r) => (
+        <div key={r.publicKey} className="devices-preview link-request">
+          <span>{t("devices.link.request", { name: r.name })}</span>
+          <span className="devices-peer-actions">
+            <button type="button" className="ms-btn" onClick={() => void act("peers/decline", { publicKey: r.publicKey })}>
+              {t("devices.link.decline")}
+            </button>
+            <button type="button" className="ms-btn primary" onClick={() => setDialog({ kind: "verify" })}>
+              {t("devices.link.verify")}
+            </button>
+          </span>
+        </div>
+      ))}
+
+      {devices.length === 0 ? (
+        <p className="ms-hint">{t("devices.none")}</p>
+      ) : (
+        <ul className="devices-list">
+          {devices.map((d) => {
+            const p = peerOf(d);
+            const pending = !!p?.pending;
+            const viaAccount = d.kind !== "peer";
+            const bound = p ? workspacesFrom(d, p).length : 0;
+            return (
+              <li key={d.id} className="devices-self devices-peer">
+                <span className={`devices-dot ${d.connectable ? "online" : pending ? "pending" : ""}`} />
+                {isCloud ? (
+                  <strong>{d.name}</strong>
+                ) : (
+                  <InlineName name={d.name} onSave={(name) => renameDevice(d, p, name)} />
+                )}
+                <E2eToggle
+                  device={d}
+                  paired={!!p && !pending}
+                  pending={pending}
+                  onEnable={() => setDialog({ kind: "connect", deviceId: d.id })}
+                  onDisable={() => setRemoving(d.id)}
+                />
+                {pending ? (
+                  <span className="devices-state">{t("devices.link.pending")}</span>
+                ) : d.requiresPairing ? (
+                  <span className="devices-state">{t("devices.requiresPairing")}</span>
+                ) : !d.connectable ? (
+                  <span className="devices-state" title={d.route?.note ?? undefined}>
+                    {t(!viaAccount ? "devices.link.unreachable" : d.online ? "devices.notSharing" : "devices.offline")}
+                  </span>
+                ) : null}
+                {!pending && d.connectable && <Latency device={d} />}
+                <span className="devices-peer-actions">
+                  {removing === d.id && p ? (
+                    <>
+                      <span className="ms-hint devices-remove-note">
+                        {t(viaAccount ? "devices.e2e.offAsk" : "devices.link.removeAsk", { name: d.name })}
+                        {bound > 0 && ` ${t("devices.link.removeWorkspaces", { count: bound })}`}
+                      </span>
+                      <button type="button" className="ms-btn" onClick={() => setRemoving(null)}>
+                        {t("devices.cancel")}
+                      </button>
+                      <button type="button" className="ms-btn primary" onClick={() => void unpair(d, p)}>
+                        {t("devices.confirm")}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {d.connectable && (
+                        <button
+                          type="button"
+                          className="ms-btn"
+                          onClick={() => {
+                            onClose();
+                            openWorkspaceImport(d.id);
+                          }}
+                        >
+                          {t("devices.importWorkspace")}
+                        </button>
+                      )}
+                      {p && !viaAccount && !isCloud && (
+                        <button type="button" className="ms-btn" onClick={() => setRemoving(d.id)}>
+                          {t("devices.link.remove")}
+                        </button>
+                      )}
+                    </>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {error && <div className="ms-test-fail">{error}</div>}
+      {dialog?.kind === "connect" && <ConnectDialog deviceId={dialog.deviceId} onClose={closeDialog} />}
+      {dialog?.kind === "verify" && <VerifyDialog onClose={closeDialog} />}
+    </div>
+  );
+}
+
+/**
+ * End-to-end encryption for one device, as one switch: "🔒 End-to-end
+ * encrypted" when on, "🔓 Turn on end-to-end encryption" when off. Turning it
+ * on pairs the devices (keys exchanged between them only); turning it off
+ * unpairs, with a confirmation. A device reached only by code is always
+ * encrypted: the badge is not a switch there.
+ */
+function E2eToggle({
+  device,
+  paired,
+  pending,
+  onEnable,
+  onDisable,
+}: {
+  device: NexDevice;
+  paired: boolean;
+  pending: boolean;
+  onEnable: () => void;
+  onDisable: () => void;
+}) {
+  const { t } = useI18n();
+  if (pending) return null;
+  if (device.kind === "peer" || (isCloud && paired)) {
+    return (
+      <span className="devices-e2e on static" title={t("devices.e2e.fixedTitle")}>
+        🔒 {t("devices.e2e.on")}
+      </span>
+    );
+  }
+  if (isCloud) return null;
+  if (paired) {
+    return (
+      <button type="button" className="devices-e2e on" title={t("devices.e2e.onTitle")} onClick={onDisable}>
+        🔒 {t("devices.e2e.on")}
+      </button>
+    );
+  }
+  // Offering it needs the device to answer (online, or asking for exactly this).
+  if (!device.online && !device.requiresPairing) return null;
+  return (
+    <button
+      type="button"
+      className={`devices-e2e off${device.requiresPairing ? " needed" : ""}`}
+      title={t("devices.e2e.offTitle")}
+      onClick={onEnable}
+    >
+      🔓 {t("devices.e2e.enable")}
+    </button>
+  );
+}
+
+/**
+ * Both ways to a device, side by side, as round trips (like a ping): "LAN
+ * 3 ms" and "Cloud 180 ms", the one in use highlighted, "—" where a way
+ * does not answer (the tooltip says why). A device reached only by code has
+ * no cloud way to show.
+ */
+function Latency({ device }: { device: NexDevice }) {
+  const { t } = useI18n();
+  const route = device.route ?? null;
+  const viaAccount = device.kind !== "peer";
+  const directActive = route?.via === "direct";
+  const network = route?.network === "lan" ? t("devices.routeLan") : route?.network === "tailscale" ? "Tailscale" : null;
+  const ms = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${v} ms`);
+  const directTitle = [
+    t("devices.lat.directTitle"),
+    [network, directActive ? route?.address : null].filter(Boolean).join(" · "),
+    route?.directRttMs === null || route?.directRttMs === undefined ? route?.directNote : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return (
+    <span className="devices-latency">
+      <span className={`devices-route${directActive ? " direct" : ""}`} title={directTitle}>
+        {t("devices.lat.direct")} {ms(route?.directRttMs)}
+      </span>
+      {viaAccount && (
+        <span className={`devices-route${directActive ? "" : " direct"}`} title={t("devices.lat.cloudTitle")}>
+          {t("devices.lat.cloud")} {ms(device.relayRttMs)}
+        </span>
+      )}
+    </span>
+  );
+}
+
+

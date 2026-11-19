@@ -19,6 +19,7 @@ import { streamAgentChat } from "./agentChat.js";
 import { compileBotContext } from "./botContext.js";
 import { handleSkillRequest } from "./skillsHttp.js";
 import { NexBridge, NexError } from "./nexBridge.js";
+import { NexPeers, defaultPeerPort } from "./nexPeers.js";
 import { listAgentConfigs, saveAgentConfigs } from "./agentConfig.js";
 import {
   acpRuntimeConfig,
@@ -193,6 +194,11 @@ declare const __TERMANY_BUILD_ID__: string | undefined;
 const nex = new NexBridge({
   file: path.join(os.homedir(), ".termany", PORT === 5174 ? "nex.json" : `nex-${PORT}.json`),
   localPort: PORT,
+  peers: new NexPeers({
+    dir: path.join(os.homedir(), ".termany"),
+    suffix: PORT === 5174 ? "" : `-${PORT}`,
+    port: defaultPeerPort(PORT),
+  }),
 });
 const SERVER_VERSION = typeof __TERMANY_VERSION__ === "string" ? __TERMANY_VERSION__ : "dev";
 const SERVER_BUILD_ID = typeof __TERMANY_BUILD_ID__ === "string" ? __TERMANY_BUILD_ID__ : "dev";
@@ -737,6 +743,12 @@ const http = createServer((req, res) => {
           const body = await readJson(req, 64_000);
           return nex.loginStart({ deviceName: typeof body?.deviceName === "string" ? body.deviceName : undefined });
         }
+        case "POST /api/nex/name": {
+          const body = await readJson(req, 64_000);
+          return nex.renameSelf(String(body?.name ?? ""));
+        }
+        case "POST /api/nex/login/cancel":
+          return nex.loginCancel();
         case "POST /api/nex/pairing-code":
           return nex.pairingCode();
         case "GET /api/nex/devices":
@@ -747,6 +759,59 @@ const http = createServer((req, res) => {
         }
         case "POST /api/nex/leave":
           return nex.leave();
+        case "GET /api/nex/peers":
+          return nex.peersInfo();
+        case "POST /api/nex/availability": {
+          const body = await readJson(req, 64_000);
+          const ids = Array.isArray(body?.deviceIds) ? body.deviceIds.filter((id: unknown): id is string => typeof id === "string") : [];
+          return nex.availability(ids);
+        }
+        case "POST /api/nex/peers/connect": {
+          const body = await readJson(req, 64_000);
+          return nex.connectWithCode(String(body?.code ?? ""));
+        }
+        case "POST /api/nex/peers/pair": {
+          const body = await readJson(req, 64_000);
+          return nex.pairWith(String(body?.deviceId ?? ""));
+        }
+        case "POST /api/nex/peers/request": {
+          const body = await readJson(req, 64_000);
+          return nex.requestPairing(String(body?.invite ?? ""));
+        }
+        case "POST /api/nex/peers/verify": {
+          const body = await readJson(req, 64_000);
+          return nex.verifyCode(String(body?.code ?? ""));
+        }
+        case "POST /api/nex/peers/check": {
+          const body = await readJson(req, 64_000);
+          return nex.checkPeer(String(body?.publicKey ?? ""));
+        }
+        case "POST /api/nex/peers/cancel": {
+          const body = await readJson(req, 64_000);
+          return nex.cancelConnect(String(body?.publicKey ?? ""));
+        }
+        case "POST /api/nex/peers/decline": {
+          const body = await readJson(req, 64_000);
+          return nex.declineRequest(String(body?.publicKey ?? ""));
+        }
+        case "POST /api/nex/remeasure":
+          return nex.remeasure();
+        case "POST /api/nex/devices/rename": {
+          const body = await readJson(req, 64_000);
+          return nex.renameDevice(String(body?.deviceId ?? ""), String(body?.name ?? ""));
+        }
+        case "POST /api/nex/peers/rename": {
+          const body = await readJson(req, 64_000);
+          return nex.renamePeer(String(body?.publicKey ?? ""), String(body?.name ?? ""));
+        }
+        case "POST /api/nex/peers/remove": {
+          const body = await readJson(req, 64_000);
+          return nex.removePeer(String(body?.publicKey ?? ""));
+        }
+        case "POST /api/nex/peers/strict": {
+          const body = await readJson(req, 64_000);
+          return nex.setStrict(body?.strict === true);
+        }
         default:
           throw new NexError("unknown nex endpoint", 404);
       }
@@ -1376,6 +1441,23 @@ const http = createServer((req, res) => {
         json(200, { resolved });
       })
       .catch(fail);
+    return;
+  }
+
+  // The pane header shows the shell's current folder. The client asks again
+  // shortly after output settles (a `cd` always redraws the prompt), so this
+  // stays a cheap on-demand lookup rather than a server-side poll. `home` lets
+  // the client abbreviate with "~" for whichever device runs the shell.
+  if (req.method === "GET" && reqUrl.pathname === "/api/session-cwd") {
+    (async () => {
+      const sessionId = reqUrl.searchParams.get("session") ?? "";
+      const pty = ptySessions.get(sessionId)?.pty;
+      const cwd =
+        (await dirIfValid(pty ? await cwdForPid(pty.pid) : undefined)) ??
+        (await dirIfValid(getSessionCwd(sessionId) ?? undefined)) ??
+        null;
+      json(200, { cwd, home: os.homedir() });
+    })().catch(fail);
     return;
   }
 

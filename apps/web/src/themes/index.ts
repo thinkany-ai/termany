@@ -20,6 +20,7 @@ import { winxp } from "./winxp";
 import { aqua } from "./aqua";
 import { bsod } from "./bsod";
 import { excel } from "./excel";
+import { miami } from "./miami";
 
 export type { Theme };
 export { fromCodexTheme, isCodexTheme } from "./codex-import";
@@ -48,6 +49,7 @@ export const THEMES: Theme[] = [
   aqua,
   bsod,
   excel,
+  miami,
   halloween,
   christmas,
 ];

@@ -3559,6 +3559,10 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   inset: 0;
   z-index: 50;
   background: rgba(0, 0, 0, 0.4);
+  /* Own compositing layer: in WebKit a scrolled pane's scrollbar is composited
+     and otherwise paints above this backdrop (settings/search backdrops get a
+     layer from backdrop-filter, which is why they don't show it). */
+  transform: translateZ(0);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4795,6 +4799,33 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
 .pane-head-spacer {
   flex: 1 1 0;
   min-width: 10px;
+}
+/* Current folder beside the title: dim and small so the title stays the
+   label; it gives up width first when the header is narrow. */
+.pane-head-cwd {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 40ch;
+  height: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: ltr;
+  cursor: pointer;
+}
+.pane-head-cwd:hover {
+  background: var(--bg-3);
+  color: var(--fg);
+}
+.pane-head-cwd.copied {
+  color: var(--accent);
 }
 /* Zen (maximize) mode: the split tree stays visible underneath, dimmed by
    the scrim, and the zoomed pane floats centered above it — so the hidden
@@ -8399,7 +8430,8 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   margin-bottom: 5px;
 }
 .ms-field input,
-.ms-field textarea {
+.ms-field textarea,
+.devices-input {
   width: 100%;
   padding: 8px 10px;
   background: var(--bg);
@@ -8412,7 +8444,8 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   resize: vertical;
 }
 .ms-field input:focus,
-.ms-field textarea:focus {
+.ms-field textarea:focus,
+.devices-input:focus {
   border-color: var(--accent);
 }
 .ms-form-actions {
@@ -10396,9 +10429,286 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   background: #22c55e;
   opacity: 1;
 }
+.devices-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+}
+.devices-field-label {
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+.devices-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.devices-field-row .devices-input {
+  flex: 1;
+  width: auto;
+  min-width: 140px;
+}
+.devices-name-label {
+  font-size: 12px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+.devices-field .ms-hint {
+  margin: 0;
+}
+.devices-signin {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.devices-method {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--fg-dim);
+  border: 1px solid color-mix(in srgb, var(--fg-dim) 30%, transparent);
+  white-space: nowrap;
+}
+.devices-method.paired {
+  color: #2563eb;
+  border-color: color-mix(in srgb, #3b82f6 40%, transparent);
+}
+.devices-me-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.devices-me-account {
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+.devices-me-label {
+  font-size: 12px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+.devices-me-row .devices-code-field {
+  flex: 1;
+  width: auto;
+  min-width: 160px;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+.devices-e2e {
+  font: inherit;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.devices-e2e.on {
+  color: #2563eb;
+  background: color-mix(in srgb, #3b82f6 12%, transparent);
+}
+.devices-e2e.off {
+  color: var(--fg-dim);
+  background: none;
+  border-color: color-mix(in srgb, var(--fg-dim) 35%, transparent);
+}
+.devices-e2e.off.needed {
+  color: #b45309;
+  border-color: color-mix(in srgb, #f59e0b 60%, transparent);
+}
+.devices-e2e.static {
+  cursor: default;
+}
+.devices-e2e:not(.static):hover {
+  filter: brightness(0.95);
+}
+.devices-latency {
+  display: inline-flex;
+  gap: 6px;
+}
+.devices-lock {
+  font-size: 12px;
+  cursor: default;
+}
+.devices-name-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  /* Looks clickable, because it is: click to rename. */
+  cursor: pointer;
+}
+.devices-name-edit {
+  opacity: 0.55;
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+.devices-name-btn:hover .devices-name-edit,
+.devices-name-btn:focus-visible .devices-name-edit {
+  opacity: 1;
+}
+.devices-rename {
+  font: inherit;
+  font-weight: 600;
+  width: 160px;
+  padding: 2px 6px;
+}
+.devices-remove-note {
+  margin: 0;
+  align-self: center;
+}
+.ws-menu-state {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 4px;
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--fg-dim) 12%, transparent);
+  white-space: nowrap;
+}
+.ws-menu-state.gone {
+  color: #dc2626;
+  background: color-mix(in srgb, #dc2626 10%, transparent);
+}
+.device-gate-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.device-gate-why {
+  opacity: 0.6;
+  font-size: 11px;
+}
+.devices-dot.pending {
+  background: #f59e0b;
+  opacity: 1;
+}
 .devices-state {
   color: var(--fg-dim);
   font-size: 12px;
+}
+.devices-route {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--fg-dim) 12%, transparent);
+  white-space: nowrap;
+}
+.devices-route.direct {
+  color: #16a34a;
+  background: color-mix(in srgb, #22c55e 14%, transparent);
+}
+.devices-route.paired {
+  color: #2563eb;
+  background: color-mix(in srgb, #3b82f6 14%, transparent);
+}
+.devices-invite {
+  display: flex;
+  gap: 8px;
+}
+.devices-invite input {
+  flex: 1;
+  min-width: 0;
+}
+.devices-fingerprint {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+.devices-preview {
+  margin: 4px 0 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--fg-dim) 8%, transparent);
+}
+.devices-preview .ms-hint {
+  margin: 2px 0;
+}
+.devices-peer {
+  flex-wrap: wrap;
+}
+.link-dialog-backdrop {
+  z-index: 1000;
+}
+.link-dialog {
+  width: min(440px, calc(100vw - 32px));
+}
+.link-dialog-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.link-authcode-input {
+  width: 100%;
+  resize: vertical;
+  font-size: 12px;
+  word-break: break-all;
+}
+.link-code {
+  text-align: center;
+  font-size: 28px;
+}
+.link-code-input {
+  font-size: 20px;
+  letter-spacing: 0.12em;
+  text-align: center;
+}
+.link-waiting {
+  text-align: center;
+}
+.link-success {
+  font-size: 15px;
+  color: #16a34a;
+  margin: 8px 0 4px;
+}
+.link-request {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.devices-code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 20px;
+  letter-spacing: 0.12em;
+  margin: 6px 0 10px;
+}
+.devices-invite-details {
+  margin-top: 8px;
+}
+.devices-invite-details summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--fg-dim);
+  margin-bottom: 8px;
+}
+.devices-peer-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.devices-strict-hint {
+  margin: 4px 0 0 24px;
+}
+.devices-strict {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+/* Not the dialog's first card: nothing to keep clear of the close button. */
+.ms-head.devices-head {
+  padding-right: 0;
+  margin-bottom: 8px;
 }
 .devices-actions {
   justify-content: flex-end;

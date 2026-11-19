@@ -161,6 +161,62 @@ export type NexDevice = {
   isSelf: boolean;
   connectable: boolean;
   lastSeenAt: number | null;
+  /** How this machine reaches the device; null until a tunnel to it has been opened. */
+  route?: NexRoute | null;
+  /** Paired by invite: end-to-end encrypted with keys the relay never saw. */
+  paired?: boolean;
+  /** "peer": a paired device reached over the LAN / tailnet without the relay. */
+  kind?: "relay" | "peer";
+  /** Round trip through the cloud, like a ping, last measured. */
+  relayRttMs?: number | null;
+  /** It only lets paired devices in and we are not one: end-to-end encrypt to use it. */
+  requiresPairing?: boolean;
+};
+
+/** Settings → Devices → paired devices (GET /api/nex/peers). */
+export type PeersInfo = {
+  publicKey: string;
+  fingerprint: string;
+  invite: string;
+  port: number;
+  strict: boolean;
+  signedIn: boolean;
+  peers: PairedDevice[];
+  requests: PairingRequest[];
+};
+
+/** A device asking to connect; its code is only on its own screen. */
+export type PairingRequest = { name: string; publicKey: string };
+
+/** Step 1's answer on the connecting device: show `code` until the other side verifies. */
+export type PairingOffer = { name: string; publicKey: string; code: string };
+
+export type PairedDevice = {
+  id: string;
+  name: string;
+  publicKey: string;
+  fingerprint: string;
+  addresses: string[];
+  nexDeviceId: string | null;
+  addedAt: number;
+  /** Waiting for it to verify the connection code. */
+  pending: boolean;
+};
+
+/** Mirrors NexRoute in apps/server/src/nexBridge.ts. */
+export type NexRoute = {
+  via: "direct" | "relay";
+  network: "lan" | "tailscale" | "custom" | null;
+  address: string | null;
+  setupMs: number | null;
+  relaySetupMs: number | null;
+  /** Fastest direct path right now, used or not (time to connect). */
+  directMs: number | null;
+  /** Round trip over it once connected, like a ping. */
+  directRttMs: number | null;
+  /** Why no direct path answers, when none does. */
+  directNote: string | null;
+  note: string | null;
 };
 
 /**
@@ -193,10 +249,47 @@ function asHomeDevice(path: string, data: any): unknown {
   return data;
 }
 
-/** Other devices that could hold a workspace right now; empty when not on a relay. */
+// --- whether a workspace's device is still there ---------------------------
+
+export type DeviceAvailability = "ok" | "offline" | "gone";
+
+const availability = new Map<string, DeviceAvailability>();
+
+/**
+ * Asks this machine's server whether each device still leads anywhere: "gone"
+ * when it is no longer one of ours (signed out of the account it came
+ * through, or its connection removed), "offline" when it is just not
+ * reachable right now. termany.ai has no such route: everything counts as ok.
+ */
+export async function refreshAvailability(deviceIds: string[]): Promise<Record<string, DeviceAvailability>> {
+  const ids = [...new Set(deviceIds)];
+  if (!ids.length || isCloud) return {};
+  try {
+    const result = await nexRequest<Record<string, DeviceAvailability>>("availability", { deviceIds: ids });
+    for (const [id, state] of Object.entries(result)) availability.set(id, state);
+    notify();
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+/** Last known availability of a device (undefined: not asked yet, or this machine). */
+export function useDeviceAvailability(deviceId: string | null | undefined): DeviceAvailability | undefined {
+  return useSyncExternalStore(subscribeDevices, () => (deviceId ? availability.get(deviceId) : undefined));
+}
+
+export function deviceAvailability(deviceId: string): DeviceAvailability | undefined {
+  return availability.get(deviceId);
+}
+
+/** Other devices that could hold a workspace right now: the account's, and paired ones. */
 export async function connectableDevices(): Promise<NexDevice[]> {
-  const status = await nexRequest<NexStatus>("status");
-  if (!status.configured) return [];
+  // Signed out, paired devices (LAN / tailnet, no account) are still listed.
+  if (isCloud) {
+    const status = await nexRequest<NexStatus>("status");
+    if (!status.configured) return [];
+  }
   const { devices } = await nexRequest<{ devices: NexDevice[] }>("devices");
   return devices.filter((d) => !d.isSelf);
 }

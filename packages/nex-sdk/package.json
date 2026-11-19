@@ -2,7 +2,7 @@
   "name": "nex-sdk",
   "version": "0.1.0",
   "private": true,
-  "description": "Vendored TypeScript SDK for the nex device-networking relay (github.com/thinkany-ai/nex, sdk/typescript @ 27be84b)",
+  "description": "Vendored TypeScript SDK for the nex device-networking relay (github.com/thinkany-ai/nex, sdk/typescript @ 27be84b + direct paths)",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
