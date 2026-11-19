@@ -10635,6 +10635,9 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   display: flex;
   gap: 8px;
 }
+.devices-strict-hint {
+  margin: 4px 0 0 24px;
+}
 .devices-strict {
   display: flex;
   align-items: center;

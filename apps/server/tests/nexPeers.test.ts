@@ -203,4 +203,6 @@ test("renaming this device while signed out: status, invite and the other side s
   await laptop.bridge.checkPeer(offer.publicKey);
   const [entry] = await laptop.bridge.devices();
   assert.equal(typeof entry.route?.directMs, "number");
+  assert.equal(typeof entry.route?.directRttMs, "number", "a ping-like round trip, not just the connect time");
+  assert.ok(entry.route!.directRttMs! <= entry.route!.directMs!);
 });

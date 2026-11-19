@@ -433,6 +433,8 @@ export function classifyAddress(address: string): DirectEndpointKind | null {
 export interface PathInfo extends DirectEndpoint {
   /** Time to set up a connection (TCP + TLS + request), from the last probe; null when unreachable. */
   setupMs: number | null;
+  /** Round trip once connected (request out, answer back), like a ping; null when unreachable. */
+  rttMs: number | null;
   error: string | null;
 }
 
@@ -588,6 +590,7 @@ export class DirectPaths extends EventEmitter<{ change: [PathStatus] }> {
       const message = errText(err);
       this.#log.debug?.(`direct: ${formatEndpoint(best)} failed, using the relay: ${message}`);
       best.setupMs = null;
+      best.rttMs = null;
       best.error = message;
       this.#changed();
       // A rejected key means the host restarted (new keys) or forgot us.
@@ -628,7 +631,7 @@ export class DirectPaths extends EventEmitter<{ change: [PathStatus] }> {
       try {
         if (!this.#client) {
           this.#services = null;
-          this.#paths = this.#static!.map((e) => ({ ...e, setupMs: null, error: null }));
+          this.#paths = this.#static!.map((e) => ({ ...e, setupMs: null, rttMs: null, error: null }));
           this.#error = null;
           await this.#probeAll();
           return;
@@ -639,7 +642,7 @@ export class DirectPaths extends EventEmitter<{ change: [PathStatus] }> {
         this.#key = info.key ? Buffer.from(info.key, "base64") : null;
         this.#services = new Set(info.services);
         const endpoints = this.#static ?? info.endpoints;
-        this.#paths = endpoints.map((e) => ({ host: e.host, port: e.port, kind: e.kind, setupMs: null, error: null }));
+        this.#paths = endpoints.map((e) => ({ host: e.host, port: e.port, kind: e.kind, setupMs: null, rttMs: null, error: null }));
         this.#error = !this.#credentials()
           ? "the device only accepts paired devices"
           : this.#paths.length
@@ -685,12 +688,15 @@ export class DirectPaths extends EventEmitter<{ change: [PathStatus] }> {
         this.#paths.map(async (p) => {
           const started = performance.now();
           try {
-            const socket = await this.#dial(p, { probe: true }, PROBE_TIMEOUT_MS);
+            const timing: { rttMs?: number } = {};
+            const socket = await this.#dial(p, { probe: true }, PROBE_TIMEOUT_MS, timing);
             socket.destroy();
             p.setupMs = Math.max(1, Math.round(performance.now() - started));
+            p.rttMs = timing.rttMs ?? null;
             p.error = null;
           } catch (err) {
             p.setupMs = null;
+            p.rttMs = null;
             p.error = errText(err);
             if (isAuthFailure(p.error)) {
               authFailed = true;
@@ -730,10 +736,10 @@ export class DirectPaths extends EventEmitter<{ change: [PathStatus] }> {
     return null;
   }
 
-  #dial(endpoint: DirectEndpoint, request: object, timeoutMs: number): Promise<tls.TLSSocket> {
+  #dial(endpoint: DirectEndpoint, request: object, timeoutMs: number, timing?: { rttMs?: number }): Promise<tls.TLSSocket> {
     const credentials = this.#credentials();
     if (!credentials) return Promise.reject(new Error("no direct key"));
-    return tlsRequest({ host: endpoint.host, port: endpoint.port }, credentials, request, timeoutMs);
+    return tlsRequest({ host: endpoint.host, port: endpoint.port }, credentials, request, timeoutMs, timing);
   }
 }
 
@@ -751,6 +757,8 @@ export function tlsRequest(
   credentials: { psk: Buffer; identity: string },
   request: object,
   timeoutMs: number,
+  /** Filled in with the request → answer round trip, once the host answered. */
+  timing?: { rttMs?: number },
 ): Promise<tls.TLSSocket> {
   return new Promise<tls.TLSSocket>((resolve, reject) => {
     let done = false;
@@ -773,8 +781,10 @@ export function tlsRequest(
     socket.once("error", fail);
     socket.once("secureConnect", () => {
       setNoDelay(socket);
+      const sent = performance.now();
       socket.write(`${JSON.stringify(request)}\n`);
       readLine(socket, timeoutMs).then(({ line, rest }) => {
+        if (timing) timing.rttMs = Math.max(1, Math.round(performance.now() - sent));
         if (done) return;
         let reply: { ok?: unknown; error?: unknown };
         try {

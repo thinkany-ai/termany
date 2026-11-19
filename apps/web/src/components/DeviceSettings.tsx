@@ -257,6 +257,7 @@ function ThisDevice({
       )}
 
       {peers?.signedIn && verifiedPeers > 0 && (
+        <>
         <label className="devices-strict">
           <input
             type="checkbox"
@@ -268,6 +269,8 @@ function ThisDevice({
           />
           <span>{t("devices.link.strict")}</span>
         </label>
+        <p className="ms-hint devices-strict-hint">{t("devices.link.strictHint")}</p>
+        </>
       )}
       {error && <div className="ms-test-fail">{error}</div>}
     </div>
@@ -495,29 +498,33 @@ function MyDevices({
 }
 
 /**
- * Both ways to a device, side by side: "LAN 6 ms" and "Cloud 180 ms" (time
- * to open a connection), the one in use highlighted, "—" where a way does
- * not answer. A device reached only by code has no cloud way to show.
+ * Both ways to a device, side by side, as round trips (like a ping): "LAN
+ * 3 ms" and "Cloud 180 ms", the one in use highlighted, "—" where a way
+ * does not answer (the tooltip says why). A device reached only by code has
+ * no cloud way to show.
  */
 function Latency({ device }: { device: NexDevice }) {
   const { t } = useI18n();
   const route = device.route ?? null;
   const viaAccount = device.kind !== "peer";
-  const directMs = route?.directMs ?? (route?.via === "direct" ? route.setupMs : null);
   const directActive = route?.via === "direct";
   const network = route?.network === "lan" ? t("devices.routeLan") : route?.network === "tailscale" ? "Tailscale" : null;
   const ms = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${v} ms`);
-  const directTitle = [t("devices.lat.directTitle"), [network, directActive ? route?.address : null].filter(Boolean).join(" · ")]
+  const directTitle = [
+    t("devices.lat.directTitle"),
+    [network, directActive ? route?.address : null].filter(Boolean).join(" · "),
+    route?.directRttMs === null || route?.directRttMs === undefined ? route?.directNote : null,
+  ]
     .filter(Boolean)
     .join("\n");
   return (
     <span className="devices-latency">
       <span className={`devices-route${directActive ? " direct" : ""}`} title={directTitle}>
-        {t("devices.lat.direct")} {ms(directMs)}
+        {t("devices.lat.direct")} {ms(route?.directRttMs)}
       </span>
       {viaAccount && (
         <span className={`devices-route${directActive ? "" : " direct"}`} title={t("devices.lat.cloudTitle")}>
-          {t("devices.lat.cloud")} {ms(device.relayMs ?? route?.relaySetupMs)}
+          {t("devices.lat.cloud")} {ms(device.relayRttMs)}
         </span>
       )}
     </span>

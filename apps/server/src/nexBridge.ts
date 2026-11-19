@@ -94,11 +94,11 @@ export type NexDevice = {
   /** We asked it to connect; it has not verified us yet. */
   pending?: boolean;
   /**
-   * Time to open a connection to it through the cloud relay, last measured
+   * Round trip to it through the cloud relay, like a ping, last measured
    * (null: not signed in, or not measured yet). The direct path's is
-   * `route.directMs`; the list shows both side by side.
+   * `route.directRttMs`; the list shows both side by side.
    */
-  relayMs?: number | null;
+  relayRttMs?: number | null;
 };
 
 export type PairedDevice = {
@@ -146,6 +146,10 @@ export type NexRoute = {
   relaySetupMs: number | null;
   /** Fastest direct path (LAN / tailnet) right now, used or not; null when none answers. */
   directMs: number | null;
+  /** Round trip over that path once connected, like a ping. */
+  directRttMs: number | null;
+  /** Why no direct path answers, when none does. */
+  directNote: string | null;
   /** Why direct is not used, when it is not. */
   note: string | null;
 };
@@ -190,7 +194,7 @@ export class NexBridge {
   readonly #peers: NexPeers;
   /** Serves paired devices while signed out (signed in, NexHost does it). */
   #peerHost: PeerHost | null = null;
-  /** Relay setup time per account device, measured while the device list is looked at. */
+  /** Relay round trip per account device, measured while the device list is looked at. */
   readonly #relayMs = new Map<string, { ms: number | null; at: number }>();
   /** Pairing requests from other devices, by public key; held in memory only. */
   readonly #requests = new Map<string, { invite: string; name: string; expires: number }>();
@@ -393,7 +397,7 @@ export class NexBridge {
           route: this.#route(d.id),
           paired: !!this.#peers.byNexDevice(d.id),
           kind: "relay",
-          relayMs: this.#relayMs.get(d.id)?.ms ?? null,
+          relayRttMs: this.#relayMs.get(d.id)?.ms ?? null,
         });
       }
     }
@@ -532,22 +536,39 @@ export class NexBridge {
   }
 
   /**
-   * Opens (and closes) one relay stream to its echo service, at most every
-   * 15 s: what a connection through the cloud costs to set up right now.
+   * At most every 15 s: one message through the cloud relay to its echo
+   * service and back (best of three), a ping through the cloud.
    */
   #measureRelay(deviceId: string): void {
     const client = this.#client;
     const last = this.#relayMs.get(deviceId);
     if (!client || (last && Date.now() - last.at < 15_000)) return;
     this.#relayMs.set(deviceId, { ms: last?.ms ?? null, at: Date.now() });
-    const started = performance.now();
-    openStream(client, deviceId, "echo").then(
-      (ws) => {
-        this.#relayMs.set(deviceId, { ms: Math.max(1, Math.round(performance.now() - started)), at: Date.now() });
-        ws.close();
-      },
-      () => this.#relayMs.set(deviceId, { ms: null, at: Date.now() }),
-    );
+    void (async () => {
+      let ws;
+      try {
+        ws = await openStream(client, deviceId, "echo");
+        let best: number | null = null;
+        for (let i = 0; i < 3; i++) {
+          const sent = performance.now();
+          await new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error("no echo")), 5_000);
+            ws!.once("message", () => {
+              clearTimeout(timer);
+              resolve();
+            });
+            ws!.send(`ping ${i}`);
+          });
+          const rtt = Math.max(1, Math.round(performance.now() - sent));
+          if (best === null || rtt < best) best = rtt;
+        }
+        this.#relayMs.set(deviceId, { ms: best, at: Date.now() });
+      } catch {
+        this.#relayMs.set(deviceId, { ms: null, at: Date.now() });
+      } finally {
+        ws?.close();
+      }
+    })();
   }
 
   /** The tunnel to one of the account's devices (direct when it can, the relay otherwise). */
@@ -1018,7 +1039,17 @@ function asPeerError(err: unknown): NexError {
   return new NexError(errMessage(err), 400);
 }
 
-const RELAY_ONLY: NexRoute = { via: "relay", network: null, address: null, setupMs: null, relaySetupMs: null, directMs: null, note: null };
+const RELAY_ONLY: NexRoute = {
+  via: "relay",
+  network: null,
+  address: null,
+  setupMs: null,
+  relaySetupMs: null,
+  directMs: null,
+  directRttMs: null,
+  directNote: "direct paths are turned off",
+  note: null,
+};
 
 function toRoute(status: PathStatus): NexRoute {
   return {
@@ -1028,6 +1059,10 @@ function toRoute(status: PathStatus): NexRoute {
     setupMs: status.setupMs,
     relaySetupMs: status.relaySetupMs,
     directMs: status.paths.reduce<number | null>((best, p) => (p.setupMs !== null && (best === null || p.setupMs < best) ? p.setupMs : best), null),
+    directRttMs: status.paths.reduce<number | null>((best, p) => (p.rttMs !== null && (best === null || p.rttMs < best) ? p.rttMs : best), null),
+    directNote: status.paths.some((p) => p.setupMs !== null)
+      ? null
+      : (status.error ?? status.paths.find((p) => p.error)?.error ?? null),
     note:
       status.route === "relay"
         ? (status.error ?? status.paths.find((p) => p.error)?.error ?? "direct paths are slower or unreachable")
