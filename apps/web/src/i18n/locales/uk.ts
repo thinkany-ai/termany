@@ -535,6 +535,9 @@ export default {
   "pane.view.providers": "Шлюз моделей",
   "pane.openInBrowser": "Відкрити {url} у браузері",
   "pane.servedUrls": "Відкрити порт, який обслуговує ця панель",
+  "pane.cwd.copy": "Натисніть, щоб скопіювати",
+  "pane.cwd.reveal": "⌘-клік — показати у Finder",
+  "pane.cwd.copied": "Скопійовано",
 
   "kb.title": "КЛАВІАТУРНІ СКОРОЧЕННЯ",
   "kb.resetAll": "Скинути все",

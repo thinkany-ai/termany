@@ -534,6 +534,9 @@ export default {
   "pane.view.providers": "Puerta de enlace de modelos",
   "pane.openInBrowser": "Abrir {url} en el navegador",
   "pane.servedUrls": "Abrir un puerto que sirve este panel",
+  "pane.cwd.copy": "Haz clic para copiar",
+  "pane.cwd.reveal": "⌘-clic para mostrar en el Finder",
+  "pane.cwd.copied": "Copiado",
 
   "kb.title": "ATAJOS DE TECLADO",
   "kb.resetAll": "Restablecer todo",

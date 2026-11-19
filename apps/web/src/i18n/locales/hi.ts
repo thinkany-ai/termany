@@ -535,6 +535,9 @@ export default {
   "pane.view.providers": "मॉडल गेटवे",
   "pane.openInBrowser": "{url} ब्राउज़र में खोलें",
   "pane.servedUrls": "इस पेन द्वारा सर्व किया जा रहा पोर्ट खोलें",
+  "pane.cwd.copy": "कॉपी करने के लिए क्लिक करें",
+  "pane.cwd.reveal": "Finder में दिखाने के लिए ⌘-क्लिक करें",
+  "pane.cwd.copied": "कॉपी हो गया",
 
   "kb.title": "कीबोर्ड शॉर्टकट",
   "kb.resetAll": "सब रीसेट करें",

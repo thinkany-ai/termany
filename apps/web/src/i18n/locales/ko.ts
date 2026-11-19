@@ -534,6 +534,9 @@ export default {
   "pane.view.providers": "모델 게이트웨이",
   "pane.openInBrowser": "브라우저에서 {url} 열기",
   "pane.servedUrls": "이 창이 제공 중인 포트 열기",
+  "pane.cwd.copy": "클릭하여 복사",
+  "pane.cwd.reveal": "⌘ 클릭으로 Finder에서 보기",
+  "pane.cwd.copied": "복사됨",
 
   "kb.title": "키보드 단축키",
   "kb.resetAll": "모두 초기화",

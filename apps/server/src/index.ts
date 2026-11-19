@@ -1444,6 +1444,23 @@ const http = createServer((req, res) => {
     return;
   }
 
+  // The pane header shows the shell's current folder. The client asks again
+  // shortly after output settles (a `cd` always redraws the prompt), so this
+  // stays a cheap on-demand lookup rather than a server-side poll. `home` lets
+  // the client abbreviate with "~" for whichever device runs the shell.
+  if (req.method === "GET" && reqUrl.pathname === "/api/session-cwd") {
+    (async () => {
+      const sessionId = reqUrl.searchParams.get("session") ?? "";
+      const pty = ptySessions.get(sessionId)?.pty;
+      const cwd =
+        (await dirIfValid(pty ? await cwdForPid(pty.pid) : undefined)) ??
+        (await dirIfValid(getSessionCwd(sessionId) ?? undefined)) ??
+        null;
+      json(200, { cwd, home: os.homedir() });
+    })().catch(fail);
+    return;
+  }
+
   // Directory listing for the per-pane file tree. `session` anchors an empty
   // `path` to that pane's shell's LIVE cwd (same resolution as resolve-paths);
   // an explicit `path` just lists that directory instead.

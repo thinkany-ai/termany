@@ -536,6 +536,9 @@ export default {
   "pane.view.providers": "Model gateway",
   "pane.openInBrowser": "Open {url} in browser",
   "pane.servedUrls": "Open a port this pane is serving",
+  "pane.cwd.copy": "Click to copy",
+  "pane.cwd.reveal": "⌘-click to reveal in Finder",
+  "pane.cwd.copied": "Copied",
 
   "kb.title": "KEYBOARD SHORTCUTS",
   "kb.resetAll": "Reset all",

@@ -631,6 +631,9 @@ export default {
   "pane.view.providers": "模型网关",
   "pane.openInBrowser": "在浏览器中打开 {url}",
   "pane.servedUrls": "打开此窗格监听的端口",
+  "pane.cwd.copy": "点击复制",
+  "pane.cwd.reveal": "⌘ 点击在 Finder 中显示",
+  "pane.cwd.copied": "已复制",
 
   "kb.title": "快捷键",
   "kb.resetAll": "全部重置",

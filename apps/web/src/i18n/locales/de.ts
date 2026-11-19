@@ -536,6 +536,9 @@ export default {
   "pane.view.providers": "Modell-Gateway",
   "pane.openInBrowser": "{url} im Browser öffnen",
   "pane.servedUrls": "Einen Port öffnen, den dieser Bereich bereitstellt",
+  "pane.cwd.copy": "Klicken zum Kopieren",
+  "pane.cwd.reveal": "⌘-Klick zeigt den Ordner im Finder",
+  "pane.cwd.copied": "Kopiert",
 
   "kb.title": "TASTENKÜRZEL",
   "kb.resetAll": "Alle zurücksetzen",

@@ -534,6 +534,9 @@ export default {
   "pane.view.providers": "Passerelle de modèles",
   "pane.openInBrowser": "Ouvrir {url} dans le navigateur",
   "pane.servedUrls": "Ouvrir un port servi par ce volet",
+  "pane.cwd.copy": "Cliquer pour copier",
+  "pane.cwd.reveal": "⌘-clic pour afficher dans le Finder",
+  "pane.cwd.copied": "Copié",
 
   "kb.title": "RACCOURCIS CLAVIER",
   "kb.resetAll": "Tout réinitialiser",

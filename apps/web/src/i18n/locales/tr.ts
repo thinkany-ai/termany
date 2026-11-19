@@ -534,6 +534,9 @@ export default {
   "pane.view.providers": "Model ağ geçidi",
   "pane.openInBrowser": "{url} adresini tarayıcıda aç",
   "pane.servedUrls": "Bu bölmenin sunduğu bir bağlantı noktasını aç",
+  "pane.cwd.copy": "Kopyalamak için tıkla",
+  "pane.cwd.reveal": "Finder'da göstermek için ⌘-tıkla",
+  "pane.cwd.copied": "Kopyalandı",
 
   "kb.title": "KLAVYE KISAYOLLARI",
   "kb.resetAll": "Tümünü sıfırla",

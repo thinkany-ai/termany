@@ -534,6 +534,9 @@ export default {
   "pane.view.providers": "Modellgateway",
   "pane.openInBrowser": "Öppna {url} i webbläsaren",
   "pane.servedUrls": "Öppna en port som den här panelen betjänar",
+  "pane.cwd.copy": "Klicka för att kopiera",
+  "pane.cwd.reveal": "⌘-klicka för att visa i Finder",
+  "pane.cwd.copied": "Kopierat",
 
   "kb.title": "KORTKOMMANDON",
   "kb.resetAll": "Återställ alla",

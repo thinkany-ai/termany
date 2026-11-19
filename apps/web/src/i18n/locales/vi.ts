@@ -534,6 +534,9 @@ export default {
   "pane.view.providers": "Cổng mô hình",
   "pane.openInBrowser": "Mở {url} trong trình duyệt",
   "pane.servedUrls": "Mở một cổng mà khung này đang phục vụ",
+  "pane.cwd.copy": "Nhấp để sao chép",
+  "pane.cwd.reveal": "⌘-nhấp để hiện trong Finder",
+  "pane.cwd.copied": "Đã sao chép",
 
   "kb.title": "PHÍM TẮT",
   "kb.resetAll": "Đặt lại tất cả",

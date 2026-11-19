@@ -535,6 +535,9 @@ export default {
   "pane.view.providers": "Modelová brána",
   "pane.openInBrowser": "Otevřít {url} v prohlížeči",
   "pane.servedUrls": "Otevřít port, který tento panel poskytuje",
+  "pane.cwd.copy": "Kliknutím zkopírujete",
+  "pane.cwd.reveal": "⌘-kliknutím zobrazíte ve Finderu",
+  "pane.cwd.copied": "Zkopírováno",
 
   "kb.title": "KLÁVESOVÉ ZKRATKY",
   "kb.resetAll": "Obnovit vše",

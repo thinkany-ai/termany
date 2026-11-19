@@ -534,6 +534,9 @@ export default {
   "pane.view.providers": "モデルゲートウェイ",
   "pane.openInBrowser": "{url} をブラウザで開く",
   "pane.servedUrls": "このペインが公開しているポートを開く",
+  "pane.cwd.copy": "クリックでコピー",
+  "pane.cwd.reveal": "⌘クリックで Finder に表示",
+  "pane.cwd.copied": "コピーしました",
 
   "kb.title": "キーボードショートカット",
   "kb.resetAll": "すべてリセット",

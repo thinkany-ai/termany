@@ -534,6 +534,9 @@ export default {
   "pane.view.providers": "Modelgateway",
   "pane.openInBrowser": "{url} openen in de browser",
   "pane.servedUrls": "Een poort openen die dit deelvenster aanbiedt",
+  "pane.cwd.copy": "Klik om te kopiëren",
+  "pane.cwd.reveal": "⌘-klik om in Finder te tonen",
+  "pane.cwd.copied": "Gekopieerd",
 
   "kb.title": "SNELTOETSEN",
   "kb.resetAll": "Alles herstellen",

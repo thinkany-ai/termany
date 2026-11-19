@@ -3559,6 +3559,10 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   inset: 0;
   z-index: 50;
   background: rgba(0, 0, 0, 0.4);
+  /* Own compositing layer: in WebKit a scrolled pane's scrollbar is composited
+     and otherwise paints above this backdrop (settings/search backdrops get a
+     layer from backdrop-filter, which is why they don't show it). */
+  transform: translateZ(0);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4795,6 +4799,33 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
 .pane-head-spacer {
   flex: 1 1 0;
   min-width: 10px;
+}
+/* Current folder beside the title: dim and small so the title stays the
+   label; it gives up width first when the header is narrow. */
+.pane-head-cwd {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 40ch;
+  height: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: ltr;
+  cursor: pointer;
+}
+.pane-head-cwd:hover {
+  background: var(--bg-3);
+  color: var(--fg);
+}
+.pane-head-cwd.copied {
+  color: var(--accent);
 }
 /* Zen (maximize) mode: the split tree stays visible underneath, dimmed by
    the scrim, and the zoomed pane floats centered above it — so the hidden

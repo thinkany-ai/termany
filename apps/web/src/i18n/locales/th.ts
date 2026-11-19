@@ -535,6 +535,9 @@ export default {
   "pane.view.providers": "เกตเวย์โมเดล",
   "pane.openInBrowser": "เปิด {url} ในเบราว์เซอร์",
   "pane.servedUrls": "เปิดพอร์ตที่บานหน้าต่างนี้ให้บริการอยู่",
+  "pane.cwd.copy": "คลิกเพื่อคัดลอก",
+  "pane.cwd.reveal": "⌘-คลิกเพื่อแสดงใน Finder",
+  "pane.cwd.copied": "คัดลอกแล้ว",
 
   "kb.title": "แป้นพิมพ์ลัด",
   "kb.resetAll": "รีเซ็ตทั้งหมด",

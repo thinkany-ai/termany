@@ -535,6 +535,9 @@ export default {
   "pane.view.providers": "Brama modeli",
   "pane.openInBrowser": "Otwórz {url} w przeglądarce",
   "pane.servedUrls": "Otwórz port udostępniany przez ten panel",
+  "pane.cwd.copy": "Kliknij, aby skopiować",
+  "pane.cwd.reveal": "⌘-kliknięcie pokazuje w Finderze",
+  "pane.cwd.copied": "Skopiowano",
 
   "kb.title": "SKRÓTY KLAWISZOWE",
   "kb.resetAll": "Zresetuj wszystko",

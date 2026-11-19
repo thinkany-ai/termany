@@ -534,6 +534,9 @@ export default {
   "pane.view.providers": "Gateway model",
   "pane.openInBrowser": "Buka {url} di peramban",
   "pane.servedUrls": "Buka porta yang dilayani panel ini",
+  "pane.cwd.copy": "Klik untuk menyalin",
+  "pane.cwd.reveal": "⌘-klik untuk menampilkan di Finder",
+  "pane.cwd.copied": "Disalin",
 
   "kb.title": "PINTASAN PAPAN KETIK",
   "kb.resetAll": "Atur ulang semua",

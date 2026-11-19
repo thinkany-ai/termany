@@ -534,6 +534,9 @@ export default {
   "pane.view.providers": "模型閘道",
   "pane.openInBrowser": "在瀏覽器中開啟 {url}",
   "pane.servedUrls": "開啟這個窗格提供服務的連接埠",
+  "pane.cwd.copy": "點擊複製",
+  "pane.cwd.reveal": "⌘ 點擊在 Finder 中顯示",
+  "pane.cwd.copied": "已複製",
 
   "kb.title": "鍵盤快速鍵",
   "kb.resetAll": "全部重設",

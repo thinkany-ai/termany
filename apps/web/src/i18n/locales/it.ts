@@ -534,6 +534,9 @@ export default {
   "pane.view.providers": "Gateway dei modelli",
   "pane.openInBrowser": "Apri {url} nel browser",
   "pane.servedUrls": "Apri una porta servita da questo riquadro",
+  "pane.cwd.copy": "Clic per copiare",
+  "pane.cwd.reveal": "⌘-clic per mostrare nel Finder",
+  "pane.cwd.copied": "Copiato",
 
   "kb.title": "SCORCIATOIE DA TASTIERA",
   "kb.resetAll": "Reimposta tutto",

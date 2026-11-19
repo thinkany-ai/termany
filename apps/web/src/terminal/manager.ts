@@ -42,6 +42,7 @@ import {
   shellExitDisposition,
 } from "./shellExit";
 import { forgetSessionUrls, noteSessionOutput } from "./servedUrls";
+import { forgetSessionCwd, noteCwdActivity } from "./paneCwd";
 import { registerWebLinks } from "./webLinks";
 import { fixWebkitGtkImeComposition } from "./webkitGtkIme";
 import { CompositionBoundsAddon } from "./compositionBounds";
@@ -1710,6 +1711,7 @@ function getSession(id: string, cwdFrom?: string[], sshTarget?: string, paneId =
       // Live output only — a replayed history tail would advertise the URL of
       // a dev server that died with the previous run.
       noteSessionOutput(id, data);
+      noteCwdActivity(id);
       if (replaying) {
         pendingOutput.push(data);
         return;
@@ -2463,6 +2465,7 @@ export function disposeSession(id: string) {
   agentSessionKinds.delete(id);
   restoreSnapshots.delete(id);
   forgetSessionUrls(id);
+  forgetSessionCwd(id);
   if (isDemo) return;
   // Drop its persisted restore data — a closed pane should not come back.
   fetch(`${httpBaseFor(id)}/api/forget`, {
@@ -2518,6 +2521,7 @@ function dropPaneSessions(paneId: string, forget: boolean) {
     if (activityChanged || presenceChanged) notifyAgentActivity();
     agentSessionKinds.delete(id);
     forgetSessionUrls(id);
+    forgetSessionCwd(id);
   }
   notifyConnectionStatus();
   if (!forget || isDemo || !ids.length) return;
