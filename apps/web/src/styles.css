@@ -10642,6 +10642,11 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   margin-top: 10px;
   font-size: 13px;
 }
+/* Not the dialog's first card: nothing to keep clear of the close button. */
+.ms-head.devices-head {
+  padding-right: 0;
+  margin-bottom: 8px;
+}
 .devices-actions {
   justify-content: flex-end;
   align-items: center;

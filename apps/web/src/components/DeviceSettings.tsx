@@ -377,7 +377,7 @@ function MyDevices({
 
   return (
     <div className="ms-card">
-      <div className="ms-head">
+      <div className="ms-head devices-head">
         <div className="ms-card-title">{t("devices.others")}</div>
         {!isCloud && (
           <div className="ms-head-actions devices-actions">
