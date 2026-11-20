@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   DEFAULT_PEER_PORT,
-  classifyAddress,
+  classifyInterfaceAddress,
   fingerprint,
   generateIdentity,
   normalizePublicKey,
@@ -178,9 +178,9 @@ export class NexPeers {
   /** Where other devices can reach this one directly. */
   endpoints(): PeerEndpoint[] {
     const out: PeerEndpoint[] = [];
-    for (const addrs of Object.values(os.networkInterfaces())) {
+    for (const [name, addrs] of Object.entries(os.networkInterfaces())) {
       for (const a of addrs ?? []) {
-        const kind = a.internal ? null : classifyAddress(a.address);
+        const kind = a.internal ? null : classifyInterfaceAddress(name, a.address);
         if (kind) out.push({ host: a.address, port: this.port, kind });
       }
     }

@@ -140,6 +140,7 @@ const ACTION_DEFINITIONS: ActionDef[] = [
   { id: "openAgentHistory", label: "Open agent session history", group: "General", default: { code: "KeyH", meta: true, shift: true } },
   { id: "openAgentUsage", label: "Open agent token usage", group: "General", default: { code: "KeyU", meta: true, shift: true } },
   { id: "openSystemMonitor", label: "Open system monitor", group: "General", default: { code: "KeyM", meta: true, shift: true } },
+  { id: "handoffAgent", label: "Hand off to another agent", group: "Tabs & panes", default: { code: "KeyA", meta: true, shift: true } },
 ];
 
 /** Platform-native action catalog consumed by matching, settings and xterm. */

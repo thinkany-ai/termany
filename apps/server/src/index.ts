@@ -9,6 +9,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import { createServer, type ServerResponse } from "node:http";
 import os from "node:os";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { promisify } from "node:util";
 import { AgentActivityTracker } from "./agentActivity.js";
@@ -18,7 +19,7 @@ import { DEFAULT_SESSION_PAGE_SIZE, listAgentSessions, listAgentUsage } from "./
 import { streamAgentChat } from "./agentChat.js";
 import { compileBotContext } from "./botContext.js";
 import { handleSkillRequest } from "./skillsHttp.js";
-import { NexBridge, NexError } from "./nexBridge.js";
+import { APP_SCHEME, NexBridge, NexError, SITE_URL } from "./nexBridge.js";
 import { NexPeers, defaultPeerPort } from "./nexPeers.js";
 import { listAgentConfigs, saveAgentConfigs } from "./agentConfig.js";
 import {
@@ -57,20 +58,61 @@ import {
   getAllScreens,
   getAllScroll,
   getScroll,
+  getSessionAgent,
   getSessionCwd,
+  getSessionThread,
   loadState,
   saveState,
   setScreenBatch,
   setScrollBatch,
+  setSessionAgent,
   setSessionCwd,
+  setSessionThread,
   upsertWorkspace,
 } from "./db.js";
+import {
+  detectAgentSession,
+  foregroundPids,
+  parseResumeRecord,
+  readProcessTable,
+  resumeCommand,
+  typeWhenPromptSettles,
+  type AgentResumeRecord,
+  type ProcessTable,
+} from "./agentResume.js";
+import {
+  agentLabel,
+  currentSegments,
+  contextPreface,
+  handoffCommand,
+  handoffPrompt,
+  isPosixShell,
+  launchScript,
+  launchScriptFile,
+  shellQuote,
+  type BriefingDelivery,
+  hasTranscript,
+  isHandoffAgent,
+  noteThreadSegment,
+  parseThread,
+  planHandoff,
+  setAgentLabels,
+  typeIntoAgentWhenReady,
+  writeBriefing,
+  writeWhenQuiet,
+  type HandoffAgent,
+  type PaneThread,
+} from "./agentHandoff.js";
+import { agentCatalog, agentForProcess, agentName, cachedCatalog, injectsContext, splitArgs, type CatalogAgent } from "./agentCatalog.js";
+import { CaptureStore, renderCapture } from "./agentCapture.js";
+import { installTermanyCli, withTermanyCli } from "./termanyCli.js";
 import { gitDiffs, gitOverview, worktreeOverview } from "./git.js";
 import { pickFolder } from "./folderPicker.js";
 import { pickFiles } from "./filePicker.js";
 import { testProvider } from "./providerTest.js";
 import { cwdForPid as nativeCwdForPid } from "./processCwd.js";
 import { ptyEnvironment } from "./ptyEnvironment.js";
+import { spawnEnvironment } from "./shellPath.js";
 import { generateTheme } from "./theme.js";
 import {
   createTransferPipeline,
@@ -542,6 +584,7 @@ function wireSession(id: string | undefined, session: PtySession): void {
     if (id) {
       activityTracker.noteOutput(id, data);
       jobSampler.noteOutput();
+      captureOutput(id, data);
     }
     if (IS_WIN) trackOscCwd(session.pty.pid, data);
   };
@@ -575,6 +618,9 @@ function wireSession(id: string | undefined, session: PtySession): void {
       client.close(SHELL_EXIT_CLOSE_CODE, encodeShellExit(exitCode, signal));
     }
     if (id) {
+      // `exit` typed by the user: whatever ran here is finished, don't bring
+      // it back. A signal (reboot, logout, crash) leaves the record for resume.
+      if (exitCode === 0 && !signal) forgetAgentSession(id);
       activityTracker.noteExit(id, exitCode, signal);
       sshPortForwarding.remove(id);
       // Natural exit — flush final history so it still restores as plain
@@ -596,6 +642,15 @@ function wireSession(id: string | undefined, session: PtySession): void {
 /** Kill a session's live process (if any), preserving its restore history. */
 function killSession(id: string): void {
   activityTracker.remove(id);
+  agentRecords.delete(id);
+  agentMisses.delete(id);
+  paneThreads.delete(id);
+  agentEndedAt.delete(id);
+  lastHandoff.delete(id);
+  fs.rm(launchScriptFile(id), { force: true }, () => {});
+  endCapture(id);
+  paneOutput.delete(id);
+  idleMark.delete(id);
   sshPortForwarding.remove(id);
   const session = ptySessions.get(id);
   if (!session) return;
@@ -708,6 +763,7 @@ const http = createServer((req, res) => {
   if (req.method === "GET" && reqUrl.pathname === "/api/nex/login/callback") {
     // The browser lands here from termany.sh after the user approves (or
     // cancels) "Sign in with termany.sh"; answer with a page, not JSON.
+    // Failures are shown here; success redirects back to termany.sh.
     const page = (title: string, detail: string, status: number) => {
       res.writeHead(status, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
       res.end(
@@ -720,12 +776,15 @@ const http = createServer((req, res) => {
     nex
       .loginCallback(reqUrl.searchParams.get("code") ?? "", reqUrl.searchParams.get("state") ?? "")
       .then(
-        (status) =>
-          page(
-            "Signed in to Termany",
-            status.configured ? `${status.deviceName} is now linked${status.account ? ` to ${status.account}` : ""}. You can close this tab and go back to Termany.` : "You can close this tab.",
-            200,
-          ),
+        (status) => {
+          // Hand off to termany.sh/connect/done, which shows the result and
+          // reopens this app through its URL scheme.
+          const done = new URL(`${SITE_URL}/connect/done`);
+          done.searchParams.set("app", APP_SCHEME);
+          if (status.configured) done.searchParams.set("device", status.deviceName);
+          res.writeHead(302, { Location: done.toString(), "Cache-Control": "no-store" });
+          res.end();
+        },
         (err) => page("Sign-in failed", err instanceof Error ? err.message : String(err), err instanceof NexError ? err.status : 500),
       );
     return;
@@ -1086,7 +1145,12 @@ const http = createServer((req, res) => {
   }
   if (req.method === "PUT" && req.url === "/api/agents") {
     readJson(req)
-      .then((body) => json(200, { agents: saveAgentConfigs(body?.agents) }))
+      .then((body) => {
+        const agents = saveAgentConfigs(body?.agents);
+        // The handoff switcher lists these agents: refresh it.
+        void agentCatalog(true).catch(() => {});
+        json(200, { agents });
+      })
       .catch(fail);
     return;
   }
@@ -1402,6 +1466,12 @@ const http = createServer((req, res) => {
           }
         }
         const uniqueIds = [...new Set(ids)];
+        // What the panes' agents drew goes with the panes (see agentCapture.ts).
+        for (const id of uniqueIds) {
+          for (const segment of paneThread(id).segments) {
+            if (segment.source === "capture") captures.discard(segment.id);
+          }
+        }
         for (const id of uniqueIds) killSession(id);
         closeAcpRuntimes(uniqueIds);
         forgetSessions(uniqueIds);
@@ -1439,6 +1509,41 @@ const http = createServer((req, res) => {
           })
         );
         json(200, { resolved });
+      })
+      .catch(fail);
+    return;
+  }
+
+  // Agent handoff: which panes have a thread another agent could pick up,
+  // and the switch itself (see agentHandoff.ts).
+  if (req.method === "GET" && reqUrl.pathname === "/api/agent-threads") {
+    res.setHeader("Cache-Control", "no-store");
+    handoffTargets()
+      .then((agents) => json(200, { threads: agentThreadsSnapshot(), agents }))
+      .catch(fail);
+    return;
+  }
+
+  if (req.method === "POST" && reqUrl.pathname === "/api/agent-handoff") {
+    readJson(req)
+      .then(async (body) => {
+        const sessionId = typeof body?.session === "string" ? body.session : "";
+        if (!isHandoffAgent(body?.to)) {
+          json(400, { error: "Unknown agent.", code: "bad-agent" });
+          return;
+        }
+        try {
+          if (body?.deferred === true) {
+            await checkHandoffPossible(sessionId, body.to);
+            json(202, { ok: true, deferred: true });
+            void deferredHandoff(sessionId, body.to);
+            return;
+          }
+          json(200, await handOffPane(sessionId, body.to));
+        } catch (error) {
+          if (error instanceof HandoffError) json(error.status, { error: error.message, code: error.code });
+          else throw error;
+        }
       })
       .catch(fail);
     return;
@@ -2153,9 +2258,486 @@ async function collectCwds(): Promise<void> {
   }
 }
 
+// Agents get their own, faster sweep: a pane's conversation must be on record
+// before the agent can crash, or there is nothing to hand off. One `ps` covers
+// every pane; Claude Code is a file read and Codex an lsof + one indexed query.
+const AGENT_SWEEP_MS = 2000;
+/** Sweeps without the agent before its record is cleared (~10s, so an agent
+ *  killed a moment before its shell — a reboot — is not forgotten on the way out). */
+const AGENT_MISSES_TO_CLEAR = 5;
+let agentSweep: Promise<void> | undefined;
+
+function sweepAgents(): Promise<void> {
+  if (agentSweep) return agentSweep;
+  agentSweep = collectAgentSessions().finally(() => { agentSweep = undefined; });
+  return agentSweep;
+}
+
+// --- Agent resume -------------------------------------------------------------
+// Remember which Claude Code / Codex conversation each local pane is running,
+// so a shell respawned after a restart can reopen it (see agentResume.ts).
+const AGENT_RESUME = process.env.TERMANY_AGENT_RESUME !== "0";
+/** JSON last written per pane, to skip identical writes. */
+const agentRecords = new Map<string, string | null>();
+/** Consecutive sweeps that found no agent (see AGENT_MISSES_TO_CLEAR). */
+const agentMisses = new Map<string, number>();
+let shuttingDown = false;
+
+function writeAgentRecord(id: string, data: string | null): void {
+  if (agentRecords.get(id) === data) return;
+  try {
+    setSessionAgent(id, data);
+    agentRecords.set(id, data);
+  } catch {
+    /* DB busy — next sweep */
+  }
+}
+
+function forgetAgentSession(id: string): void {
+  agentMisses.delete(id);
+  agentRecords.delete(id);
+  try {
+    setSessionAgent(id, null);
+  } catch {
+    /* best-effort */
+  }
+}
+
+async function collectAgentSessions(): Promise<void> {
+  if (!AGENT_RESUME) return;
+  const local = [...ptySessions].filter(([, session]) => !session.sshTarget);
+  if (!local.length) return;
+  const table = await readProcessTable();
+  if (!table) return;
+  const catalog = cachedCatalog();
+  for (const [id, session] of local) {
+    const found = await detectAgentSession(table, session.pty.pid, agentHints(id));
+    if (found) {
+      agentMisses.delete(id);
+      agentEndedAt.delete(id);
+      endCapture(id);
+      writeAgentRecord(id, JSON.stringify(found));
+      noteThread(id, found);
+      continue;
+    }
+    // Any other agent from the registry: record what it draws (agentCapture.ts).
+    const other = await foregroundAgent(table, session.pty.pid, catalog);
+    if (other && !hasTranscript(other.agent.id)) {
+      agentMisses.delete(id);
+      agentEndedAt.delete(id);
+      // Whatever Claude Code / Codex conversation this pane had is no longer what runs in it.
+      writeAgentRecord(id, null);
+      noteCapture(id, session, other.agent.id, other.group, other.pid);
+      continue;
+    }
+    if (!foregroundPids(table.groups, session.pty.pid).length) markIdle(id);
+    if (shuttingDown) continue;
+    const misses = (agentMisses.get(id) ?? 0) + 1;
+    agentMisses.set(id, misses);
+    if (misses >= AGENT_MISSES_TO_CLEAR) {
+      if (agentRecords.get(id) || activeCaptures.has(id)) agentEndedAt.set(id, Date.now());
+      writeAgentRecord(id, null);
+      endCapture(id);
+    }
+  }
+}
+
+/** What detection should know about the other panes (see pickCodexThread). */
+function agentHints(id: string): { previous?: string; claimed: Set<string> } {
+  const claimed = new Set<string>();
+  for (const [other, data] of agentRecords) {
+    if (other === id || !data) continue;
+    const record = parseResumeRecord(data);
+    if (record) claimed.add(record.id);
+  }
+  return { previous: parseResumeRecord(agentRecords.get(id) ?? getSessionAgent(id))?.id, claimed };
+}
+
+/** argv of each pid (`ps -o args`), for recognizing agents that run under an interpreter. */
+async function processArgs(pids: number[]): Promise<Map<number, string[]>> {
+  const out = new Map<number, string[]>();
+  if (!pids.length) return out;
+  try {
+    const { stdout } = await execFileAsync("ps", ["-o", "pid=,args=", "-p", pids.join(",")], { timeout: 2000, maxBuffer: 1 << 20 });
+    for (const line of stdout.split("\n")) {
+      const match = /^\s*(\d+)\s+(.*)$/.exec(line);
+      if (match) out.set(Number(match[1]), splitArgs(match[2]));
+    }
+  } catch {
+    /* ps exits non-zero when a pid has just gone */
+  }
+  return out;
+}
+
+/** The registry agent holding the pane's foreground, if any. */
+async function foregroundAgent(
+  table: ProcessTable,
+  shellPid: number,
+  catalog: CatalogAgent[],
+): Promise<{ agent: CatalogAgent; group: number; pid: number } | null> {
+  const pids = foregroundPids(table.groups, shellPid);
+  if (!pids.length || !catalog.length) return null;
+  const argv = await processArgs(pids);
+  for (const pid of pids) {
+    const agent = agentForProcess(argv.get(pid) ?? [table.comm.get(pid) ?? ""], catalog);
+    if (agent) return { agent, group: pids[0], pid };
+  }
+  return null;
+}
+
+// --- Agent handoff ------------------------------------------------------------
+// Every conversation a pane runs is appended to its thread, so another agent
+// can pick the work up (see agentHandoff.ts).
+const paneThreads = new Map<string, PaneThread>();
+/** When a pane's agent was last seen exiting, so the UI can offer to carry on. */
+const agentEndedAt = new Map<string, number>();
+/** Each pane's latest handoff, so its header can say who took over (agents in full screen hide the shell's line). */
+const lastHandoff = new Map<string, { from: string[]; to: HandoffAgent; at: number }>();
+const handoffsInFlight = new Set<string>();
+/** Where the `termany` pane command lives (see termanyCli.ts); null if it could not be written. */
+const TERMANY_CLI_DIR = installTermanyCli();
+/** Output of agents without a readable transcript, while they run (see agentCapture.ts). */
+const captures = new CaptureStore();
+const activeCaptures = new Map<string, { segmentId: string; agent: string; group: number }>();
+/** At most this much scrollback seeds a capture: the agent's start-up before it was noticed. */
+const CAPTURE_SEED_BYTES = 64 * 1024;
+/** Characters each pane has printed in total, and the count when its shell was last idle at
+ *  a prompt — so a capture starts where its agent did, not inside an earlier session. */
+const paneOutput = new Map<string, number>();
+const idleMark = new Map<string, number>();
+
+function markIdle(id: string): void {
+  idleMark.set(id, paneOutput.get(id) ?? 0);
+}
+
+setAgentLabels(agentName);
+void agentCatalog().catch(() => {});
+captures.prune();
+
+function noteCapture(id: string, session: PtySession, agent: string, group: number, pid: number): void {
+  const current = activeCaptures.get(id);
+  if (current && current.agent === agent && current.group === group) {
+    noteThread(id, { agent, id: current.segmentId, cwd: segmentCwd(id, current.segmentId), source: "capture" });
+    return;
+  }
+  endCapture(id);
+  const segmentId = randomUUID();
+  const since = (paneOutput.get(id) ?? 0) - (idleMark.get(id) ?? 0);
+  const seed = since > 0 ? session.ring.chunks.join("").slice(-Math.min(since, CAPTURE_SEED_BYTES)) : "";
+  captures.start(segmentId, seed, session.pty.cols);
+  activeCaptures.set(id, { segmentId, agent, group });
+  void (async () => {
+    const cwd = (await dirIfValid(await cwdForPid(pid))) ?? (await dirIfValid(await cwdForPid(session.pty.pid))) ?? "";
+    noteThread(id, { agent, id: segmentId, cwd, source: "capture" });
+  })();
+}
+
+function segmentCwd(id: string, segmentId: string): string {
+  return paneThread(id).segments.find((s) => s.id === segmentId)?.cwd ?? "";
+}
+
+function endCapture(id: string): void {
+  const current = activeCaptures.get(id);
+  if (!current) return;
+  captures.stop(current.segmentId);
+  activeCaptures.delete(id);
+}
+
+/** Called with every chunk a pane prints. */
+function captureOutput(id: string, data: string): void {
+  paneOutput.set(id, (paneOutput.get(id) ?? 0) + data.length);
+  const current = activeCaptures.get(id);
+  if (current) captures.append(current.segmentId, data);
+}
+
+async function readCaptureText(segmentId: string): Promise<{ text: string; file: string } | null> {
+  const raw = captures.read(segmentId);
+  if (!raw) return null;
+  return { text: await renderCapture(raw.raw, raw.cols), file: captures.file(segmentId) };
+}
+
+function paneThread(id: string): PaneThread {
+  let thread = paneThreads.get(id);
+  if (!thread) {
+    thread = parseThread(getSessionThread(id));
+    paneThreads.set(id, thread);
+  }
+  return thread;
+}
+
+function noteThread(id: string, record: Parameters<typeof noteThreadSegment>[1]): void {
+  if (!record.cwd) return;
+  const before = paneThread(id);
+  const after = noteThreadSegment(before, record, Date.now());
+  paneThreads.set(id, after);
+  // lastSeenAt moves every sweep; persist at most once a minute unless the shape changed.
+  const prev = before.segments.find((s) => s.agent === record.agent && s.id === record.id);
+  if (prev && after.segments.length === before.segments.length && Date.now() - prev.lastSeenAt < 60_000) return;
+  try {
+    setSessionThread(id, JSON.stringify(after));
+  } catch {
+    /* DB busy — next sweep */
+  }
+}
+
+/** The agent running in a pane now, recognized either way. */
+function runningAgent(id: string): HandoffAgent | null {
+  return parseResumeRecord(agentRecords.get(id) ?? null)?.agent ?? activeCaptures.get(id)?.agent ?? null;
+}
+
+/** Per pane: the conversations of its current piece of work, and whether an agent is running. */
+function agentThreadsSnapshot() {
+  const out: Record<string, {
+    segments: { agent: HandoffAgent; id: string; lastSeenAt: number }[];
+    running: HandoffAgent | null;
+    endedAt: number | null;
+    handoff?: { from: string[]; to: HandoffAgent; ageMs: number };
+  }> = {};
+  const now = Date.now();
+  for (const [id, session] of ptySessions) {
+    if (session.sshTarget) continue;
+    const segments = currentSegments(paneThread(id));
+    if (!segments.length) continue;
+    out[id] = {
+      segments: segments.map(({ agent, id: conversation, lastSeenAt }) => ({ agent, id: conversation, lastSeenAt })),
+      running: runningAgent(id),
+      endedAt: agentEndedAt.get(id) ?? null,
+    };
+    const handoff = lastHandoff.get(id);
+    // Age, not a timestamp: the viewer's clock may be another device's.
+    if (handoff) out[id].handoff = { from: handoff.from, to: handoff.to, ageMs: now - handoff.at };
+  }
+  return out;
+}
+
+/** The agents a pane's work can go to, for the switcher. */
+async function handoffTargets() {
+  return (await agentCatalog()).map(({ id, name, installed, enabled, resumable }) => ({ id, name, installed, enabled, resumable }));
+}
+
+const NO_THREAD_MESSAGE = "No agent has run in this pane yet, so there is nothing to hand off.";
+
+/** The registry entry for a handoff target, refusing ones that are unknown or not installed. */
+/** An agent CLI's `--help`, by executable and version (mtime), for version-dependent flags. */
+const cliHelpCache = new Map<string, string>();
+async function cliHelp(entry: CatalogAgent): Promise<string> {
+  if (!entry.path) return "";
+  let key = entry.path;
+  try {
+    key += `@${(await fs.promises.stat(entry.path)).mtimeMs}`;
+  } catch {
+    return "";
+  }
+  const cached = cliHelpCache.get(key);
+  if (cached !== undefined) return cached;
+  let help = "";
+  try {
+    const { stdout } = await execFileAsync(entry.path, ["--help"], { env: await spawnEnvironment(), timeout: 8000, maxBuffer: 4 << 20 });
+    help = stdout;
+  } catch {
+    /* unknown: use only flags every version has */
+  }
+  cliHelpCache.set(key, help);
+  return help;
+}
+
+async function handoffTarget(target: string): Promise<CatalogAgent> {
+  const entry = (await agentCatalog()).find((a) => a.id === target);
+  if (!entry) throw new HandoffError(400, "unknown-agent", `"${target}" isn't one of Termany's agents. Add it in Settings → Agents.`);
+  if (!entry.installed) {
+    // Installed since the last check? Look again before refusing.
+    const fresh = (await agentCatalog(true)).find((a) => a.id === target);
+    if (!fresh?.installed) throw new HandoffError(400, "not-installed", `${entry.name} isn't installed (no \`${entry.command}\` command found).`);
+    return fresh;
+  }
+  return entry;
+}
+
+/** Fail fast on what the `termany` command can be told right away. */
+async function checkHandoffPossible(id: string, target: string): Promise<void> {
+  const session = ptySessions.get(id);
+  if (!session || session.sshTarget) throw new HandoffError(404, "no-pane", "This pane has no local shell to hand off in.");
+  if (handoffsInFlight.has(id)) throw new HandoffError(409, "in-progress", "A handoff is already in progress in this pane.");
+  await handoffTarget(target);
+  if (runningAgent(id) === target) throw new HandoffError(409, "already-running", `${agentLabel(target)} is already running in this pane.`);
+  if (!currentSegments(paneThread(id)).length && !runningAgent(id)) throw new HandoffError(404, "no-thread", NO_THREAD_MESSAGE);
+}
+
+/** A line shown in the pane (not typed into it), for errors nobody is waiting on. */
+function paneNotice(id: string, text: string): void {
+  const session = ptySessions.get(id);
+  if (!session) return;
+  const line = `\r\n\x1b[33m[termany] ${text}\x1b[0m\r\n`;
+  broadcast(session, line);
+  ringAppend(session.ring, line);
+}
+
+/**
+ * The `termany handoff` command is the pane's foreground job while it asks,
+ * so wait for it to exit — or, when an agent ran it, for the agent to be what
+ * holds the foreground — before switching.
+ */
+async function deferredHandoff(id: string, target: HandoffAgent): Promise<void> {
+  const session = ptySessions.get(id);
+  if (!session) return;
+  const catalog = await agentCatalog().catch(() => [] as CatalogAgent[]);
+  for (let waited = 0; waited < 5000; waited += 200) {
+    await delay(200);
+    const table = await readProcessTable();
+    if (!table) break;
+    if (!foregroundPids(table.groups, session.pty.pid).length) break;
+    if ((await detectAgentSession(table, session.pty.pid, agentHints(id))) || (await foregroundAgent(table, session.pty.pid, catalog))) break;
+  }
+  try {
+    await handOffPane(id, target);
+  } catch (error) {
+    paneNotice(id, error instanceof Error ? error.message : String(error));
+  }
+}
+
+class HandoffError extends Error {
+  constructor(readonly status: number, readonly code: string, message: string) {
+    super(message);
+  }
+}
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Stop whatever agent holds the pane's foreground, recording its conversation
+ * first. Refuses anything that is not a recognized agent (an editor, a build).
+ */
+async function stopForegroundAgent(id: string, shellPid: number): Promise<HandoffAgent | null> {
+  const table = await readProcessTable();
+  if (!table) throw new HandoffError(501, "unsupported", "Handing off between agents isn't supported on this platform.");
+  const pids = foregroundPids(table.groups, shellPid);
+  if (!pids.length) return null;
+  const running = await detectAgentSession(table, shellPid, agentHints(id));
+  // An agent whose conversation can't be identified yet is still an agent:
+  // recognize it by its program and hand off what the thread already has.
+  const other = running ? null : await foregroundAgent(table, shellPid, await agentCatalog());
+  const agent = running?.agent ?? other?.agent.id;
+  if (!agent) {
+    const name = path.basename(table.comm.get(pids[0]) ?? "a program");
+    throw new HandoffError(409, "busy", `${name} is running in this pane. Exit it first.`);
+  }
+  if (running) noteThread(id, running);
+  const signal = (sig: NodeJS.Signals, list: number[]) => {
+    for (const pid of list) {
+      try {
+        process.kill(pid, sig);
+      } catch {
+        /* already gone */
+      }
+    }
+  };
+  signal("SIGTERM", pids);
+  for (let waited = 0; waited < 5000; waited += 250) {
+    await delay(250);
+    const now = await readProcessTable();
+    const left = now ? foregroundPids(now.groups, shellPid) : [];
+    if (!left.length) {
+      // It is gone now, not at the next sweeps: close its capture (keeping the
+      // end of its screen) and stop reporting it as running.
+      endCapture(id);
+      writeAgentRecord(id, null);
+      agentMisses.delete(id);
+      markIdle(id);
+      return agent;
+    }
+    if (waited === 3000) signal("SIGKILL", left);
+  }
+  throw new HandoffError(409, "stuck", `${agentLabel(agent)} did not exit. Stop it with Ctrl-C and try again.`);
+}
+
+async function handOffPane(id: string, target: HandoffAgent) {
+  const session = ptySessions.get(id);
+  if (!session || session.sshTarget) throw new HandoffError(404, "no-pane", "This pane has no local shell to hand off in.");
+  if (handoffsInFlight.has(id)) throw new HandoffError(409, "in-progress", "A handoff is already in progress in this pane.");
+  const entry = await handoffTarget(target);
+  if (runningAgent(id) === target) throw new HandoffError(409, "already-running", `${entry.name} is already running in this pane.`);
+  if (!currentSegments(paneThread(id)).length && !runningAgent(id)) throw new HandoffError(404, "no-thread", NO_THREAD_MESSAGE);
+  handoffsInFlight.add(id);
+  try {
+    const { pty } = session;
+    const stopped = await stopForegroundAgent(id, pty.pid);
+    const plan = await planHandoff(paneThread(id), target, { resumable: entry.resumable, readCapture: readCaptureText });
+    if (!plan) throw new HandoffError(404, "no-thread", NO_THREAD_MESSAGE);
+
+    const fromAgents = [...new Set(plan.digests.filter((d) => d.agent !== target).map((d) => agentLabel(d.agent)))];
+    const from = fromAgents.join(" and ") || "another agent";
+    // Nobody is driving the work when its agent had already exited (or
+    // crashed): the new one carries on by itself. A switch away from a running
+    // agent is the user changing hands; the new one waits for them.
+    const proceed = !stopped;
+    // A POSIX shell sources a launch script, which keeps the screen tidy and
+    // lets the briefing go in as background context. Elsewhere (fish,
+    // PowerShell) the launch is typed as-is, with a short first message.
+    const scripted = isPosixShell(SHELL);
+    const delivery: BriefingDelivery = scripted && injectsContext(target, !!plan.resumeId) ? "context" : "file";
+    let briefingPath: string | null = null;
+    let context: { file: string; text: string } | undefined;
+    let prompt: string | null = null;
+    if (plan.briefing) {
+      const text = delivery === "context" ? contextPreface(from, !!plan.resumeId) + plan.briefing.markdown : plan.briefing.markdown;
+      const written = await writeBriefing(plan.cwd, target, text);
+      briefingPath = written.file;
+      if (delivery === "context") context = { file: written.file, text };
+      prompt = handoffPrompt({ delivery, resume: !!plan.resumeId, proceed, briefingFile: written.display, from });
+    }
+    const shellCwd = (await dirIfValid(await cwdForPid(pty.pid))) ?? plan.cwd;
+    const launch = handoffCommand({
+      target,
+      command: entry.command,
+      resumeId: plan.resumeId ?? undefined,
+      context,
+      help: context && plan.resumeId ? await cliHelp(entry) : "",
+      prompt,
+      cwd: plan.cwd,
+      shellCwd,
+    });
+    let line = launch.line;
+    if (scripted) {
+      const what = !plan.briefing ? "resumed" : plan.resumeId ? "resumed, caught up" : "context loaded";
+      const banner = `⇄ ${fromAgents.length ? from : agentLabel(stopped ?? target)} → ${entry.name} · ${what}`;
+      const file = launchScriptFile(id);
+      await fs.promises.mkdir(path.dirname(file), { recursive: true });
+      await fs.promises.writeFile(file, launchScript({ line: launch.line, banner, rows: pty.rows }));
+      // Leading space: shells set to ignore such lines keep it out of history.
+      line = ` . ${shellQuote(file)}`;
+    }
+    // Ctrl-U first: clear anything half-typed at the prompt. Then, for agents
+    // that take no first message on the command line, type it in once they are up.
+    const typed = launch.typed;
+    void writeWhenQuiet(pty, `\x15${line}\r`).then(() => {
+      if (typed) typeIntoAgentWhenReady(pty, typed);
+    });
+    // A resumed conversation is known now; a new one is picked up by the next sweep.
+    if (plan.resumeId) noteThread(id, { agent: target as AgentResumeRecord["agent"], id: plan.resumeId, cwd: plan.cwd });
+    agentEndedAt.delete(id);
+    lastHandoff.set(id, { from: fromAgents.length ? fromAgents : stopped ? [agentLabel(stopped)] : [], to: target, at: Date.now() });
+    console.log(`[termany] handoff in ${id}: ${from} → ${entry.name} (${plan.resumeId ? "resume" : "new"}, ${plan.briefing?.turns ?? 0} items)`);
+    return {
+      ok: true,
+      mode: plan.resumeId ? "resume" : "new",
+      target,
+      from: fromAgents,
+      stopped,
+      turns: plan.briefing?.turns ?? 0,
+      briefing: briefingPath,
+    };
+  } finally {
+    handoffsInFlight.delete(id);
+  }
+}
+
 setInterval(() => {
   void sweepCwds();
 }, 5000).unref();
+
+setInterval(() => {
+  void sweepAgents();
+}, AGENT_SWEEP_MS).unref();
 
 wss.on("connection", async (ws: WebSocket, req) => {
   const cid = ++connCount;
@@ -2320,7 +2902,9 @@ wss.on("connection", async (ws: WebSocket, req) => {
       cols: 80,
       rows: 24,
       cwd,
-      env: ptyEnvironment(process.env, process.platform, sessionId ?? undefined),
+      env: sshArgs
+        ? ptyEnvironment(process.env, process.platform, sessionId ?? undefined)
+        : withTermanyCli(ptyEnvironment(process.env, process.platform, sessionId ?? undefined), TERMANY_CLI_DIR, PORT),
     });
   } catch (err) {
     // Never let one bad spawn take down the whole server.
@@ -2348,6 +2932,13 @@ wss.on("connection", async (ws: WebSocket, req) => {
   if (sessionId) activityTracker.bindAgent(sessionId, agent);
   wireSession(sessionId ?? undefined, session);
 
+  // A restored local pane that was running an agent: reopen its conversation.
+  const resume = AGENT_RESUME && sessionId && !sshArgs ? parseResumeRecord(getSessionAgent(sessionId)) : null;
+  if (resume) {
+    console.log(`[termany] resuming ${resume.agent} conversation ${resume.id} in session ${sessionId}`);
+    typeWhenPromptSettles(pty, resumeCommand(resume, cwd));
+  }
+
   pendingMessages.splice(0).forEach(applyClientMessage);
 });
 
@@ -2357,9 +2948,10 @@ wss.on("connection", async (ws: WebSocket, req) => {
 // process is meant to keep running with its shells attached-or-detached so a
 // reopened app resumes them, rather than losing them like a plain restart.
 async function shutdown() {
+  shuttingDown = true;
   // Best-effort: capture the final working directories before the shells die, so
   // a clean quit restores them exactly. Bounded so we never hang the exit.
-  await Promise.race([sweepCwds(), new Promise((r) => setTimeout(r, 800))]).catch(() => {});
+  await Promise.race([Promise.all([sweepCwds(), sweepAgents()]), new Promise((r) => setTimeout(r, 800))]).catch(() => {});
   flushScroll();
   for (const session of ptySessions.values()) {
     try {

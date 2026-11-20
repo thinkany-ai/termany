@@ -4,6 +4,7 @@
  * restyle the whole app at once.
  */
 import {
+  ArrowLeftRight,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -315,6 +316,11 @@ export function GitBranchIcon() {
 /** Marks the git diff panel's compare-target picker. */
 export function GitCompareIcon() {
   return <GitCompareArrows {...base} />;
+}
+
+/** Two-way arrows — hand a pane's work to another agent. */
+export function HandoffIcon() {
+  return <ArrowLeftRight {...base} />;
 }
 
 /** Pulse line — the system CPU/memory monitor. */

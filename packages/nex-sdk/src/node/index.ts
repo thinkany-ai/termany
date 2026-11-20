@@ -8,6 +8,7 @@ export {
   DirectPaths,
   E2E_SERVICE,
   classifyAddress,
+  classifyInterfaceAddress,
   fetchDirectInfo,
   openPairedStream,
   pairingKey,

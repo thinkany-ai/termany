@@ -74,7 +74,15 @@ export const PAIR_SERVICE = "termany.pair";
 export const STRICT_MARKER = "termany.strict";
 
 /** Where "Sign in with termany.sh" goes; TERMANY_SITE_URL points dev at a local site. */
-const SITE_URL = (process.env.TERMANY_SITE_URL || "https://termany.sh").replace(/\/+$/, "");
+export const SITE_URL = (process.env.TERMANY_SITE_URL || "https://termany.sh").replace(/\/+$/, "");
+/**
+ * URL scheme termany.sh/connect/done opens to hand the browser back to this
+ * app: release builds register `termany://`, dev builds `termany-dev://`
+ * (apps/desktop/src-tauri/tauri*.conf.json). The dev server runs as the npm
+ * "dev" script; the bundled one has no npm lifecycle.
+ */
+export const APP_SCHEME =
+  process.env.TERMANY_APP_SCHEME === "termany-dev" || process.env.npm_lifecycle_event === "dev" ? "termany-dev" : "termany";
 const LOGIN_TTL_MS = 10 * 60_000;
 const DIRECT = process.env.TERMANY_NEX_DIRECT !== "0";
 
@@ -1249,9 +1257,13 @@ function toRoute(status: PathStatus): NexRoute {
     relaySetupMs: status.relaySetupMs,
     directMs: status.paths.reduce<number | null>((best, p) => (p.setupMs !== null && (best === null || p.setupMs < best) ? p.setupMs : best), null),
     directRttMs: status.paths.reduce<number | null>((best, p) => (p.rttMs !== null && (best === null || p.rttMs < best) ? p.rttMs : best), null),
+    // Every address that failed and why: one machine can advertise several
+    // (Wi-Fi, Ethernet, a VPN), and the first one tried is not always the one
+    // whose error explains the problem.
     directNote: status.paths.some((p) => p.setupMs !== null)
       ? null
-      : (status.error ?? status.paths.find((p) => p.error)?.error ?? null),
+      : (status.error ??
+        (status.paths.filter((p) => p.error).map((p) => `${p.host}:${p.port} ${p.error}`).join("\n") || null)),
     note:
       status.route === "relay"
         ? (status.error ?? status.paths.find((p) => p.error)?.error ?? "direct paths are slower or unreachable")

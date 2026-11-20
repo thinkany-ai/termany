@@ -4955,6 +4955,97 @@ html.tauri:not([data-theme="win98"]) .skill-picker::backdrop {
   font-family: Menlo, monospace;
   line-height: 1;
 }
+/* Agent handoff: quiet until the pane's agent exits, then accented with a
+   "Continue" label for a while — the moment someone wants another agent. */
+.pane-handoff-btn > svg {
+  width: 13px;
+  height: 13px;
+}
+.pane-handoff-btn.attention {
+  width: auto;
+  gap: 4px;
+  padding: 0 6px 0 5px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.pane-handoff-label {
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.pane-handoff-notice {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--fg);
+  animation: pane-handoff-notice 8s ease forwards;
+}
+@keyframes pane-handoff-notice {
+  0% { opacity: 0; }
+  5%, 85% { opacity: 1; }
+  100% { opacity: 0.4; }
+}
+.pop-panel.pane-handoff-panel {
+  min-width: 180px;
+  max-width: min(300px, 86vw);
+}
+.pane-handoff-title {
+  padding: 6px 9px 7px;
+  margin-bottom: 3px;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+.pane-head-agent {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin-left: 6px;
+  margin-right: -2px;
+}
+.pane-head-agent img,
+.pane-head-agent .agent-brand-logo {
+  width: 14px;
+  height: 14px;
+}
+.pane-handoff-item img,
+.pane-handoff-item .agent-brand-logo {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+/* The list scrolls, which would clip an outline: mark keyboard focus like hover. */
+.pane-handoff-item:focus-visible {
+  outline: none;
+  background: var(--bg-3);
+}
+.pane-handoff-item:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+.pane-handoff-list {
+  max-height: min(360px, 60vh);
+  overflow-y: auto;
+}
+.pane-handoff-generic {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  color: var(--fg-dim);
+}
+.pane-handoff-generic svg {
+  width: 13px;
+  height: 13px;
+}
+.pane-handoff-empty {
+  max-width: 300px;
+  padding: 6px 9px 7px;
+  color: var(--fg-dim);
+  font-size: 11px;
+  line-height: 1.4;
+}
 .pop-panel.pane-url-panel {
   max-width: min(420px, 80vw);
 }

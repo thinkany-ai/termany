@@ -27,6 +27,8 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS session_cwd (id TEXT PRIMARY KEY, cwd TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS session_scroll (id TEXT PRIMARY KEY, data TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS session_screen (id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE IF NOT EXISTS session_agent (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS session_thread (id TEXT PRIMARY KEY, data TEXT NOT NULL);
 `);
 // updated_at orders the prune below (added after 0.1.3 shipped, so migrate).
 try {
@@ -265,6 +267,33 @@ export function setScreenBatch(screens: Record<string, string | null>): void {
   }
 }
 
+/** The agent conversation a pane was last running (JSON), for resume after a restart. */
+export function getSessionAgent(id: string): string | null {
+  const row = db.prepare("SELECT data FROM session_agent WHERE id = ?").get(id) as { data: string } | undefined;
+  return row ? row.data : null;
+}
+
+export function setSessionAgent(id: string, data: string | null): void {
+  if (data === null) db.prepare("DELETE FROM session_agent WHERE id = ?").run(id);
+  else {
+    db.prepare(
+      "INSERT INTO session_agent(id, data) VALUES(?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data"
+    ).run(id, data);
+  }
+}
+
+/** The agent conversations a pane has run, in order (JSON), for handing work between agents. */
+export function getSessionThread(id: string): string | null {
+  const row = db.prepare("SELECT data FROM session_thread WHERE id = ?").get(id) as { data: string } | undefined;
+  return row ? row.data : null;
+}
+
+export function setSessionThread(id: string, data: string): void {
+  db.prepare(
+    "INSERT INTO session_thread(id, data) VALUES(?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data"
+  ).run(id, data);
+}
+
 /** Drop all restore data for sessions the user has permanently closed. */
 export function forgetSessions(ids: string[]): void {
   if (!Array.isArray(ids) || !ids.length) return;
@@ -273,10 +302,14 @@ export function forgetSessions(ids: string[]): void {
     const delCwd = db.prepare("DELETE FROM session_cwd WHERE id = ?");
     const delScroll = db.prepare("DELETE FROM session_scroll WHERE id = ?");
     const delScreen = db.prepare("DELETE FROM session_screen WHERE id = ?");
+    const delAgent = db.prepare("DELETE FROM session_agent WHERE id = ?");
+    const delThread = db.prepare("DELETE FROM session_thread WHERE id = ?");
     for (const id of ids) {
       delCwd.run(String(id));
       delScroll.run(String(id));
       delScreen.run(String(id));
+      delAgent.run(String(id));
+      delThread.run(String(id));
     }
     db.exec("COMMIT");
   } catch (e) {

@@ -26,5 +26,14 @@
       "icons-dev/generated/icon.icns",
       "icons-dev/generated/icon.ico"
     ]
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "termany-dev"
+        ]
+      }
+    }
   }
 }

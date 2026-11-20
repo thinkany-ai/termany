@@ -1159,7 +1159,13 @@ pub fn run() {
         builder = builder
             .plugin(tauri_plugin_updater::Builder::new().build())
             .plugin(tauri_plugin_process::init())
-            .plugin(tauri_plugin_global_shortcut::Builder::new().build());
+            .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+            // Registers termany:// (termany-dev:// in dev builds, see
+            // tauri.dev.conf.json) so termany.sh/connect/done can bring the
+            // app back after "Sign in with termany.sh". Opening such a URL
+            // raises the window: through RunEvent::Opened on macOS, through
+            // the single-instance callback on Windows/Linux.
+            .plugin(tauri_plugin_deep_link::init());
     }
     builder
         .setup(|app| {
@@ -1172,6 +1178,15 @@ pub fn run() {
             app.manage(PageClaims::default());
             #[cfg(target_os = "macos")]
             macos_services::install(app.handle().clone());
+            // Windows/Linux register the scheme at runtime (macOS reads it
+            // from the bundle's Info.plist).
+            #[cfg(any(windows, target_os = "linux"))]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                if let Err(error) = app.deep_link().register_all() {
+                    log::warn!("[termany] could not register URL scheme: {error}");
+                }
+            }
             #[cfg(target_os = "windows")]
             {
                 install_windows_tray(app)?;

@@ -101,3 +101,24 @@ test("keeps explicitly supplied npm config outside a package-manager lifecycle",
     }
   );
 });
+
+test("a pane does not inherit the session markers of an agent that started Termany", () => {
+  const env = ptyEnvironment(
+    {
+      LANG: "en_US.UTF-8",
+      CLAUDECODE: "1",
+      CLAUDE_CODE_CHILD_SESSION: "1",
+      CLAUDE_CODE_MESSAGING_TOKEN: "secret",
+      CODEX_SANDBOX: "seatbelt",
+      CLAUDE_CONFIG_DIR: "/custom/claude",
+      CODEX_HOME: "/custom/codex",
+    },
+    "darwin",
+  );
+  assert.equal(env.CLAUDECODE, undefined);
+  assert.equal(env.CLAUDE_CODE_CHILD_SESSION, undefined);
+  assert.equal(env.CLAUDE_CODE_MESSAGING_TOKEN, undefined);
+  assert.equal(env.CODEX_SANDBOX, undefined);
+  assert.equal(env.CLAUDE_CONFIG_DIR, "/custom/claude", "user configuration is kept");
+  assert.equal(env.CODEX_HOME, "/custom/codex");
+});

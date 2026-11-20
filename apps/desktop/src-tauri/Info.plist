@@ -8,6 +8,11 @@
        text editors ship to make held-key repeat work as expected. -->
   <key>ApplePressAndHoldEnabled</key>
   <false/>
+  <!-- macOS 15+ blocks connections to LAN addresses until the user allows
+       "Local Network" for the app; without this the connect fails with
+       EHOSTUNREACH and devices on one Wi-Fi fall back to the cloud relay. -->
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Termany connects directly to your other devices on the same network, so working on them is fast and stays off the internet.</string>
   <key>CFBundleDocumentTypes</key>
   <array>
     <dict>
