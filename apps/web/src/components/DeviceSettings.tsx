@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { cloudText, isCloud, openDevicePicker } from "../cloud";
 import { useI18n } from "../i18n";
+import { directPathHint } from "../directPathHint";
 import { openExternal } from "../openExternal";
 import { useStore } from "../state/store";
 import { useImeGuard } from "../imeGuard";
@@ -600,10 +601,13 @@ function Latency({ device }: { device: NexDevice }) {
   const directActive = route?.via === "direct";
   const network = route?.network === "lan" ? t("devices.routeLan") : route?.network === "tailscale" ? "Tailscale" : null;
   const ms = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${v} ms`);
+  const directDown = route?.directRttMs === null || route?.directRttMs === undefined;
+  const hint = directDown ? directPathHint(route?.directNote) : null;
   const directTitle = [
     t("devices.lat.directTitle"),
     [network, directActive ? route?.address : null].filter(Boolean).join(" · "),
-    route?.directRttMs === null || route?.directRttMs === undefined ? route?.directNote : null,
+    hint ? t(`devices.lat.hint.${hint}`) : null,
+    directDown ? route?.directNote : null,
   ]
     .filter(Boolean)
     .join("\n");

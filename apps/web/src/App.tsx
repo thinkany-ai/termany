@@ -36,6 +36,7 @@ import {
 } from "./terminal/manager";
 import { openLocalPathsInFocusedSession } from "./terminal/openLocalPath";
 import { checkForUpdate } from "./updater";
+import { OPEN_AGENT_SWITCH_EVENT } from "./components/PaneAgentSwitch";
 
 /**
  * The pane a directional move (⌥⌘←→↑↓) should land on, chosen from the
@@ -313,6 +314,10 @@ export function App() {
       openAgentHistory: (s) => s.addPane("history"),
       openAgentUsage: (s) => s.addPane("usage"),
       openSystemMonitor: (s) => s.addPane("monitor"),
+      handoffAgent: (s) => {
+        const h = activeHtab(s);
+        if (h) window.dispatchEvent(new CustomEvent(OPEN_AGENT_SWITCH_EVENT, { detail: h.focused }));
+      },
       // Keep the shortcut registered so we still consume the browser's native
       // Cmd+P action, but only show this Pages-specific palette on Pages.
       search: () => {

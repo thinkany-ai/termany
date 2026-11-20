@@ -58,6 +58,7 @@ import {
   WebIcon,
 } from "./icons";
 import { AgentPane } from "./AgentPane";
+import { PaneAgentSwitch, PaneCurrentAgent } from "./PaneAgentSwitch";
 import { SystemMonitor } from "./SystemMonitor";
 import { SshConnections } from "./SshConnections";
 import { TerminalPane } from "./TerminalPane";
@@ -409,9 +410,17 @@ function PaneHeader({
           </span>
         )}
       </span>
-      {(leaf.view ?? "terminal") === "terminal" && !leaf.sshTarget && <PaneCwd leaf={leaf} />}
+      {(leaf.view ?? "terminal") === "terminal" && !leaf.sshTarget && (
+        <>
+          <PaneCurrentAgent sessionId={terminalSessionId(leaf.id, leaf.sshTarget)} />
+          <PaneCwd leaf={leaf} />
+        </>
+      )}
       <span className="pane-head-spacer" />
       <div className="pane-head-actions">
+        {(leaf.view ?? "terminal") === "terminal" && !leaf.sshTarget && (
+          <PaneAgentSwitch paneId={leaf.id} sessionId={terminalSessionId(leaf.id, leaf.sshTarget)} />
+        )}
         {(leaf.view ?? "terminal") === "terminal" && <PaneServedUrls leaf={leaf} />}
         <PaneViewMenu leaf={leaf} />
         <button

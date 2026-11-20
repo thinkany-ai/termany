@@ -54,6 +54,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.106.0
         version: 0.106.0(zod@4.4.3)
+      '@xterm/headless':
+        specifier: ^6.0.0
+        version: 6.0.0
       nex-sdk:
         specifier: '*'
         version: link:../../packages/nex-sdk

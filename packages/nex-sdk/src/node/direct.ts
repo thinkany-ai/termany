@@ -283,10 +283,10 @@ export class DirectServer {
       return this.#options.addresses.map((host) => ({ host, port, kind: "custom" as const }));
     }
     const out: DirectEndpoint[] = [];
-    for (const addrs of Object.values(os.networkInterfaces())) {
+    for (const [name, addrs] of Object.entries(os.networkInterfaces())) {
       for (const a of addrs ?? []) {
         if (a.internal) continue;
-        const kind = classifyAddress(a.address);
+        const kind = classifyInterfaceAddress(name, a.address);
         if (kind === "tailscale" && this.#options.tailscale === false) continue;
         if (kind === "lan" && this.#options.lan === false) continue;
         if (kind) out.push({ host: a.address, port, kind });
@@ -417,6 +417,20 @@ export class DirectServer {
 }
 
 /** `lan`, `tailscale`, or null for addresses that are never offered (public, link-local). */
+/**
+ * Interfaces whose private addresses no other machine can reach: a proxy's
+ * TUN device (Clash / sing-box / Surge put 172.19.x or 10.x there), a VPN,
+ * container and VM bridges. Advertising them only gives peers addresses that
+ * time out — or, worse, that land on the peer's own TUN device.
+ */
+const VIRTUAL_INTERFACE = /^(?:utun|tun|tap|wg|ipsec|ppp|gif|stf|docker|br-|veth|virbr|vmnet|vboxnet|anpi|awdl|llw)/i;
+
+/** {@link classifyAddress}, minus LAN addresses on virtual interfaces. Tailscale stays. */
+export function classifyInterfaceAddress(interfaceName: string, address: string): DirectEndpointKind | null {
+  const kind = classifyAddress(address);
+  return kind === "lan" && VIRTUAL_INTERFACE.test(interfaceName) ? null : kind;
+}
+
 export function classifyAddress(address: string): DirectEndpointKind | null {
   if (net.isIPv4(address)) {
     const [a, b] = address.split(".").map(Number) as [number, number];

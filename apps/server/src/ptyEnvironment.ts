@@ -24,6 +24,7 @@ export function ptyEnvironment(
 ): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...source, TERM: "xterm-256color" };
   removePackageManagerLifecycleEnvironment(env);
+  removeAgentSessionEnvironment(env);
   if (paneId) env.TERMANY_PANE_ID = paneId;
   if (platform === "win32") return env;
 
@@ -66,4 +67,33 @@ function removePackageManagerLifecycleEnvironment(env: NodeJS.ProcessEnv): void 
       delete env[name];
     }
   }
+}
+
+/**
+ * Variables an agent CLI sets for the commands *it* runs. When Termany itself
+ * was started from inside an agent (`npm run dev` run by Claude Code, say), a
+ * pane inherits them, and an agent started in that pane believes it is a
+ * child of the outer one: Claude Code, for instance, then stops saving its
+ * transcript and session file — so nothing could resume it or hand it off.
+ * A pane is a fresh terminal; it is nobody's child session.
+ */
+const AGENT_SESSION_VARIABLES = [
+  "CLAUDECODE",
+  "CLAUDE_PID",
+  "CLAUDE_EFFORT",
+  "CLAUDE_CODE_ENTRYPOINT",
+  "CLAUDE_CODE_EXECPATH",
+  "CLAUDE_CODE_SESSION_ID",
+  "CLAUDE_CODE_SESSION_ATTENDED",
+  "CLAUDE_CODE_CHILD_SESSION",
+  "CLAUDE_CODE_CHILD_NOTES_DIR",
+  "CLAUDE_CODE_MESSAGING_SOCKET",
+  "CLAUDE_CODE_MESSAGING_TOKEN",
+  "CODEX_SANDBOX",
+  "CODEX_SANDBOX_NETWORK_DISABLED",
+  "CODEX_THREAD_ID",
+];
+
+function removeAgentSessionEnvironment(env: NodeJS.ProcessEnv): void {
+  for (const name of AGENT_SESSION_VARIABLES) delete env[name];
 }

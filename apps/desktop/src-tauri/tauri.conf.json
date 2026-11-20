@@ -1,7 +1,7 @@
 {
   "$schema": "../../../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Termany",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "identifier": "ai.termany.desktop",
   "build": {
     "frontendDist": "../../web/dist",
@@ -34,6 +34,13 @@
         "https://cdn.termany.sh/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEzNEEzMThGQjBFOUFBMTQKUldRVXF1bXdqekZLRTRDV3NsMlZ2aWIraFllbW5KWExyWmlBcmgwaE1kMFl2clgyaDYxN2lhZXIK"
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "termany"
+        ]
+      }
     }
   },
   "bundle": {
