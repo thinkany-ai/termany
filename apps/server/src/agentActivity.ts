@@ -83,6 +83,7 @@ const BUILTIN_AGENT_COMMANDS: Record<string, string> = {
   opencode: "opencode",
   kilo: "kilocode",
   kilocode: "kilocode",
+  agent: "cursor",
   "cursor-agent": "cursor",
   kimi: "kimi",
   droid: "droid",
@@ -119,6 +120,7 @@ function statusFromTitle(title: string): AgentActivityStatus | undefined {
 function detectedAgent(text: string): string | undefined {
   if (/\bClaude(?:\s+Code)?\b/i.test(text)) return "claude";
   if (/\b(?:OpenAI\s+)?Codex(?:\s+CLI)?\b/i.test(text)) return "codex";
+  if (/\bCursor(?:\s+Cloud)?\s+Agent\b/i.test(text)) return "cursor";
   if (/\bGemini(?:\s+CLI)?\b/i.test(text)) return "gemini";
   if (/\bGrok Build\b/i.test(text)) return "grok";
   if (/\bOpenClaw\b/i.test(text)) return "openclaw";
@@ -148,6 +150,13 @@ function detectedInteractiveAgent(text: string): string | undefined {
     )
   ) {
     return "claude";
+  }
+  if (
+    /\bCursor(?:\s+Cloud)?\s+Agent\b[\s\S]{0,1500}(?:Plan,\s*search,\s*build\s+anything|Add\s+a\s+follow-up|ctrl\+c\s+to\s+stop)/i.test(
+      text,
+    )
+  ) {
+    return "cursor";
   }
   return undefined;
 }
