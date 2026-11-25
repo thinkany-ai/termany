@@ -257,3 +257,71 @@ test("busy evidence is exposed to the caller while it vetoes arming", () => {
   watcher.reset(false);
   assert.equal(watcher.busyVisible, false);
 });
+
+test("Cursor CLI transitions cleanly across busy, confirmation, resumed busy, and idle", () => {
+  const watcher = new AgentIdleWatcher();
+
+  // Working (yellow): spinner + ctrl+c to stop veto arming.
+  watcher.update(
+    {
+      visible: [
+        "⠀⠞ Running: npm test",
+        "│ → Add a follow-up                  ctrl+c to stop │",
+      ].join("\n"),
+      cursorLine: "",
+      isAlternate: false,
+    },
+    0,
+  );
+  assert.equal(watcher.busyVisible, true);
+  assert.equal(watcher.pending, null);
+
+  // Blocked on shell approval (red): confirmation takes precedence over busy.
+  watcher.update(
+    {
+      visible: [
+        "$ rm -rf dist  Waiting for approval...",
+        "  → Run (once) (y)",
+        "    Skip & tell the agent what to do instead (esc or n)",
+        "│ → Waiting for decision (y/n/p)...              │",
+      ].join("\n"),
+      cursorLine: "",
+      isAlternate: false,
+    },
+    100,
+  );
+  assert.equal(watcher.busyVisible, false);
+  assert.deepEqual(watcher.pending, { status: "error", agentActive: true });
+
+  // Approved with single-key `y`: confirmation clears and busy resumes (yellow).
+  watcher.update(
+    {
+      visible: [
+        "⠠⠜ Running: rm -rf dist",
+        "│ → Add a follow-up                  ctrl+c to stop │",
+      ].join("\n"),
+      cursorLine: "",
+      isAlternate: false,
+    },
+    200,
+  );
+  assert.equal(watcher.busyVisible, true);
+  assert.equal(watcher.pending, null);
+
+  // Finished at composer (green).
+  watcher.update(
+    {
+      visible: [
+        "Cleaned dist successfully.",
+        "┌────────────────────────────────────────────────┐",
+        "│ → Add a follow-up                              │",
+        "└────────────────────────────────────────────────┘",
+      ].join("\n"),
+      cursorLine: "",
+      isAlternate: false,
+    },
+    300,
+  );
+  assert.equal(watcher.busyVisible, false);
+  assert.deepEqual(watcher.pending, { status: "done", agentActive: true });
+});
