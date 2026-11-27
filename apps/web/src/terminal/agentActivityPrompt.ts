@@ -56,7 +56,7 @@ export function screenSignature(visible: string, cursorLine = ""): string {
 }
 
 /** Glyphs no shell output uses casually, so they can be trusted further up. */
-const AGENT_GLYPH_PROMPT_RE = /^[›❯](?:\s|$)/;
+const AGENT_GLYPH_PROMPT_RE = /^[›❯→](?:\s|$)/;
 /** '>' also opens quoted text and diff rows, so it only counts near the floor. */
 const ASCII_PROMPT_RE = /^>(?:\s|$)/;
 const BOX_CHROME_RE = /^[\s│┃┆┊╎╏|]+|[\s│┃┆┊╎╏|]+$/g;
@@ -69,11 +69,12 @@ const SHELL_PROMPT_MAX_CHARS = 96;
 /**
  * Spinner glyphs: bullets, the frames Claude Code actually cycles (· ✢ ✳ ∗ ✻
  * ✽ — observed live; only the last four sit in the U+2733–273F block), and
- * braille. ⏺ is deliberately absent: tool rows outlive the call that painted
- * them and truncate long arguments with a mid-row ellipsis, which would pin
- * the dot amber for as long as such a row stays on screen.
+ * braille (including U+2800 blank, which Cursor CLI uses in its two-cell
+ * spinner frames). ⏺ is deliberately absent: tool rows outlive the call that
+ * painted them and truncate long arguments with a mid-row ellipsis, which
+ * would pin the dot amber for as long as such a row stays on screen.
  */
-const SPINNER_GLYPHS = "•●◦·✢∗✳-✿⠁-⣿";
+const SPINNER_GLYPHS = "•●◦·✢∗✳-✿⠀-⣿";
 /** The one busy marker agents spell out in words rather than glyphs. */
 const BUSY_INTERRUPT_RE =
   /\b(?:esc|escape|ctrl(?:\+|-)?c)\s+to\s+(?:interrupt|cancel|stop)\b/i;
@@ -89,7 +90,7 @@ const BUSY_QUEUED_INPUT_RE =
 const BUSY_SPINNER_RE = new RegExp(`^[${SPINNER_GLYPHS}][^\\n]{0,80}…`);
 /** Agents that do name their state get recognized without an ellipsis. */
 const BUSY_SPINNER_VERB_RE = new RegExp(
-  `^[${SPINNER_GLYPHS}]\\s*(?:working|thinking|running|executing|editing|applying|building|testing|installing|searching|reading)\\b`,
+  `^(?:[${SPINNER_GLYPHS}]|[⠀-⣿]{2})\\s*(?:working|thinking|responding|generating|starting|running|executing|editing|deleting|listing|finding|applying|building|testing|installing|searching|reading)\\b`,
   "i",
 );
 /** Powerline themes end their prompt on a private-use separator glyph. */
@@ -101,17 +102,17 @@ const SHELL_PROMPT_TAIL_RE = /[$%#❯➜\uE0B0-\uE0B7]$/;
  */
 const FISH_PROMPT_TAIL_RE = /^(?:>|[^<]*[^-=/><]>)$/;
 const INLINE_CONFIRMATION_RE =
-  /(?:\[|\()\s*(?:y(?:es)?)\s*\/\s*(?:n(?:o)?)\s*(?:\]|\))|\byes\s*\/\s*no\b/i;
+  /(?:\[|\()\s*(?:y(?:es)?)\s*\/\s*(?:n(?:o)?)(?:\s*\/\s*[a-z]+)?\s*(?:\]|\))|\byes\s*\/\s*no\b/i;
 const CONFIRMATION_QUESTION_RE =
-  /[?？]\s*$|\b(?:do you want|would you like|are you sure|allow|approve|permission|confirm|continue|proceed|choose|select|pick|which)\b|(?:是否|请选择|选择一个|需要你|允许|授权|批准|确认|同意|继续)/i;
+  /[?？]\s*$|\b(?:do you want|would you like|are you sure|allow|approve|permission|confirm|continue|proceed|choose|select|pick|which|waiting for (?:approval|decision))\b|(?:是否|请选择|选择一个|需要你|允许|授权|批准|确认|同意|继续)/i;
 const POSITIVE_CHOICE_RE =
-  /^(?:[›❯>]\s*)?(?:\d+[.)]\s*)?(?:yes\b|allow\b|approve\b|continue\b|proceed\b|always allow\b|是(?:\s|$)|允许|授权|批准|同意|继续)/i;
+  /^(?:[›❯>→]\s*)?(?:\d+[.)]\s*)?(?:yes\b|allow\b|approve\b|continue\b|proceed\b|always allow\b|(?:run|delete|fetch)\b[^\n]*\((?:y|enter)\)|add\b[^\n]*\ballowlist\b|是(?:\s|$)|允许|授权|批准|同意|继续)/i;
 const NEGATIVE_CHOICE_RE =
-  /^(?:[›❯>]\s*)?(?:\d+[.)]\s*)?(?:no\b|deny\b|reject\b|cancel\b|否(?:\s|$)|不允许|拒绝|取消)/i;
-const SELECTED_CHOICE_RE = /^[›❯>]\s*(?:\d+[.)]\s*)?/;
-const NUMBERED_SELECTED_CHOICE_RE = /^[›❯>]\s*\d+[.)]\s*/;
+  /^(?:[›❯>→]\s*)?(?:\d+[.)]\s*)?(?:no\b|deny\b|reject\b|cancel\b|skip\b|否(?:\s|$)|不允许|拒绝|取消)/i;
+const SELECTED_CHOICE_RE = /^[›❯>→]\s*(?:\d+[.)]\s*)?/;
+const NUMBERED_SELECTED_CHOICE_RE = /^[›❯>→]\s*\d+[.)]\s*/;
 const CHOICE_INSTRUCTION_RE =
-  /\b(?:enter|return)\s+to\s+(?:select|confirm|continue)\b|\b(?:arrow keys?|up\s*\/\s*down|tab)\s+to\s+(?:navigate|select)\b|(?:按|使用).{0,12}(?:选择|确认|导航)/i;
+  /\b(?:enter|return)\s+to\s+(?:select|confirm|continue)\b|\b(?:arrow keys?|up\s*\/\s*down|tab)\s+to\s+(?:navigate|select)\b|(?:↑\s*\/\s*↓|↓\s*\/\s*↑)\s*(?:option|to\s+(?:navigate|select))|(?:按|使用).{0,12}(?:选择|确认|导航)/i;
 
 function cleanRow(line: string): string {
   return line.replace(BOX_CHROME_RE, "").trim();

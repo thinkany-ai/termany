@@ -33,6 +33,84 @@ test("Codex's composer counts as an agent prompt", () => {
   assert.equal(agentInputPromptVisible(screen("codex-answered")), true);
 });
 
+test("Cursor CLI's → composer counts as an agent prompt", () => {
+  const idle = [
+    "│ Cursor Agent",
+    "│ 2026.11.19-f005e9d",
+    "┌────────────────────────────────────────────────┐",
+    "│ → Plan, search, build anything                 │",
+    "└────────────────────────────────────────────────┘",
+    "  / commands · @ files · ! shell",
+  ].join("\n");
+  const answered = [
+    "Done! Updated the tests.",
+    "┌────────────────────────────────────────────────┐",
+    "│ → Add a follow-up                              │",
+    "└────────────────────────────────────────────────┘",
+  ].join("\n");
+  assert.equal(agentInputPromptVisible(idle), true);
+  assert.equal(agentInputPromptVisible(answered), true);
+  assert.equal(agentBusyScreenVisible(idle), false);
+  assert.equal(agentBusyScreenVisible(answered), false);
+  assert.equal(agentConfirmationPromptVisible(answered), false);
+});
+
+test("Cursor CLI's two-cell braille spinner and stop hint read as busy", () => {
+  for (const frame of ["⠀⠞", "⠠⠜", "⠰⠰", "⠘⠤", "⠘⠆", "⠘⠣", "⠰⠳", "⠠⠛"]) {
+    assert.equal(
+      agentBusyScreenVisible(`${frame} Thinking…`),
+      true,
+      `spinner frame ${frame} with ellipsis must read as busy`,
+    );
+    assert.equal(
+      agentBusyScreenVisible(`${frame} Reading apps/server/src/agentActivity.ts`),
+      true,
+      `spinner frame ${frame} with verb must read as busy`,
+    );
+  }
+  assert.equal(
+    agentBusyScreenVisible("│ → Add a follow-up                  ctrl+c to stop │"),
+    true,
+  );
+});
+
+test("Cursor CLI's approval and question prompts read as confirmations", () => {
+  const shellApproval = [
+    "$ rm -rf dist  Waiting for approval...",
+    "  → Run (once) (y)",
+    "    Add Shell(rm) to allowlist? (tab)",
+    "    Skip & tell the agent what to do instead (esc or n)",
+    "┌────────────────────────────────────────────────┐",
+    "│ → Waiting for decision (y/n/p)...              │",
+    "└────────────────────────────────────────────────┘",
+  ].join("\n");
+  const modeSwitch = [
+    "  → Approve mode switch (y)",
+    "    Reject (n or esc)",
+    "┌────────────────────────────────────────────────┐",
+    "│ → Approve mode switch (y/n)                    │",
+    "└────────────────────────────────────────────────┘",
+  ].join("\n");
+  const askQuestion = [
+    "Clarifying Questions",
+    "Which test runner should we use?",
+    "› [ ] node:test",
+    "  [ ] vitest",
+    "↑/↓ option · ←/→ question · Space select · Enter next/submit · Esc to skip",
+  ].join("\n");
+  const settledProse = [
+    "Should I continue? The docs mention yes or no.",
+    "┌────────────────────────────────────────────────┐",
+    "│ → Add a follow-up                              │",
+    "└────────────────────────────────────────────────┘",
+  ].join("\n");
+
+  assert.equal(agentConfirmationPromptVisible(shellApproval), true);
+  assert.equal(agentConfirmationPromptVisible(modeSwitch), true);
+  assert.equal(agentConfirmationPromptVisible(askQuestion), true);
+  assert.equal(agentConfirmationPromptVisible(settledProse), false);
+});
+
 test("quoted shell output does not pass for a composer", () => {
   // Every Enter consults this to decide whether a task started, so a diff or a
   // quoted mail body scrolled up the screen must not register one.

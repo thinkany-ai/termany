@@ -12,6 +12,7 @@ import os from "node:os";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { promisify } from "node:util";
+import zlib from "node:zlib";
 import { AgentActivityTracker } from "./agentActivity.js";
 import { detectAgentExecutable, detectCommandExecutable, parseAgentDetectionInput } from "./agentDetection.js";
 import { sampleOnceOutputSettles } from "./foregroundJob.js";
@@ -57,6 +58,7 @@ import {
   forgetSessions,
   getAllScreens,
   getAllScroll,
+  getScreen,
   getScroll,
   getSessionAgent,
   getSessionCwd,
@@ -378,6 +380,11 @@ function ringAppend(ring: ScrollRing, data: string): void {
  * queries) or cause side effects (clipboard writes). Heuristic by design —
  * anything it misses is neutralised by the client's post-replay reset.
  */
+/** History followed by the screen a TUI left at quit (see db.ts session_screen). */
+function withFinalScreen(history: string | undefined, screen: string): string {
+  return (history ?? "") + "\x1b[?1049l\x1b[0m\r\n\x1b[2m── screen at last quit ──\x1b[0m\r\n" + screen + "\r\n";
+}
+
 function sanitizeForReplay(data: string): string {
   return (
     // File transfer handshakes — replaying one would announce a phantom
@@ -750,8 +757,23 @@ const http = createServer((req, res) => {
   }
 
   const json = (code: number, payload: unknown) => {
+    const body = JSON.stringify(payload);
+    // Large bodies (scroll history, state) mostly travel to phones over the
+    // relay: compress them when the client accepts it (~15x for terminal text).
+    if (body.length >= 16 * 1024 && /\bgzip\b/.test(String(req.headers["accept-encoding"] ?? ""))) {
+      zlib.gzip(body, (err, zipped) => {
+        if (err) {
+          res.writeHead(code, { "Content-Type": "application/json" });
+          res.end(body);
+          return;
+        }
+        res.writeHead(code, { "Content-Type": "application/json", "Content-Encoding": "gzip", Vary: "Accept-Encoding" });
+        res.end(zipped);
+      });
+      return;
+    }
     res.writeHead(code, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(payload));
+    res.end(body);
   };
   const fail = (err: unknown) => {
     const msg = err instanceof Error ? err.message : String(err);
@@ -1426,14 +1448,20 @@ const http = createServer((req, res) => {
     const merged = getAllScroll();
     for (const [id, session] of ptySessions) merged[id] = session.ring.chunks.join("");
     for (const id of Object.keys(merged)) merged[id] = sanitizeForReplay(merged[id]);
-    for (const [id, text] of Object.entries(getAllScreens())) {
-      merged[id] =
-        (merged[id] ?? "") +
-        "\x1b[?1049l\x1b[0m\r\n\x1b[2m── screen at last quit ──\x1b[0m\r\n" +
-        text +
-        "\r\n";
-    }
+    for (const [id, text] of Object.entries(getAllScreens())) merged[id] = withFinalScreen(merged[id], text);
     json(200, merged);
+    return;
+  }
+  // One session's history, as /api/scroll would give it: a phone opens one
+  // pane at a time, and the whole map runs to megabytes.
+  if (req.method === "GET" && reqUrl.pathname === "/api/scroll/session") {
+    const id = reqUrl.searchParams.get("id") ?? "";
+    const live = ptySessions.get(id);
+    const saved = live ? live.ring.chunks.join("") : getScroll(id);
+    let text = saved == null ? undefined : sanitizeForReplay(saved);
+    const screen = getScreen(id);
+    if (screen != null) text = withFinalScreen(text, screen);
+    json(200, { id, text: text ?? null });
     return;
   }
   // sendBeacon target: persist all in-memory history NOW — the window is going

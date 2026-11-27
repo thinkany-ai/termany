@@ -225,6 +225,38 @@ test("a Claude Code banner bootstraps activity even when a box collapses onto it
   assert.equal(tracker.snapshot()["pane-a"]?.agent, "claude");
 });
 
+test("agent, cursor-agent, and aliased Cursor Agent banners bootstrap activity", () => {
+  for (const cmd of ["agent", "cursor-agent"]) {
+    const direct = new AgentActivityTracker();
+    direct.noteInput("pane-a", `${cmd}\r`);
+    assert.equal(direct.snapshot()["pane-a"]?.status, "working");
+    assert.equal(direct.snapshot()["pane-a"]?.agent, "cursor");
+  }
+
+  const echo = new AgentActivityTracker();
+  echo.noteInput("pane-echo", 'echo "Cursor Agent"\r');
+  echo.noteOutput("pane-echo", "Cursor Agent\r\n");
+  assert.deepEqual(echo.snapshot(), {});
+
+  const aliased = new AgentActivityTracker();
+  aliased.noteInput("pane-b", "ca\r");
+  assert.deepEqual(aliased.snapshot(), {});
+  const banner = [
+    "\x1b]0;Cursor Agent (termany)\x07",
+    "│ Cursor Agent\r\n",
+    "│ 2026.11.19-f005e9d\r\n",
+    "│ Tip: Use /plan to design before building\r\n",
+    "┌────────────────────────────────────────────────┐\r\n",
+    "│ → Plan, search, build anything                 │\r\n",
+    "└────────────────────────────────────────────────┘\r\n",
+  ].join("");
+  for (let offset = 0; offset < banner.length; offset += 19) {
+    aliased.noteOutput("pane-b", banner.slice(offset, offset + 19));
+  }
+  assert.equal(aliased.snapshot()["pane-b"]?.status, "working");
+  assert.equal(aliased.snapshot()["pane-b"]?.agent, "cursor");
+});
+
 test("a finished task still turns red when it stops to ask the user", () => {
   const tracker = new AgentActivityTracker();
   tracker.register("pane-a", "claude");

@@ -310,10 +310,11 @@ const agentTaskStartScreens = new Map<
 const terminalInputSendChains = new Map<string, Promise<void>>();
 const commandSendChains = new Map<string, Promise<void>>();
 
-const AGENT_RE = /\b(OpenAI Codex|Codex CLI|Claude Code|FastClaw)\b|Use \/skills|\/model to change|bypass permissions/i;
+const AGENT_RE = /\b(OpenAI Codex|Codex CLI|Claude Code|FastClaw|Cursor(?: Cloud)? Agent)\b|Use \/skills|\/model to change|bypass permissions|Plan, search, build anything/i;
 const CODEX_RE = /\b(OpenAI Codex|Codex CLI)\b/i;
 const CLAUDE_RE = /\bClaude Code\b/i;
 const FASTCLAW_RE = /\bFastClaw\b/i;
+const CURSOR_RE = /\bCursor(?:\s+Cloud)?\s+Agent\b/i;
 const ERROR_RE =
   /\b(error|failed|failure|exception|fatal|panic|permission denied|timed out|rate limit|quota|authentication|unauthorized|forbidden|command not found)\b/i;
 const BENIGN_ERROR_RE = /\b(no errors?|0 errors?|without errors?)\b/i;
@@ -563,6 +564,7 @@ function detectAgent(text: string): AgentActivity["agent"] | undefined {
   if (CLAUDE_RE.test(text)) return "claude";
   if (CODEX_RE.test(text)) return "codex";
   if (FASTCLAW_RE.test(text)) return "fastclaw";
+  if (CURSOR_RE.test(text)) return "cursor";
   return undefined;
 }
 
@@ -659,15 +661,16 @@ function completeAgentActivityIfIdle(id: string) {
   }
   const transition = observeScreenForActivity(id);
   // A settled status contradicted by fresh busy evidence was settled too
-  // early: the agent stalled past the quiet window and is still working the
-  // exact same task. Only a completion this quiet window itself produced, on
-  // a screen the agent still owned, may be taken back that way — a done the
-  // pty proved (an agent that exited, an OSC report) is not the screen's to
-  // overturn, and a question waiting on a person is never demoted to work in
-  // progress. Only the live screen may say so — a viewport scrolled into
-  // history replays old spinner rows, hence the follow guard.
+  // early — or a keypress-only confirmation menu (e.g. pressing `y`) has just
+  // been answered and the agent resumed working the exact same task. Only a
+  // status this quiet window itself produced, on a screen the agent still
+  // owned, may be taken back that way — an authoritative exit/OSC result is
+  // not the screen's to overturn, and a question still on screen never sets
+  // busyVisible (confirmation is checked before busy in AgentIdleWatcher).
+  // Only the live screen may say so — a viewport scrolled into history replays
+  // old spinner rows, hence the follow guard.
   if (
-    activity.status === "done" &&
+    (activity.status === "done" || activity.status === "error") &&
     agentRetractableEpochs.get(id) === activity.taskEpoch &&
     agentReportedInactiveEpochs.get(id) !== activity.taskEpoch &&
     transition === null &&
@@ -746,8 +749,12 @@ function completeAgentActivityIfIdle(id: string) {
         return;
       }
       // Settled by this quiet window, on a screen the agent still owned: the
-      // one shape of completion live busy evidence is allowed to take back.
-      if (confirmed.status === "done" && confirmed.agentActive) {
+      // one shape of completion or confirmation live busy evidence is allowed
+      // to take back (e.g. after a stall or a keypress-only `y` approval).
+      if (
+        (confirmed.status === "done" || confirmed.status === "error") &&
+        confirmed.agentActive
+      ) {
         agentRetractableEpochs.set(id, observedEpoch);
       }
       if (isDemo) {
