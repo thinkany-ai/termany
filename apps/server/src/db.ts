@@ -244,6 +244,14 @@ export function getAllScreens(): Record<string, string> {
   return Object.fromEntries(rows.map((r) => [r.id, r.data]));
 }
 
+/** One session's saved final screen, if it quit inside a TUI. */
+export function getScreen(id: string): string | null {
+  const row = db.prepare("SELECT data FROM session_screen WHERE id = ?").get(id) as
+    | { data: string }
+    | undefined;
+  return row ? row.data : null;
+}
+
 /** Upsert final screens; a null value means "not in a TUI now" and deletes. */
 export function setScreenBatch(screens: Record<string, string | null>): void {
   const entries = Object.entries(screens ?? {});
